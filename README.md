@@ -1,6 +1,16 @@
 # Habito
 
-A minimalist, keyboard-navigable cross-platform Pomodoro tracker for developers with logs stored on Github.
+A minimalist, keyboard-navigable cross-platform Pomodoro tracker for developers.
+
+## Core Features
+
+- **A [tamper-evident log](#tamper-evident-log)** — every event is appended to an
+  immutable log and pushed to a separate GitHub repo the moment it happens, so GitHub's
+  server-recorded push times stand as third-party proof of when you actually studied.
+- **[Fully keyboard-driven](#keyboard)** — Tab reaches every control, with shortcuts for
+  start, stop and adjust.
+- **Honest backfilling** — sessions added after the fact are recorded as `backfilled` and
+  reported separately, never masquerading as live evidence.
 
 ## Requirements
 
