@@ -54,15 +54,21 @@ uv run habito init-data      # (re)create the data repo
 The main window is a clean timer: Start / Pause / Skip / Stop, and a live **status** line
 (`synced ✓` when your log has reached GitHub, `offline · N to sync` when a push is behind).
 
-To adjust the current round, use the **stepper**: `Adjust: [ − ] [ step ▾ ] [ + ]`. Pick a
-step from the dropdown (the values come from `quick_add_minutes`, plus a **Custom…** entry
-for any amount), then tap `−` or `+` to nudge the timer down or up by that many minutes.
-Each adjustment is recorded transparently in the log as a `TimeAdjusted` event.
+The **big time is also the work-length control**:
 
-The **⚙ gear** (top-right) opens a small Settings window where you can change the Pomodoro
-format (work / break / rounds — saved back to `settings.toml` with your comments preserved,
-applied to your next session) and **Add past session** to backfill a session you did away
-from the app.
+- **Before you start** (or after a session ends) it's an editable field — click in and type
+  `30` (or `30:00`), or nudge it with the stepper below. This sets the work length for your
+  next session.
+- **While running** it locks to the live countdown, and the stepper adjusts the current
+  round on the fly.
+
+The **stepper** — `Adjust: [ − ] [ step ▾ ] [ + ]` — picks a step from the dropdown (values
+from `quick_add_minutes`, plus a **Custom…** entry for any amount) and nudges by that many
+minutes. Live adjustments are recorded transparently in the log as `TimeAdjusted` events.
+
+The **⚙ gear** opens Settings for **break length** and **round count** (work length lives on
+the timer now), plus **Add past session** to backfill. Everything is saved back to
+`settings.toml` with your comments preserved, applied to your next session.
 
 ## Layout
 

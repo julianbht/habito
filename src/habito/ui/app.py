@@ -43,7 +43,10 @@ class HabitoApp(ctk.CTk):
             self.attributes("-topmost", True)
 
         self._view = TimerView(
-            self, controller=self, quick_add_minutes=config.pomodoro.quick_add_minutes
+            self,
+            controller=self,
+            quick_add_minutes=config.pomodoro.quick_add_minutes,
+            work_minutes=config.pomodoro.work_minutes,
         )
         self._view.pack(fill="both", expand=True)
 
@@ -114,14 +117,17 @@ class HabitoApp(ctk.CTk):
     def on_add_time(self, minutes: float) -> None:
         self._engine.add_time(minutes)
 
-    def on_save_settings(self, work: int, brk: int, rounds: int) -> str | None:
-        """Validate, persist, and apply new Pomodoro settings. Returns an error or None."""
+    def _apply_pomodoro(
+        self, *, work: int | None = None, brk: int | None = None, rounds: int | None = None
+    ) -> str | None:
+        """Merge overrides into the Pomodoro config, validate, apply, and persist."""
+        cur = self._config.pomodoro
         try:
             updated = PomodoroConfig(
-                work_minutes=work,
-                break_minutes=brk,
-                rounds=rounds,
-                quick_add_minutes=self._config.pomodoro.quick_add_minutes,
+                work_minutes=cur.work_minutes if work is None else work,
+                break_minutes=cur.break_minutes if brk is None else brk,
+                rounds=cur.rounds if rounds is None else rounds,
+                quick_add_minutes=cur.quick_add_minutes,
             )
         except ValidationError as exc:
             first = exc.errors()[0]
@@ -135,6 +141,14 @@ class HabitoApp(ctk.CTk):
         except OSError as exc:
             return f"Applied, but couldn't write settings.toml: {exc}"
         return None
+
+    def on_set_work_minutes(self, minutes: int) -> str | None:
+        """Set the work length from the timer's editable field."""
+        return self._apply_pomodoro(work=minutes)
+
+    def on_save_settings(self, brk: int, rounds: int) -> str | None:
+        """Save break length and round count from the Settings window."""
+        return self._apply_pomodoro(brk=brk, rounds=rounds)
 
     def on_open_backfill(self) -> None:
         BackfillDialog(

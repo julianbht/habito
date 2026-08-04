@@ -1,7 +1,11 @@
 """The main timer screen (a CustomTkinter frame).
 
-Purely presentational: it renders an :class:`EngineState` snapshot and forwards button
-presses to the controller. It never talks to storage or git directly.
+Purely presentational: it renders an :class:`EngineState` snapshot and forwards input to
+the controller. It never talks to storage or git directly.
+
+The big time doubles as the work-length control. While idle it is an editable field (type
+a value, or nudge it with the −/+ stepper) that sets the next session's work length; once
+running it locks to the live countdown and the stepper adjusts the round live.
 """
 
 from __future__ import annotations
@@ -34,12 +38,28 @@ def _fmt_step(value: float) -> str:
     return str(int(value)) if float(value).is_integer() else f"{value:g}"
 
 
+def _parse_minutes(text: str) -> int | None:
+    """Parse ``"30"`` or ``"30:00"`` / ``"29:40"`` into whole minutes (rounded)."""
+    text = text.strip()
+    if not text:
+        return None
+    try:
+        if ":" in text:
+            mm, _, ss = text.partition(":")
+            total = int(mm) * 60 + (int(ss) if ss else 0)
+            return round(total / 60)
+        return round(float(text))
+    except ValueError:
+        return None
+
+
 class Controller(Protocol):
     def on_start(self) -> None: ...
     def on_pause_resume(self) -> None: ...
     def on_skip(self) -> None: ...
     def on_stop(self) -> None: ...
     def on_add_time(self, minutes: float) -> None: ...
+    def on_set_work_minutes(self, minutes: int) -> str | None: ...
 
 
 class TimerView(ctk.CTkFrame):
@@ -48,12 +68,14 @@ class TimerView(ctk.CTkFrame):
         master,
         controller: Controller,
         quick_add_minutes: list[int],
+        work_minutes: int,
     ) -> None:
         super().__init__(master, fg_color="transparent")
         self._c = controller
         self._quick = quick_add_minutes or [1]
         self._is_idle = True
-        self._add_enabled = False
+        self._showing_entry: bool | None = None
+        self._planned_minutes = int(work_minutes)
         self._step = float(self._quick[0])
         self._build()
 
@@ -64,20 +86,28 @@ class TimerView(ctk.CTkFrame):
         self._round_lbl = ctk.CTkLabel(self, text="Round – / –", font=ctk.CTkFont(size=14))
         self._round_lbl.grid(row=0, column=0, pady=(18, 0))
 
-        self._state_lbl = ctk.CTkLabel(
-            self, text="Ready", font=ctk.CTkFont(size=15, weight="bold")
-        )
+        self._state_lbl = ctk.CTkLabel(self, text="Ready", font=ctk.CTkFont(size=15, weight="bold"))
         self._state_lbl.grid(row=1, column=0, pady=(2, 0))
 
-        self._time_lbl = ctk.CTkLabel(self, text="00:00", font=ctk.CTkFont(size=64, weight="bold"))
-        self._time_lbl.grid(row=2, column=0, pady=(4, 6))
+        big = ctk.CTkFont(size=56, weight="bold")
+        self._time_lbl = ctk.CTkLabel(self, text="00:00", font=big)
+        self._time_entry = ctk.CTkEntry(
+            self, font=big, width=176, height=72, justify="center", border_width=2
+        )
+        self._time_entry.bind("<Return>", lambda _e: (self._commit_planned(), self.focus_set()))
+        self._time_entry.bind("<FocusOut>", lambda _e: self._commit_planned())
+
+        self._hint_lbl = ctk.CTkLabel(
+            self, text="click to edit · or use −/+", font=ctk.CTkFont(size=10), text_color="gray50"
+        )
+        self._hint_lbl.grid(row=3, column=0, pady=(2, 4))
 
         self._progress = ctk.CTkProgressBar(self, width=280)
         self._progress.set(0)
-        self._progress.grid(row=3, column=0, pady=(0, 14), padx=24, sticky="ew")
+        self._progress.grid(row=4, column=0, pady=(4, 14), padx=24, sticky="ew")
 
         controls = ctk.CTkFrame(self, fg_color="transparent")
-        controls.grid(row=4, column=0, pady=(0, 8))
+        controls.grid(row=5, column=0, pady=(0, 8))
         self._primary_btn = ctk.CTkButton(controls, text="Start", width=110, command=self._primary)
         self._primary_btn.grid(row=0, column=0, padx=4)
         self._skip_btn = ctk.CTkButton(
@@ -91,7 +121,7 @@ class TimerView(ctk.CTkFrame):
 
         # Stepper: Adjust:  [ − ]  [ step ▾ ]  [ + ]  min
         add_row = ctk.CTkFrame(self, fg_color="transparent")
-        add_row.grid(row=5, column=0, pady=(6, 0))
+        add_row.grid(row=6, column=0, pady=(6, 0))
         ctk.CTkLabel(add_row, text="Adjust:").grid(row=0, column=0, padx=(0, 8))
         self._minus_btn = ctk.CTkButton(
             add_row, text="−", width=38, fg_color="gray30", command=self._nudge_down
@@ -112,16 +142,42 @@ class TimerView(ctk.CTkFrame):
         ctk.CTkLabel(add_row, text="min").grid(row=0, column=4, padx=(6, 0))
 
         self._today_lbl = ctk.CTkLabel(self, text="Today: 0m", font=ctk.CTkFont(size=13))
-        self._today_lbl.grid(row=6, column=0, pady=(16, 2))
+        self._today_lbl.grid(row=7, column=0, pady=(16, 2))
 
         self._status_lbl = ctk.CTkLabel(
             self, text="status: –", font=ctk.CTkFont(size=11), text_color="gray60"
         )
-        self._status_lbl.grid(row=7, column=0, pady=(2, 12))
+        self._status_lbl.grid(row=8, column=0, pady=(2, 12))
+
+        # Start in idle mode so the editable field is visible before the first render tick.
+        self._time_entry.grid(row=2, column=0, pady=(4, 0))
+        self._refresh_entry()
+        self._showing_entry = True
+
+    # --- work-length editing (idle) --------------------------------------
+    def _refresh_entry(self) -> None:
+        self._time_entry.delete(0, "end")
+        self._time_entry.insert(0, format_timer(self._planned_minutes * 60))
+
+    def _set_planned(self, minutes: int) -> None:
+        self._planned_minutes = max(1, minutes)
+        self._refresh_entry()
+        self._c.on_set_work_minutes(self._planned_minutes)
+
+    def _commit_planned(self) -> None:
+        minutes = _parse_minutes(self._time_entry.get())
+        if minutes is not None and minutes >= 1:
+            self._set_planned(minutes)
+        else:
+            self._refresh_entry()  # ignore invalid input, snap back
 
     # --- button glue -----------------------------------------------------
     def _primary(self) -> None:
-        self._c.on_start() if self._is_idle else self._c.on_pause_resume()
+        if self._is_idle:
+            self._commit_planned()
+            self._c.on_start()
+        else:
+            self._c.on_pause_resume()
 
     def _on_step_change(self, choice: str) -> None:
         if choice == _CUSTOM:
@@ -143,12 +199,16 @@ class TimerView(ctk.CTkFrame):
         self._step_menu.set(_fmt_step(self._step))  # never leave "Custom…" showing
 
     def _nudge_up(self) -> None:
-        if self._add_enabled:
-            self._c.on_add_time(self._step)
+        self._nudge(self._step)
 
     def _nudge_down(self) -> None:
-        if self._add_enabled:
-            self._c.on_add_time(-self._step)
+        self._nudge(-self._step)
+
+    def _nudge(self, delta: float) -> None:
+        if self._is_idle:
+            self._set_planned(int(round(self._planned_minutes + delta)))
+        else:
+            self._c.on_add_time(delta)
 
     # --- rendering -------------------------------------------------------
     def render(self, snap: EngineState, today_seconds: int) -> None:
@@ -158,12 +218,7 @@ class TimerView(ctk.CTkFrame):
         self._state_lbl.configure(
             text=_STATE_LABEL[snap.state], text_color=_ACCENT.get(snap.state, "gray70")
         )
-        self._time_lbl.configure(text=format_timer(snap.remaining_seconds))
-
-        target = snap.phase_target_seconds or 1
-        elapsed = target - snap.remaining_seconds
-        self._progress.set(max(0.0, min(1.0, elapsed / target)))
-        self._progress.configure(progress_color=_ACCENT.get(snap.state, "#3b8ed0"))
+        self._render_time(snap)
 
         if snap.state in (State.idle, State.done):
             self._primary_btn.configure(text="Start")
@@ -176,11 +231,28 @@ class TimerView(ctk.CTkFrame):
         state_flag = "normal" if active else "disabled"
         self._skip_btn.configure(state=state_flag)
         self._stop_btn.configure(state=state_flag)
-        self._add_enabled = active
-        for widget in (self._minus_btn, self._plus_btn, self._step_menu):
-            widget.configure(state=state_flag)
 
         self._today_lbl.configure(text=f"Today: {format_duration(today_seconds)}")
+
+    def _render_time(self, snap: EngineState) -> None:
+        if self._is_idle:
+            if self._showing_entry is not True:
+                self._time_lbl.grid_remove()
+                self._time_entry.grid(row=2, column=0, pady=(4, 0))
+                self._hint_lbl.grid()
+                self._refresh_entry()  # safe: just switched in, user isn't typing yet
+                self._showing_entry = True
+            self._progress.set(0)
+        else:
+            if self._showing_entry is not False:
+                self._time_entry.grid_remove()
+                self._hint_lbl.grid_remove()
+                self._time_lbl.grid(row=2, column=0, pady=(4, 6))
+                self._showing_entry = False
+            self._time_lbl.configure(text=format_timer(snap.remaining_seconds))
+            target = snap.phase_target_seconds or 1
+            self._progress.set(max(0.0, min(1.0, (target - snap.remaining_seconds) / target)))
+            self._progress.configure(progress_color=_ACCENT.get(snap.state, "#3b8ed0"))
 
     def set_status(self, text: str, color: str = "gray60") -> None:
         self._status_lbl.configure(text=text, text_color=color)
