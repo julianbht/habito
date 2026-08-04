@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QGuiApplication
+from PySide6.QtWidgets import QApplication
 
 ACCENT_LIVE = "#3b8ed0"
 ACCENT_TEST = "#d9534f"
@@ -49,6 +50,19 @@ LIGHT = Palette(
     text="#1c1e21",
     text_disabled="#a0a4ab",
 )
+
+
+# The application-wide base size, in points rather than stylesheet pixels — see the note
+# on the QWidget rule in build_stylesheet.
+BASE_POINT_SIZE = 10
+
+
+def apply(app: QApplication, active: Theme) -> None:
+    """Put a theme onto the application: base font first, then the stylesheet."""
+    font = app.font()
+    font.setPointSize(BASE_POINT_SIZE)
+    app.setFont(font)
+    app.setStyleSheet(active.stylesheet())
 
 
 def accent_for(test_mode: bool) -> str:
@@ -109,10 +123,13 @@ def build_stylesheet(accent: str, palette: Palette = DARK) -> str:
     """Qt stylesheet for the whole app, themed around ``accent`` and ``palette``."""
     p = palette
     return f"""
+    /* No font-size here on purpose. A stylesheet size is in pixels, which leaves
+       QFont::pointSize() at -1 — and Qt internals (QComboBox's, for one) read that and
+       feed it straight back to setPointSize(), warning on every run. The base size is set
+       as a real point size in apply() instead; rules below still override per widget. */
     QWidget {{
         background-color: {p.bg};
         color: {p.text};
-        font-size: 13px;
     }}
     QDialog {{ background-color: {p.bg}; }}
 

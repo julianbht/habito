@@ -132,3 +132,29 @@ def test_live_window_has_no_test_banner(qtbot, config):
 
     banners = banner_labels(app)
     assert banners == []
+
+
+# --- fonts ----------------------------------------------------------------
+def test_the_base_font_is_set_in_points_not_stylesheet_pixels(qapp):
+    """A stylesheet size leaves QFont::pointSize() at -1, which Qt internals warn about."""
+    theme.apply(qapp, theme.Theme.resolve("dark", test_mode=False))
+
+    assert qapp.font().pointSize() == theme.BASE_POINT_SIZE
+    assert qapp.font().pointSize() > 0
+
+
+def test_the_universal_widget_rule_sets_no_font_size(qapp):
+    """Anything inherited must keep a real point size; per-widget rules may still be px."""
+    sheet = theme.Theme.resolve("dark", test_mode=False).stylesheet()
+    body = sheet.split("QWidget {", 1)[1].split("}", 1)[0]  # the rule itself, not its comment
+
+    assert "background-color" in body  # we found the right block
+    assert "font-size" not in body
+
+
+def test_applying_a_theme_sets_both_font_and_stylesheet(qapp):
+    theme.apply(qapp, theme.Theme.resolve("dark", test_mode=True))
+
+    assert qapp.styleSheet()
+    assert theme.ACCENT_TEST in qapp.styleSheet()
+    assert qapp.font().pointSize() == theme.BASE_POINT_SIZE
