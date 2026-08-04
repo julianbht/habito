@@ -13,7 +13,7 @@ from PySide6.QtCore import Qt
 
 from habito.engine.pomodoro import EngineState, State
 from habito.ui.timer_view import TimerView
-from habito.ui.widgets import MinutesSpinBox, parse_minutes
+from habito.ui.widgets import DurationSpinBox, parse_seconds
 
 
 class FakeController:
@@ -24,7 +24,7 @@ class FakeController:
         self.paused = 0
         self.stopped = 0
         self.added: list[float] = []
-        self.work_minutes: list[int] = []
+        self.work_minutes: list[float] = []
 
     def on_start(self) -> None:
         self.started += 1
@@ -38,7 +38,7 @@ class FakeController:
     def on_add_time(self, minutes: float) -> None:
         self.added.append(minutes)
 
-    def on_set_work_minutes(self, minutes: int) -> str | None:
+    def on_set_work_minutes(self, minutes: float) -> str | None:
         self.work_minutes.append(minutes)
         return None
 
@@ -69,23 +69,34 @@ def view(qtbot):
 # --- the duration control (feature 1) ------------------------------------
 @pytest.mark.parametrize(
     ("text", "expected"),
-    [("30", 30), ("30:00", 30), ("29:40", 30), ("29:00", 29), ("", None), ("abc", None)],
+    [
+        ("30", 1800),  # a bare number is minutes
+        ("30:00", 1800),
+        ("0:10", 10),  # ...but anything with a colon is read literally
+        ("00:10", 10),
+        ("1:30", 90),
+        ("", None),
+        ("abc", None),
+    ],
 )
-def test_parse_minutes(text, expected):
-    assert parse_minutes(text) == expected
+def test_parse_seconds(text, expected):
+    assert parse_seconds(text) == expected
 
 
-def test_spin_box_displays_mm_ss(qtbot):
-    spin = MinutesSpinBox()
+@pytest.mark.parametrize(
+    ("seconds", "shown"), [(1500, "25:00"), (10, "00:10"), (90, "01:30")]
+)
+def test_spin_box_displays_mm_ss(qtbot, seconds, shown):
+    spin = DurationSpinBox()
     qtbot.addWidget(spin)
-    spin.setValue(25)
-    assert spin.text() == "25:00"
+    spin.setValue(seconds)
+    assert spin.text() == shown
 
 
 def test_spin_box_steps_by_one_minute(view, qtbot):
     widget, controller = view
     widget._spin.stepUp()
-    assert widget._spin.value() == 26
+    assert widget._spin.value() == 1560
     assert controller.work_minutes[-1] == 26
 
 
@@ -96,8 +107,20 @@ def test_typing_a_duration_commits_on_enter(view, qtbot):
     qtbot.keyClicks(widget._spin, "45")
     qtbot.keyClick(widget._spin, Qt.Key.Key_Return)
 
-    assert widget._spin.value() == 45
+    assert widget._spin.value() == 2700
     assert controller.work_minutes[-1] == 45
+
+
+def test_a_sub_minute_round_can_be_typed(view, qtbot):
+    """Short rounds make notifications testable without waiting out a real one."""
+    widget, controller = view
+    widget._spin.setFocus()
+    widget._spin.lineEdit().selectAll()
+    qtbot.keyClicks(widget._spin, "0:10")
+    qtbot.keyClick(widget._spin, Qt.Key.Key_Return)
+
+    assert widget._spin.value() == 10
+    assert controller.work_minutes[-1] == pytest.approx(10 / 60)
 
 
 def test_keyboard_up_arrow_changes_duration(view, qtbot):
@@ -105,7 +128,7 @@ def test_keyboard_up_arrow_changes_duration(view, qtbot):
     widget._spin.setFocus()
     qtbot.keyClick(widget._spin, Qt.Key.Key_Up)
 
-    assert widget._spin.value() == 26
+    assert widget._spin.value() == 1560
     assert controller.work_minutes[-1] == 26
 
 
@@ -241,7 +264,7 @@ def test_enter_in_the_duration_field_still_commits_the_value(view, qtbot):
     qtbot.keyClicks(widget._spin, "40")
     qtbot.keyClick(widget._spin, Qt.Key.Key_Return)
 
-    assert widget._spin.value() == 40
+    assert widget._spin.value() == 2400  # 40 minutes
     assert controller.started == 0  # and didn't leak through to a button
 
 
@@ -253,7 +276,7 @@ def test_nudging_while_idle_changes_the_planned_length_not_the_round(view):
     widget.nudge_up()
     widget.nudge_down()
 
-    assert widget._spin.value() == 26
+    assert widget._spin.value() == 1560  # 26:00
     assert controller.added == []  # nothing to add time to — no session is running
 
 
@@ -265,4 +288,4 @@ def test_nudging_while_running_adjusts_the_round_not_the_planned_length(view):
     widget.nudge_down()
 
     assert controller.added == [1, -1]
-    assert widget._spin.value() == 25  # planned length untouched mid-session
+    assert widget._spin.value() == 1500  # planned length untouched mid-session

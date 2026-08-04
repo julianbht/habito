@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class PomodoroConfig(BaseModel):
-    work_minutes: int = Field(default=25, gt=0)
+    work_minutes: float = Field(default=25, gt=0)  # fractional for sub-minute rounds
     break_minutes: int = Field(default=5, gt=0)
     rounds: int = Field(default=4, gt=0)
 
@@ -25,7 +25,18 @@ class EvidenceConfig(BaseModel):
 class UIConfig(BaseModel):
     theme: str = "dark"  # "dark" | "light" | "system"
     notifications: bool = True
+    sound: str = "chime"  # a key from habito.ui.sounds.CATALOGUE
     always_on_top: bool = False
+
+    @field_validator("sound")
+    @classmethod
+    def _known_sound(cls, v: str) -> str:
+        # Imported here: habito.config must not drag in Qt just to be validated.
+        from habito.ui.sounds import KEYS
+
+        if v not in KEYS:
+            raise ValueError(f"sound must be one of {', '.join(KEYS)}")
+        return v
 
 
 class PathsConfig(BaseModel):

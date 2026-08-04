@@ -16,16 +16,20 @@ from habito.ui.settings_view import SettingsDialog
 
 class FakeController:
     def __init__(self) -> None:
-        self.saved: list[tuple[int, int]] = []
+        self.saved: list[tuple[int, int, str]] = []
+        self.previewed: list[str] = []
         self.backfills = 0
         self.error: str | None = None
 
-    def on_save_settings(self, brk: int, rounds: int) -> str | None:
-        self.saved.append((brk, rounds))
+    def on_save_settings(self, brk: int, rounds: int, sound: str) -> str | None:
+        self.saved.append((brk, rounds, sound))
         return self.error
 
     def on_open_backfill(self) -> None:
         self.backfills += 1
+
+    def on_preview_sound(self, sound: str) -> None:
+        self.previewed.append(sound)
 
 
 @pytest.fixture
@@ -44,7 +48,7 @@ def test_edits_are_passed_to_the_controller(dialog, qtbot):
     widget._rounds_spin.setValue(6)
     qtbot.mouseClick(widget._save_btn, Qt.MouseButton.LeftButton)
 
-    assert controller.saved == [(12, 6)]
+    assert controller.saved == [(12, 6, "chime")]
     assert "Saved" in widget._status.text()
 
 
@@ -70,7 +74,7 @@ def test_enter_saves_when_the_save_button_has_focus(dialog, qtbot):
     widget._save_btn.setFocus()
     qtbot.keyClick(widget._save_btn, Qt.Key.Key_Return)
 
-    assert controller.saved == [(5, 4)]
+    assert controller.saved == [(5, 4, "chime")]
 
 
 def test_tab_reaches_every_control(dialog, qtbot):
@@ -78,8 +82,14 @@ def test_tab_reaches_every_control(dialog, qtbot):
     widget._break_spin.setFocus()
 
     seen = []
-    for _ in range(3):
+    for _ in range(5):
         qtbot.keyClick(widget.focusWidget(), Qt.Key.Key_Tab)
         seen.append(widget.focusWidget())
 
-    assert seen == [widget._rounds_spin, widget._save_btn, widget._backfill_btn]
+    assert seen == [
+        widget._rounds_spin,
+        widget._sound_box,
+        widget._preview_btn,
+        widget._save_btn,
+        widget._backfill_btn,
+    ]

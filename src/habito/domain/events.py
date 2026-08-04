@@ -32,7 +32,7 @@ class BaseEvent(BaseModel):
 
 class SessionStarted(BaseEvent):
     type: Literal["session_started"] = "session_started"
-    work_minutes: int
+    work_minutes: float  # fractional so a round can be shorter than a minute
     break_minutes: int
     planned_rounds: int
 

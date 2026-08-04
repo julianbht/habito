@@ -1,4 +1,4 @@
-"""The Settings dialog: edit the Pomodoro format and add past sessions.
+"""The Settings dialog: Pomodoro format, notification sound, and past sessions.
 
 Kept off the main timer window so the timer stays uncluttered. Saving validates through the
 controller (which persists to settings.toml and applies to the engine) and reports back a
@@ -11,23 +11,32 @@ from typing import Protocol
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
     QFormLayout,
     QFrame,
-    QLabel,
-    QPushButton,
+    QHBoxLayout,
     QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from habito.config.models import PomodoroConfig
-from habito.ui import theme
+from habito.ui import sounds, theme
+from habito.ui.widgets import button, label
 
 
 class Controller(Protocol):
-    def on_save_settings(self, brk: int, rounds: int) -> str | None: ...
+    def on_save_settings(self, brk: int, rounds: int, sound: str) -> str | None: ...
     def on_open_backfill(self) -> None: ...
+    def on_preview_sound(self, sound: str) -> None: ...
+
+
+def _rule() -> QFrame:
+    line = QFrame()
+    line.setFrameShape(QFrame.Shape.HLine)
+    line.setStyleSheet("color: #43464d;")
+    return line
 
 
 class SettingsDialog(QDialog):
@@ -35,21 +44,22 @@ class SettingsDialog(QDialog):
         self,
         controller: Controller,
         pomodoro: PomodoroConfig,
+        sound: str = sounds.DEFAULT,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._c = controller
         self.setWindowTitle("Settings")
-        self.setMinimumWidth(300)
-        self._build(pomodoro)
+        self.setMinimumWidth(320)
+        self._build(pomodoro, sound)
 
-    def _build(self, pomodoro: PomodoroConfig) -> None:
+    def _build(self, pomodoro: PomodoroConfig, sound: str) -> None:
         root = QVBoxLayout(self)
         root.setContentsMargins(20, 18, 20, 18)
         root.setSpacing(8)
 
-        root.addWidget(QLabel("Session format", objectName="heading"))
-        root.addWidget(QLabel("Work length is set on the timer.", objectName="muted"))
+        root.addWidget(label("Session format", "heading"))
+        root.addWidget(label("Work length is set on the timer.", "muted"))
 
         form = QFormLayout()
         form.setSpacing(8)
@@ -59,31 +69,55 @@ class SettingsDialog(QDialog):
         form.addRow("Rounds", self._rounds_spin)
         root.addLayout(form)
 
-        self._save_btn = QPushButton("Save")
+        root.addWidget(_rule())
+        root.addWidget(label("Notification sound", "heading"))
+        root.addLayout(self._build_sound_row(sound))
+
+        root.addWidget(_rule())
+        self._save_btn = button("Save")
         self._save_btn.setDefault(True)  # Enter saves
         self._save_btn.clicked.connect(self._save)
         root.addWidget(self._save_btn)
 
-        self._status = QLabel("")
+        self._status = label("")
         self._status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self._status)
 
-        rule = QFrame()
-        rule.setFrameShape(QFrame.Shape.HLine)
-        rule.setStyleSheet("color: #43464d;")
-        root.addWidget(rule)
-
-        root.addWidget(QLabel("Missed a session?", objectName="muted"))
-        self._backfill_btn = QPushButton("Add past session")
+        root.addWidget(_rule())
+        root.addWidget(label("Missed a session?", "muted"))
+        self._backfill_btn = button("Add past session")
         self._backfill_btn.clicked.connect(self._c.on_open_backfill)
         root.addWidget(self._backfill_btn)
 
-        for earlier, later in (
-            (self._break_spin, self._rounds_spin),
-            (self._rounds_spin, self._save_btn),
-            (self._save_btn, self._backfill_btn),
-        ):
+        chain = [
+            self._break_spin,
+            self._rounds_spin,
+            self._sound_box,
+            self._preview_btn,
+            self._save_btn,
+            self._backfill_btn,
+        ]
+        for earlier, later in zip(chain, chain[1:], strict=False):
             self.setTabOrder(earlier, later)
+
+    def _build_sound_row(self, sound: str) -> QHBoxLayout:
+        """The picker, plus a button to hear the choice before committing to it."""
+        row = QHBoxLayout()
+        row.setSpacing(8)
+
+        self._sound_box = QComboBox()
+        for entry in sounds.CATALOGUE:
+            self._sound_box.addItem(entry.label, entry.key)
+        self._sound_box.setCurrentIndex(max(0, self._sound_box.findData(sound)))
+        self._sound_box.setToolTip("Played when a round or break ends")
+        self._sound_box.activated.connect(lambda _i: self._preview())
+        row.addWidget(self._sound_box, 1)
+
+        self._preview_btn = button("▶ Test")
+        self._preview_btn.setToolTip("Hear the selected sound")
+        self._preview_btn.clicked.connect(self._preview)
+        row.addWidget(self._preview_btn)
+        return row
 
     @staticmethod
     def _spin(value: int, *, maximum: int) -> QSpinBox:
@@ -93,8 +127,16 @@ class SettingsDialog(QDialog):
         spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
         return spin
 
+    def selected_sound(self) -> str:
+        return self._sound_box.currentData()
+
+    def _preview(self) -> None:
+        self._c.on_preview_sound(self.selected_sound())
+
     def _save(self) -> None:
-        error = self._c.on_save_settings(self._break_spin.value(), self._rounds_spin.value())
+        error = self._c.on_save_settings(
+            self._break_spin.value(), self._rounds_spin.value(), self.selected_sound()
+        )
         if error:
             self._status.setText(error)
             self._status.setStyleSheet(f"color: {theme.ERROR};")

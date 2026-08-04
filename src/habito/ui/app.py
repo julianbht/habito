@@ -14,8 +14,8 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QMainWindow, QVBoxLayout
 
-from habito.config.models import Config, PomodoroConfig
-from habito.config.writer import save_pomodoro
+from habito.config.models import Config, PomodoroConfig, UIConfig
+from habito.config.writer import save_pomodoro, save_ui
 from habito.engine.pomodoro import EngineState, PomodoroEngine, State
 from habito.evidence.worker import EvidenceStatus, EvidenceWorker
 from habito.projections.daily import summary_for
@@ -25,6 +25,7 @@ from habito.ui.backfill_view import BackfillDialog
 from habito.ui.notifier import DesktopNotifier, Sink, notification_for
 from habito.ui.progress_background import ProgressBackground
 from habito.ui.settings_view import SettingsDialog
+from habito.ui.sounds import SoundPlayer
 from habito.ui.timer_view import TimerView, progress_for
 from habito.ui.widgets import button
 
@@ -61,7 +62,11 @@ class HabitoApp(QMainWindow):
 
         self._build()
         self._install_shortcuts()
-        self._notifier: Sink = DesktopNotifier(self, enabled=config.ui.notifications)
+        self._sounds = SoundPlayer()
+        self._sounds.preload(config.ui.sound)
+        self._notifier: Sink = DesktopNotifier(
+            self, self._sounds, config.ui.sound, enabled=config.ui.notifications
+        )
 
         self._status_arrived.connect(self._render_status)
         self._today_baseline = self._compute_today_baseline()
@@ -143,7 +148,10 @@ class HabitoApp(QMainWindow):
             self._settings_dialog.activateWindow()
             return
         self._settings_dialog = SettingsDialog(
-            controller=self, pomodoro=self._config.pomodoro, parent=self
+            controller=self,
+            pomodoro=self._config.pomodoro,
+            sound=self._config.ui.sound,
+            parent=self,
         )
         self._settings_dialog.show()
 
@@ -207,14 +215,38 @@ class HabitoApp(QMainWindow):
         """Set the work length from the timer's duration field."""
         return self._apply_pomodoro(work=minutes)
 
-    def on_save_settings(self, brk: int, rounds: int) -> str | None:
-        """Save break length and round count from the Settings window."""
-        return self._apply_pomodoro(brk=brk, rounds=rounds)
+    def on_save_settings(self, brk: int, rounds: int, sound: str) -> str | None:
+        """Save break length, round count and notification sound from Settings."""
+        return self._apply_pomodoro(brk=brk, rounds=rounds) or self._apply_sound(sound)
+
+    def on_preview_sound(self, sound: str) -> None:
+        """Play a sound without committing to it, so it can be auditioned."""
+        self._sounds.play(sound)
+
+    def _apply_sound(self, sound: str) -> str | None:
+        try:
+            updated = self._config.ui.model_copy(update={"sound": sound})
+            UIConfig.model_validate(updated.model_dump())
+        except ValidationError as exc:
+            return f"sound: {exc.errors()[0]['msg']}"
+
+        self._config.ui = updated
+        self._notifier.set_sound(sound)
+        self._sounds.preload(sound)
+        if self._test_mode:
+            return None  # a test run must not rewrite your real settings.toml
+        try:
+            save_ui(self._config, updated)
+        except OSError as exc:
+            return f"Applied, but couldn't write settings.toml: {exc}"
+        return None
 
     def on_open_backfill(self) -> None:
         BackfillDialog(
             on_submit=self._apply_backfill,
-            default_work=self._config.pomodoro.work_minutes,
+            # Backfilled sessions are described in whole minutes; a sub-minute test round
+            # isn't a sensible default for one.
+            default_work=max(1, round(self._config.pomodoro.work_minutes)),
             default_break=self._config.pomodoro.break_minutes,
             default_rounds=self._config.pomodoro.rounds,
             parent=self._settings_dialog or self,

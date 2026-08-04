@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeyEvent, QValidator
 from PySide6.QtWidgets import QLabel, QPushButton, QSpinBox, QWidget
 
-_MINUTES_RE = re.compile(r"\d{0,3}(:\d{0,2})?")
+_DURATION_RE = re.compile(r"\d{0,3}(:\d{0,2})?")
 
 
 def format_timer(seconds: int) -> str:
@@ -31,17 +31,21 @@ def format_duration(seconds: int) -> str:
     return f"{minutes}m"
 
 
-def parse_minutes(text: str) -> int | None:
-    """Parse ``"30"`` or ``"30:00"`` / ``"29:40"`` into whole minutes (rounded)."""
+def parse_seconds(text: str) -> int | None:
+    """Parse a typed duration into seconds.
+
+    A bare number is minutes — ``30`` is half an hour, which is what you mean when you
+    type it into a Pomodoro timer. Anything with a colon is read literally, so ``0:10``
+    is ten seconds and ``1:30`` is ninety.
+    """
     text = text.strip()
     if not text:
         return None
     try:
         if ":" in text:
             mm, _, ss = text.partition(":")
-            total = int(mm) * 60 + (int(ss) if ss else 0)
-            return round(total / 60)
-        return round(float(text))
+            return int(mm or 0) * 60 + int(ss or 0)
+        return round(float(text) * 60)
     except ValueError:
         return None
 
@@ -81,11 +85,16 @@ def button(text: str = "", object_name: str = "") -> Button:
     return widget
 
 
-class MinutesSpinBox(QSpinBox):
-    """Minute input that reads back as ``MM:SS`` but accepts ``30`` or ``30:00``.
+class DurationSpinBox(QSpinBox):
+    """Duration input measured in **seconds**, displayed as ``MM:SS``.
 
-    ``QSpinBox`` already supplies the up/down arrows, keyboard stepping (Up/Down,
-    PageUp/PageDown) and range clamping; we only teach it the ``MM:SS`` presentation.
+    Counting seconds rather than minutes is what lets you type ``0:10`` — handy for
+    trying a notification without waiting out a real round, and for anyone who wants a
+    ninety-second round. A bare ``30`` still means thirty minutes; see
+    :func:`parse_seconds`.
+
+    ``QSpinBox`` already supplies keyboard stepping (Up/Down, PageUp/PageDown) and range
+    clamping; we only teach it the ``MM:SS`` presentation.
 
     Keyboard tracking is off so typing ``3`` on the way to ``30`` doesn't emit an
     intermediate ``valueChanged`` — the value commits on Enter or focus-out.
@@ -94,8 +103,8 @@ class MinutesSpinBox(QSpinBox):
     def __init__(
         self,
         parent: QWidget | None = None,
-        minimum: int = 1,
-        maximum: int = 600,
+        minimum: int = 5,
+        maximum: int = 180 * 60,
         object_name: str = "",
     ) -> None:
         super().__init__(parent)
@@ -106,20 +115,20 @@ class MinutesSpinBox(QSpinBox):
         self.setAccelerated(True)
 
     def textFromValue(self, value: int) -> str:  # noqa: N802 (Qt override)
-        return f"{value:02d}:00"
+        return format_timer(value)
 
     def valueFromText(self, text: str) -> int:  # noqa: N802 (Qt override)
-        minutes = parse_minutes(text)
-        return self.minimum() if minutes is None else minutes
+        seconds = parse_seconds(text)
+        return self.minimum() if seconds is None else seconds
 
     def validate(self, text: str, pos: int):
         """Let partial input stand while typing; only reject impossible text outright."""
         stripped = text.strip()
         if not stripped:
             return (QValidator.State.Intermediate, text, pos)
-        if not _MINUTES_RE.fullmatch(stripped):
+        if not _DURATION_RE.fullmatch(stripped):
             return (QValidator.State.Invalid, text, pos)
-        minutes = parse_minutes(stripped)
-        if minutes is None or not (self.minimum() <= minutes <= self.maximum()):
+        seconds = parse_seconds(stripped)
+        if seconds is None or not (self.minimum() <= seconds <= self.maximum()):
             return (QValidator.State.Intermediate, text, pos)
         return (QValidator.State.Acceptable, text, pos)

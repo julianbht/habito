@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 
 from habito.engine.pomodoro import EngineState, State
 from habito.ui import theme
-from habito.ui.widgets import MinutesSpinBox, button, format_duration, format_timer, label
+from habito.ui.widgets import DurationSpinBox, button, format_duration, format_timer, label
 
 _STATE_LABEL = {
     State.idle: "Ready",
@@ -42,7 +42,7 @@ _STATE_COLOR = {
     State.idle: theme.MUTED,
 }
 # One press of ▲/▼ is worth one minute — deliberately not configurable.
-_STEP_MINUTES = 1
+_STEP_SECONDS = 60
 
 # Media-transport glyphs for the control buttons.
 _PLAY = "▶"  # start / resume
@@ -52,9 +52,10 @@ _STOP = "⏹"  # end session
 _EDIT_PAGE = 0
 _COUNTDOWN_PAGE = 1
 
-# A work round longer than three hours isn't a Pomodoro; capping it also keeps the spin
-# box from sizing itself for six digits.
-_MAX_WORK_MINUTES = 180
+# A work round longer than three hours isn't a Pomodoro. The floor is seconds rather than
+# minutes so a round can be made short enough to watch it finish.
+_MAX_WORK_SECONDS = 180 * 60
+_MIN_WORK_SECONDS = 5
 _TIME_WIDTH = 212
 
 
@@ -76,23 +77,23 @@ class Controller(Protocol):
     def on_pause_resume(self) -> None: ...
     def on_stop(self) -> None: ...
     def on_add_time(self, minutes: float) -> None: ...
-    def on_set_work_minutes(self, minutes: int) -> str | None: ...
+    def on_set_work_minutes(self, minutes: float) -> str | None: ...
 
 
 class TimerView(QWidget):
     def __init__(
         self,
         controller: Controller,
-        work_minutes: int,
+        work_minutes: float,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._c = controller
         self._is_idle = True
-        self._build(int(work_minutes))
+        self._build(round(work_minutes * 60))
 
     # --- layout ----------------------------------------------------------
-    def _build(self, work_minutes: int) -> None:
+    def _build(self, work_seconds: int) -> None:
         root = QVBoxLayout(self)
         root.setContentsMargins(20, 14, 20, 12)
         root.setSpacing(6)
@@ -105,7 +106,7 @@ class TimerView(QWidget):
         self._state_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self._state_lbl)
 
-        root.addLayout(self._build_time_row(work_minutes))
+        root.addLayout(self._build_time_row(work_seconds))
         root.addSpacing(14)
         root.addLayout(self._build_controls())
 
@@ -120,7 +121,7 @@ class TimerView(QWidget):
 
         self._apply_tab_order()
 
-    def _build_time_row(self, work_minutes: int) -> QHBoxLayout:
+    def _build_time_row(self, work_seconds: int) -> QHBoxLayout:
         """The time — editable or counting down — with one ▲/▼ pair permanently beside it.
 
         The spin box's own arrows are switched off: styling ``::up-button`` makes Qt stop
@@ -133,11 +134,15 @@ class TimerView(QWidget):
         self._stack.setFixedWidth(_TIME_WIDTH)
 
         # Page 0 (idle): the spin box *is* the work-length control.
-        self._spin = MinutesSpinBox(maximum=_MAX_WORK_MINUTES, object_name="time")
+        self._spin = DurationSpinBox(
+            minimum=_MIN_WORK_SECONDS, maximum=_MAX_WORK_SECONDS, object_name="time"
+        )
         self._spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
-        self._spin.setValue(work_minutes)
-        self._spin.setSingleStep(_STEP_MINUTES)
-        self._spin.setToolTip("Work length for the next session — type it, or use ▲/▼")
+        self._spin.setValue(work_seconds)
+        self._spin.setSingleStep(_STEP_SECONDS)
+        self._spin.setToolTip(
+            "Work length for the next session — type 30 for minutes, or 0:10 for seconds"
+        )
         self._spin.valueChanged.connect(self._on_planned_changed)
         self._stack.addWidget(self._spin)
 
@@ -209,9 +214,9 @@ class TimerView(QWidget):
         return self._stop_btn
 
     # --- work-length editing (idle) --------------------------------------
-    def _on_planned_changed(self, minutes: int) -> None:
+    def _on_planned_changed(self, seconds: int) -> None:
         if self._is_idle:
-            self._c.on_set_work_minutes(int(minutes))
+            self._c.on_set_work_minutes(seconds / 60)
 
     def commit_planned(self) -> None:
         """Flush a half-typed duration before starting (spin box defers to focus-out)."""
@@ -239,9 +244,9 @@ class TimerView(QWidget):
         care which mode the timer is in.
         """
         if self._is_idle:
-            self._spin.setValue(self._spin.value() + direction * _STEP_MINUTES)
+            self._spin.setValue(self._spin.value() + direction * _STEP_SECONDS)
         else:
-            self._c.on_add_time(direction * _STEP_MINUTES)
+            self._c.on_add_time(direction * _STEP_SECONDS / 60)
 
     # --- rendering -------------------------------------------------------
     def render_state(self, snap: EngineState, today_seconds: int) -> None:

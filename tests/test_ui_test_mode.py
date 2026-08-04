@@ -77,7 +77,7 @@ def test_settings_toml_is_not_rewritten(qtbot, config):
     before = config.settings_file().read_text(encoding="utf-8")
 
     app = build_app(qtbot, config, test_mode=True)
-    assert app.on_save_settings(brk=17, rounds=9) is None
+    assert app.on_save_settings(brk=17, rounds=9, sound="ping") is None
     assert app.on_set_work_minutes(42) is None
 
     assert config.settings_file().read_text(encoding="utf-8") == before
@@ -88,7 +88,7 @@ def test_settings_toml_is_not_rewritten(qtbot, config):
 
 def test_live_mode_does_rewrite_settings_toml(qtbot, config):
     app = build_app(qtbot, config, test_mode=False)
-    assert app.on_save_settings(brk=17, rounds=9) is None
+    assert app.on_save_settings(brk=17, rounds=9, sound="ping") is None
 
     assert "break_minutes = 17" in config.settings_file().read_text(encoding="utf-8")
 
