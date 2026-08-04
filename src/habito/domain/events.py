@@ -8,14 +8,14 @@ live (committed-in-the-moment, evidentially strong) events from backfilled ones.
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
-from typing import Annotated, Literal, Union
+from enum import StrEnum
+from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, TypeAdapter
 
 
-class Origin(str, Enum):
+class Origin(StrEnum):
     live = "live"
     backfilled = "backfilled"
 
@@ -81,17 +81,15 @@ class SessionEnded(BaseEvent):
 
 
 Event = Annotated[
-    Union[
-        SessionStarted,
-        RoundStarted,
-        RoundEnded,
-        BreakStarted,
-        BreakEnded,
-        SessionPaused,
-        SessionResumed,
-        TimeAdjusted,
-        SessionEnded,
-    ],
+    SessionStarted
+    | RoundStarted
+    | RoundEnded
+    | BreakStarted
+    | BreakEnded
+    | SessionPaused
+    | SessionResumed
+    | TimeAdjusted
+    | SessionEnded,
     Field(discriminator="type"),
 ]
 """Discriminated union over the ``type`` field — validates each line into its subtype."""

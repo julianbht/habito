@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
 
@@ -22,7 +22,7 @@ class SystemClock:
         return time.monotonic()
 
     def now(self) -> datetime:
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
 
     def utc_offset_minutes(self) -> int:
         offset = datetime.now().astimezone().utcoffset() or timedelta(0)
@@ -34,7 +34,7 @@ class FakeClock:
 
     def __init__(self, start: datetime | None = None, offset_minutes: int = 0) -> None:
         self._mono = 0.0
-        self._now = start or datetime(2026, 1, 1, tzinfo=timezone.utc)
+        self._now = start or datetime(2026, 1, 1, tzinfo=UTC)
         self._offset = offset_minutes
 
     def advance(self, seconds: float) -> None:

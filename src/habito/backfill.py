@@ -7,7 +7,7 @@ commits+pushes each one (tagged ``[backfilled]`` in the commit message).
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from habito.domain.events import (
     BreakEnded,
@@ -47,7 +47,7 @@ def build_backfill_events(
     def emit(cls, **fields) -> None:
         events.append(
             cls(
-                timestamp=cursor.astimezone(timezone.utc),
+                timestamp=cursor.astimezone(UTC),
                 tz_offset_minutes=tz_offset_minutes,
                 origin=Origin.backfilled,
                 session_id=session_id,

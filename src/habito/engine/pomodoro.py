@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 from habito.config.models import PomodoroConfig
 from habito.domain.events import (
@@ -32,7 +32,7 @@ from habito.engine.clock import Clock, SystemClock
 EventSink = Callable[[Event], None]
 
 
-class State(str, Enum):
+class State(StrEnum):
     idle = "idle"
     work = "work"
     break_ = "break"

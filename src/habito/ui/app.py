@@ -39,7 +39,9 @@ class HabitoApp(ctk.CTk):
         if config.ui.always_on_top:
             self.attributes("-topmost", True)
 
-        self._view = TimerView(self, controller=self, quick_add_minutes=config.pomodoro.quick_add_minutes)
+        self._view = TimerView(
+            self, controller=self, quick_add_minutes=config.pomodoro.quick_add_minutes
+        )
         self._view.pack(fill="both", expand=True)
 
         self._today_baseline = self._compute_today_baseline()
