@@ -30,6 +30,7 @@ from habito.storage.event_store import EventStore
 from habito.ui import theme
 from habito.ui.backfill_view import BackfillDialog
 from habito.ui.calendar_view import CalendarView
+from habito.ui.log_view import LogView
 from habito.ui.notifier import DesktopNotifier, Notification, Sink, notification_for
 from habito.ui.phase_dialog import PhaseDialog
 from habito.ui.progress_background import ProgressBackground
@@ -42,6 +43,7 @@ _TICK_MS = 250
 
 _TIMER_PAGE = 0
 _CALENDAR_PAGE = 1
+_LOG_PAGE = 2
 
 
 class HabitoApp(QMainWindow):
@@ -119,10 +121,12 @@ class HabitoApp(QMainWindow):
             work_minutes=self._config.pomodoro.work_minutes,
         )
         self._calendar = CalendarView(self._theme, self._config.goals.threshold_seconds())
+        self._log = LogView(self._theme)
 
         self._pages = QStackedWidget()
         self._pages.addWidget(self._view)
         self._pages.addWidget(self._calendar)
+        self._pages.addWidget(self._log)
         root.addWidget(self._pages)
         self.setCentralWidget(self._background)
 
@@ -134,7 +138,11 @@ class HabitoApp(QMainWindow):
         menu = QMenu(self)
         group = QActionGroup(menu)
         group.setExclusive(True)
-        for index, name in ((_TIMER_PAGE, "Timer"), (_CALENDAR_PAGE, "Calendar")):
+        for index, name in (
+            (_TIMER_PAGE, "Timer"),
+            (_CALENDAR_PAGE, "Calendar"),
+            (_LOG_PAGE, "Log"),
+        ):
             action = menu.addAction(name)
             action.setCheckable(True)
             action.setChecked(self._pages.currentIndex() == index)
@@ -147,13 +155,20 @@ class HabitoApp(QMainWindow):
         menu.exec(self._menu_btn.mapToGlobal(self._menu_btn.rect().bottomLeft()))
 
     def show_page(self, index: int) -> None:
+        # Both derived views are folded from the log on the way in, so they're never
+        # showing a stale picture of a session that finished while they were hidden.
         if index == _CALENDAR_PAGE:
             self._refresh_calendar()
+        elif index == _LOG_PAGE:
+            self._log.set_events(self._store.read_all())
+
         self._pages.setCurrentIndex(index)
         if index == _TIMER_PAGE:
             self._view.focus_first()
-        else:
+        elif index == _CALENDAR_PAGE:
             self._calendar.calendar.setFocus(Qt.FocusReason.OtherFocusReason)
+        else:
+            self._log.tree.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def _refresh_calendar(self) -> None:
         self._calendar.set_summaries(summarize_by_day(self._store.read_all()))

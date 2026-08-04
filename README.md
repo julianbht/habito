@@ -112,6 +112,16 @@ For trying the UI out without polluting your real record. In this mode Habito:
 - paints the entire app **red**, with a red title bar and a `TEST MODE — nothing is
   recorded` banner, so it can't be mistaken for a real session.
 
+## Log
+
+Every event, grouped by day, newest first — what started when, how long each round actually
+ran, every pause and every `TimeAdjusted`. Backfilled entries are marked as such.
+
+It is **strictly read-only**: no edit, no delete. That isn't an oversight. The log's value
+comes from being append-only, and a view that could rewrite it would undercut the one claim
+the app makes. If something in there is wrong, the right fix is to append a correction, not
+to quietly remove the evidence.
+
 ## Layout
 
 `src/` layout, one concern per package:
@@ -124,7 +134,7 @@ For trying the UI out without polluting your real record. In this mode Habito:
 | `habito.engine` | Pomodoro state machine (incl. the between-phase hold) + injectable Clock |
 | `habito.projections` | Fold events → daily summaries (verified vs backfilled) |
 | `habito.evidence` | git wrapper, background commit+push worker, Observer recorder |
-| `habito.ui` | PySide6/Qt timer + calendar, dialogs (settings, backfill, phase prompt), window/controller, theme, progress background, notifications + sounds |
+| `habito.ui` | PySide6/Qt timer + calendar + log, dialogs (settings, backfill, phase prompt), window/controller, theme, progress background, notifications + sounds |
 | `habito.backfill` | Synthesize events for a past session |
 
 Only `habito.ui` knows about Qt. The views are purely presentational and talk to a
