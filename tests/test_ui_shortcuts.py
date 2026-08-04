@@ -1,0 +1,91 @@
+"""Window-level keyboard shortcuts, delivered as real key events through Qt.
+
+These go through ``QShortcut``, so they only prove anything if the key press travels the
+real event path — which is what ``qtbot.keyClick`` on the window gives us.
+"""
+
+from __future__ import annotations
+
+import pytest
+from PySide6.QtCore import Qt
+
+from habito.app import _build_engine_and_store
+from habito.config.models import Config
+from habito.engine.pomodoro import State
+from habito.ui.app import HabitoApp
+
+
+@pytest.fixture
+def app(qtbot, tmp_path):
+    config = Config.model_validate(
+        {"paths": {"data_repo": str(tmp_path)}, "project_root": tmp_path}
+    )
+    engine, store = _build_engine_and_store(config, test_mode=True)
+    window = HabitoApp(config, engine, store, test_mode=True)
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
+    return window
+
+
+def press(qtbot, window, key, modifier=Qt.KeyboardModifier.ControlModifier):
+    qtbot.keyClick(window, key, modifier)
+
+
+def test_ctrl_space_starts_then_pauses_then_resumes(qtbot, app):
+    assert app._engine.state is State.idle
+
+    press(qtbot, app, Qt.Key.Key_Space)
+    assert app._engine.state is State.work
+
+    press(qtbot, app, Qt.Key.Key_Space)
+    assert app._engine.state is State.paused
+
+    press(qtbot, app, Qt.Key.Key_Space)
+    assert app._engine.state is State.work
+
+
+def test_ctrl_period_stops_the_session(qtbot, app):
+    press(qtbot, app, Qt.Key.Key_Space)
+    assert app._engine.state is State.work
+
+    press(qtbot, app, Qt.Key.Key_Period)
+    assert app._engine.state is State.done
+
+
+def test_ctrl_arrows_extend_the_running_round(qtbot, app):
+    press(qtbot, app, Qt.Key.Key_Space)
+    before = app._engine.snapshot().phase_target_seconds
+
+    press(qtbot, app, Qt.Key.Key_Up)
+    assert app._engine.snapshot().phase_target_seconds == before + 60
+
+    press(qtbot, app, Qt.Key.Key_Down)
+    assert app._engine.snapshot().phase_target_seconds == before
+
+
+def test_ctrl_arrows_set_the_planned_length_while_idle(qtbot, app):
+    assert app._engine.state is State.idle
+
+    press(qtbot, app, Qt.Key.Key_Up)
+    assert app._config.pomodoro.work_minutes == 26
+
+    press(qtbot, app, Qt.Key.Key_Down)
+    assert app._config.pomodoro.work_minutes == 25
+
+
+def test_ctrl_comma_opens_settings_and_escape_closes_it(qtbot, app):
+    press(qtbot, app, Qt.Key.Key_Comma)
+    dialog = app._settings_dialog
+    assert dialog is not None and dialog.isVisible()
+
+    qtbot.keyClick(dialog, Qt.Key.Key_Escape)
+    assert not dialog.isVisible()
+
+
+def test_settings_shortcut_does_not_stack_duplicate_dialogs(qtbot, app):
+    press(qtbot, app, Qt.Key.Key_Comma)
+    first = app._settings_dialog
+    press(qtbot, app, Qt.Key.Key_Comma)
+
+    assert app._settings_dialog is first

@@ -6,6 +6,10 @@ others' construction. Subcommands:
     habito              launch the timer UI
     habito doctor       check config and the data repo's evidence readiness
     habito init-data    create + ``git init`` the data repo (you still add the remote)
+
+``--test-mode`` runs the UI against a throwaway log with no evidence worker, so the real
+data repo is never touched. It paints the whole app red so you can't mistake it for a
+real session.
 """
 
 from __future__ import annotations
@@ -14,6 +18,7 @@ import argparse
 import logging
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from habito.config.loader import load_config
@@ -26,44 +31,73 @@ from habito.evidence.worker import EvidenceWorker
 from habito.storage.event_store import EventStore
 
 
-def _build_engine_and_store(config: Config) -> tuple[PomodoroEngine, EventStore]:
-    store = EventStore(config.events_path())
+def _events_path(config: Config, test_mode: bool) -> Path:
+    """Where the log is written — a throwaway file when running in test mode."""
+    if not test_mode:
+        return config.events_path()
+    scratch = Path(tempfile.gettempdir()) / "habito-test-mode"
+    scratch.mkdir(parents=True, exist_ok=True)
+    return scratch / config.paths.events_filename
+
+
+def _build_engine_and_store(
+    config: Config, test_mode: bool = False
+) -> tuple[PomodoroEngine, EventStore]:
+    store = EventStore(_events_path(config, test_mode))
     engine = PomodoroEngine(config.pomodoro, sink=store.append, clock=SystemClock())
     return engine, store
 
 
-def run_gui(config: Config) -> int:
-    import customtkinter as ctk
+def run_gui(config: Config, test_mode: bool = False) -> int:
+    from PySide6.QtWidgets import QApplication
 
+    from habito.ui import theme
     from habito.ui.app import HabitoApp
 
-    ctk.set_appearance_mode(config.ui.theme)
-    ctk.set_default_color_theme(config.ui.color_theme)
+    qt_app = QApplication.instance() or QApplication(sys.argv[:1])
+    qt_app.setStyleSheet(
+        theme.build_stylesheet(
+            theme.accent_for(test_mode), theme.palette_for(config.ui.theme)
+        )
+    )
 
-    engine, store = _build_engine_and_store(config)
-    app = HabitoApp(config, engine, store)
+    engine, store = _build_engine_and_store(config, test_mode)
+    app = HabitoApp(config, engine, store, test_mode=test_mode)
+
+    if test_mode:
+        # No GitRepo, no worker, no recorder: nothing can reach the data repo from here.
+        print(f"TEST MODE — events go to {_events_path(config, test_mode)}")
+        print("            the data repo is not touched and settings.toml is not written")
+        app.set_status_mode("status: TEST MODE · not recorded", theme.ACCENT_TEST)
+    else:
+        _attach_evidence(app, config, store)
+
+    app.show()
+    return qt_app.exec()
+
+
+def _attach_evidence(app, config: Config, store: EventStore) -> None:
+    from habito.ui import theme
 
     repo = GitRepo(config.data_repo_path())
-    if repo.is_repo():
-        worker = EvidenceWorker(
-            repo,
-            config.evidence,
-            config.paths.events_filename,
-            on_status=app.on_evidence_status,
-        )
-        worker.start()
-        store.subscribe(EvidenceRecorder(worker))
-        app.attach_worker(worker)
-        if repo.has_remote(config.evidence.remote):
-            app.set_status_mode("status: ready", "gray60")
-            worker.flush()  # push any backlog left unpushed from a prior offline run
-        else:
-            app.set_status_mode("status: local only (no remote)", "#d9863b")
-    else:
-        app.set_status_mode("status: not set up — run 'habito doctor'", "#d9863b")
+    if not repo.is_repo():
+        app.set_status_mode("status: not set up — run 'habito doctor'", theme.WARN)
+        return
 
-    app.run()
-    return 0
+    worker = EvidenceWorker(
+        repo,
+        config.evidence,
+        config.paths.events_filename,
+        on_status=app.on_evidence_status,
+    )
+    worker.start()
+    store.subscribe(EvidenceRecorder(worker))
+    app.attach_worker(worker)
+    if repo.has_remote(config.evidence.remote):
+        app.set_status_mode("status: ready", theme.MUTED)
+        worker.flush()  # push any backlog left unpushed from a prior offline run
+    else:
+        app.set_status_mode("status: local only (no remote)", theme.WARN)
 
 
 def doctor(config: Config) -> int:
@@ -135,6 +169,11 @@ def main(argv: list[str] | None = None) -> int:
         help="run the UI (default), check setup, or initialise the data repo",
     )
     parser.add_argument("--config", type=Path, default=None, help="path to settings.toml")
+    parser.add_argument(
+        "--test-mode",
+        action="store_true",
+        help="run the UI in red test mode: a throwaway log, nothing written to the data repo",
+    )
     args = parser.parse_args(argv)
 
     config = load_config(config_path=args.config)
@@ -143,7 +182,7 @@ def main(argv: list[str] | None = None) -> int:
         return doctor(config)
     if args.command == "init-data":
         return init_data(config)
-    return run_gui(config)
+    return run_gui(config, test_mode=args.test_mode)
 
 
 if __name__ == "__main__":

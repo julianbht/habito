@@ -3,80 +3,117 @@
 Produces backfilled events (``origin=backfilled``) via :func:`habito.backfill.build_backfill_events`
 and hands them to the ``on_submit`` callback, which appends them to the store (each is then
 committed+pushed, tagged ``[backfilled]``).
+
+Qt's date/time editors replace the old free-text fields, so there is nothing left to
+mis-type and no format to explain.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import date, datetime, time
 
-import customtkinter as ctk
+from PySide6.QtCore import QDate, Qt, QTime
+from PySide6.QtWidgets import (
+    QDateEdit,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QLabel,
+    QSpinBox,
+    QTimeEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 from habito.backfill import build_backfill_events
 from habito.domain.events import Event
+from habito.ui import theme
 
 SubmitCallback = Callable[[list[Event]], None]
 
 
-class BackfillDialog(ctk.CTkToplevel):
+class BackfillDialog(QDialog):
     def __init__(
         self,
-        master,
         on_submit: SubmitCallback,
         default_work: int,
         default_break: int,
         default_rounds: int,
-        today_str: str,
+        parent: QWidget | None = None,
     ) -> None:
-        super().__init__(master)
+        super().__init__(parent)
         self._on_submit = on_submit
-        self.title("Add past session")
-        self.geometry("320x300")
-        self.resizable(False, False)
-        self.grab_set()  # modal
+        self.setWindowTitle("Add past session")
+        self.setMinimumWidth(320)
+        self.setModal(True)
+        self._build(default_work, default_break, default_rounds)
 
-        self.grid_columnconfigure(1, weight=1)
-        self._entries: dict[str, ctk.CTkEntry] = {}
-        rows = [
-            ("date", "Date (YYYY-MM-DD)", today_str),
-            ("time", "Start time (HH:MM)", "06:00"),
-            ("work", "Work minutes", str(default_work)),
-            ("break", "Break minutes", str(default_break)),
-            ("rounds", "Rounds", str(default_rounds)),
-        ]
-        for i, (key, label, default) in enumerate(rows):
-            ctk.CTkLabel(self, text=label).grid(row=i, column=0, sticky="w", padx=12, pady=6)
-            entry = ctk.CTkEntry(self, width=120)
-            entry.insert(0, default)
-            entry.grid(row=i, column=1, sticky="e", padx=12, pady=6)
-            self._entries[key] = entry
+    def _build(self, work: int, brk: int, rounds: int) -> None:
+        root = QVBoxLayout(self)
+        root.setContentsMargins(20, 18, 20, 18)
+        root.setSpacing(10)
 
-        self._error = ctk.CTkLabel(self, text="", text_color="#d9534f", wraplength=280)
-        self._error.grid(row=len(rows), column=0, columnspan=2, padx=12)
+        form = QFormLayout()
+        form.setSpacing(8)
 
-        ctk.CTkButton(self, text="Add & commit", command=self._submit).grid(
-            row=len(rows) + 1, column=0, columnspan=2, pady=12
+        self._date = QDateEdit(QDate.currentDate())
+        self._date.setCalendarPopup(True)
+        self._date.setDisplayFormat("yyyy-MM-dd")
+        self._date.setMaximumDate(QDate.currentDate())  # you can't backfill the future
+        form.addRow("Date", self._date)
+
+        self._time = QTimeEdit(QTime(6, 0))
+        self._time.setDisplayFormat("HH:mm")
+        form.addRow("Start time", self._time)
+
+        self._work = self._spin(work, maximum=600)
+        self._break = self._spin(brk, maximum=120)
+        self._rounds = self._spin(rounds, maximum=24)
+        form.addRow("Work minutes", self._work)
+        form.addRow("Break minutes", self._break)
+        form.addRow("Rounds", self._rounds)
+        root.addLayout(form)
+
+        self._error = QLabel("")
+        self._error.setWordWrap(True)
+        self._error.setStyleSheet(f"color: {theme.ERROR};")
+        root.addWidget(self._error)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Add && commit")
+        buttons.accepted.connect(self._submit)
+        buttons.rejected.connect(self.reject)  # Esc also closes, via QDialog
+        root.addWidget(buttons)
+
+    @staticmethod
+    def _spin(value: int, *, maximum: int) -> QSpinBox:
+        spin = QSpinBox()
+        spin.setRange(1, maximum)
+        spin.setValue(value)
+        spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        return spin
 
     def _submit(self) -> None:
         try:
-            start = self._parse_start()
-            work = int(self._entries["work"].get())
-            brk = int(self._entries["break"].get())
-            rounds = int(self._entries["rounds"].get())
-            events = build_backfill_events(start, work, brk, rounds)
+            events = build_backfill_events(
+                self._start(),
+                self._work.value(),
+                self._break.value(),
+                self._rounds.value(),
+            )
         except ValueError as exc:
-            self._error.configure(text=str(exc))
+            self._error.setText(str(exc))
             return
         self._on_submit(events)
-        self.destroy()
+        self.accept()
 
-    def _parse_start(self) -> datetime:
-        date_raw = self._entries["date"].get().strip()
-        time_raw = self._entries["time"].get().strip()
-        try:
-            naive = datetime.strptime(f"{date_raw} {time_raw}", "%Y-%m-%d %H:%M")
-        except ValueError as exc:
-            raise ValueError("Use date YYYY-MM-DD and time HH:MM") from exc
+    def _start(self) -> datetime:
+        qd, qt = self._date.date(), self._time.time()
+        naive = datetime.combine(
+            date(qd.year(), qd.month(), qd.day()), time(qt.hour(), qt.minute())
+        )
         # Attach the system local timezone so the offset is recorded correctly.
         return naive.astimezone()

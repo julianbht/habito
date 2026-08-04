@@ -32,7 +32,6 @@ class EvidenceConfig(BaseModel):
 
 class UIConfig(BaseModel):
     theme: str = "dark"  # "dark" | "light" | "system"
-    color_theme: str = "blue"
     always_on_top: bool = False
 
 

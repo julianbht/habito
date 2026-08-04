@@ -1,21 +1,33 @@
-"""The main timer screen (a CustomTkinter frame).
+"""The main timer screen.
 
 Purely presentational: it renders an :class:`EngineState` snapshot and forwards input to
 the controller. It never talks to storage or git directly.
 
-The big time doubles as the work-length control. While idle it is an editable field (type
-a value, or nudge it with the −/+ stepper) that sets the next session's work length; once
-running it locks to the live countdown and the stepper adjusts the round live.
+The big time doubles as the work-length control. While idle it is a :class:`MinutesSpinBox`
+— type a value or use its arrows — that sets the next session's work length; once running
+it swaps to the live countdown with a compact ▲/▼ pair that adjusts the round on the fly.
 """
 
 from __future__ import annotations
 
 from typing import Protocol
 
-import customtkinter as ctk
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QComboBox,
+    QHBoxLayout,
+    QInputDialog,
+    QProgressBar,
+    QPushButton,
+    QSizePolicy,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from habito.engine.pomodoro import EngineState, State
-from habito.ui.widgets import format_duration, format_timer
+from habito.ui import theme
+from habito.ui.widgets import MinutesSpinBox, button, format_duration, format_timer, label
 
 _STATE_LABEL = {
     State.idle: "Ready",
@@ -24,12 +36,12 @@ _STATE_LABEL = {
     State.paused: "Paused",
     State.done: "Done",
 }
-_ACCENT = {
-    State.work: "#2fa572",
-    State.break_: "#3b8ed0",
-    State.paused: "#b0862f",
-    State.done: "#2fa572",
-    State.idle: "#4a4a4a",
+_STATE_COLOR = {
+    State.work: theme.OK,
+    State.break_: theme.BREAK,
+    State.paused: theme.WARN,
+    State.done: theme.OK,
+    State.idle: theme.MUTED,
 }
 _CUSTOM = "Custom…"
 
@@ -38,24 +50,17 @@ _PLAY = "▶"  # start / resume
 _PAUSE = "⏸"  # pause (primary button toggles to this while running)
 _STOP = "⏹"  # end session
 
+_EDIT_PAGE = 0
+_COUNTDOWN_PAGE = 1
 
-def _fmt_step(value: float) -> str:
-    return str(int(value)) if float(value).is_integer() else f"{value:g}"
+# A work round longer than three hours isn't a Pomodoro; capping it also keeps the spin
+# box from sizing itself for six digits.
+_MAX_WORK_MINUTES = 180
+_TIME_WIDTH = 212
 
 
-def _parse_minutes(text: str) -> int | None:
-    """Parse ``"30"`` or ``"30:00"`` / ``"29:40"`` into whole minutes (rounded)."""
-    text = text.strip()
-    if not text:
-        return None
-    try:
-        if ":" in text:
-            mm, _, ss = text.partition(":")
-            total = int(mm) * 60 + (int(ss) if ss else 0)
-            return round(total / 60)
-        return round(float(text))
-    except ValueError:
-        return None
+def _fmt_step(value: int) -> str:
+    return str(int(value))
 
 
 class Controller(Protocol):
@@ -66,191 +71,268 @@ class Controller(Protocol):
     def on_set_work_minutes(self, minutes: int) -> str | None: ...
 
 
-class TimerView(ctk.CTkFrame):
+class TimerView(QWidget):
     def __init__(
         self,
-        master,
         controller: Controller,
         quick_add_minutes: list[int],
         work_minutes: int,
+        parent: QWidget | None = None,
     ) -> None:
-        super().__init__(master, fg_color="transparent")
+        super().__init__(parent)
         self._c = controller
-        self._quick = quick_add_minutes or [1]
+        self._quick = [int(m) for m in quick_add_minutes] or [1]
         self._is_idle = True
-        self._showing_entry: bool | None = None
-        self._planned_minutes = int(work_minutes)
-        self._step = float(self._quick[0])
-        self._build()
+        self._step = self._quick[0]
+        self._build(int(work_minutes))
 
     # --- layout ----------------------------------------------------------
-    def _build(self) -> None:
-        self.grid_columnconfigure(0, weight=1)
+    def _build(self, work_minutes: int) -> None:
+        root = QVBoxLayout(self)
+        root.setContentsMargins(20, 14, 20, 12)
+        root.setSpacing(6)
 
-        self._round_lbl = ctk.CTkLabel(self, text="Round – / –", font=ctk.CTkFont(size=14))
-        self._round_lbl.grid(row=0, column=0, pady=(18, 0))
+        self._round_lbl = label("Round – / –", "round")
+        self._round_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        root.addWidget(self._round_lbl)
 
-        self._state_lbl = ctk.CTkLabel(self, text="Ready", font=ctk.CTkFont(size=15, weight="bold"))
-        self._state_lbl.grid(row=1, column=0, pady=(2, 0))
+        self._state_lbl = label("Ready", "state")
+        self._state_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        root.addWidget(self._state_lbl)
 
-        big = ctk.CTkFont(size=56, weight="bold")
-        self._time_lbl = ctk.CTkLabel(self, text="00:00", font=big)
-        self._time_entry = ctk.CTkEntry(
-            self, font=big, width=176, height=72, justify="center", border_width=2
-        )
-        self._time_entry.bind("<Return>", lambda _e: (self._commit_planned(), self.focus_set()))
-        self._time_entry.bind("<FocusOut>", lambda _e: self._commit_planned())
+        root.addWidget(self._build_time_stack(work_minutes))
+        root.addLayout(self._build_step_row())
 
-        self._hint_lbl = ctk.CTkLabel(
-            self, text="click to edit · or use −/+", font=ctk.CTkFont(size=10), text_color="gray50"
-        )
-        self._hint_lbl.grid(row=3, column=0, pady=(2, 4))
+        self._progress = QProgressBar()
+        self._progress.setRange(0, 1000)
+        self._progress.setValue(0)
+        self._progress.setTextVisible(False)
+        root.addSpacing(6)
+        root.addWidget(self._progress)
+        root.addSpacing(8)
 
-        self._progress = ctk.CTkProgressBar(self, width=280)
-        self._progress.set(0)
-        self._progress.grid(row=4, column=0, pady=(4, 14), padx=24, sticky="ew")
+        root.addLayout(self._build_controls())
 
-        controls = ctk.CTkFrame(self, fg_color="transparent")
-        controls.grid(row=5, column=0, pady=(0, 8))
-        sym = ctk.CTkFont(size=20)
-        self._primary_btn = ctk.CTkButton(
-            controls, text=_PLAY, width=76, height=40, font=sym, command=self._primary
-        )
-        self._primary_btn.grid(row=0, column=0, padx=4)
-        self._stop_btn = ctk.CTkButton(
-            controls, text=_STOP, width=58, height=40, font=sym, fg_color="gray30",
-            command=self._c.on_stop,
-        )
-        self._stop_btn.grid(row=0, column=1, padx=4)
+        root.addStretch(1)
+        self._today_lbl = label("Today: 0m", "today")
+        self._today_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        root.addWidget(self._today_lbl)
 
-        # Stepper: Adjust:  [ − ]  [ step ▾ ]  [ + ]  min
-        add_row = ctk.CTkFrame(self, fg_color="transparent")
-        add_row.grid(row=6, column=0, pady=(6, 0))
-        ctk.CTkLabel(add_row, text="Adjust:").grid(row=0, column=0, padx=(0, 8))
-        self._minus_btn = ctk.CTkButton(
-            add_row, text="−", width=38, fg_color="gray30", command=self._nudge_down
-        )
-        self._minus_btn.grid(row=0, column=1, padx=3)
-        self._step_menu = ctk.CTkOptionMenu(
-            add_row,
-            width=86,
-            values=[_fmt_step(m) for m in self._quick] + [_CUSTOM],
-            command=self._on_step_change,
-        )
-        self._step_menu.set(_fmt_step(self._step))
-        self._step_menu.grid(row=0, column=2, padx=3)
-        self._plus_btn = ctk.CTkButton(
-            add_row, text="+", width=38, fg_color="gray30", command=self._nudge_up
-        )
-        self._plus_btn.grid(row=0, column=3, padx=3)
-        ctk.CTkLabel(add_row, text="min").grid(row=0, column=4, padx=(6, 0))
+        self._status_lbl = label("status: –", "muted")
+        self._status_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        root.addWidget(self._status_lbl)
 
-        self._today_lbl = ctk.CTkLabel(self, text="Today: 0m", font=ctk.CTkFont(size=13))
-        self._today_lbl.grid(row=7, column=0, pady=(16, 2))
+        self._apply_tab_order()
 
-        self._status_lbl = ctk.CTkLabel(
-            self, text="status: –", font=ctk.CTkFont(size=11), text_color="gray60"
-        )
-        self._status_lbl.grid(row=8, column=0, pady=(2, 12))
+    def _build_time_stack(self, work_minutes: int) -> QWidget:
+        """Editable duration and live countdown, swapped in place so nothing shifts."""
+        self._stack = QStackedWidget()
+        self._stack.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
-        # Start in idle mode so the editable field is visible before the first render tick.
-        self._time_entry.grid(row=2, column=0, pady=(4, 0))
-        self._refresh_entry()
-        self._showing_entry = True
+        # Page 0 (idle): the spin box *is* the work-length control.
+        self._spin = MinutesSpinBox(maximum=_MAX_WORK_MINUTES, object_name="time")
+        self._spin.setFixedWidth(_TIME_WIDTH)
+        self._spin.setValue(work_minutes)
+        self._spin.setSingleStep(self._step)
+        self._spin.setToolTip("Work length for the next session — type it or use ↑/↓")
+        self._spin.valueChanged.connect(self._on_planned_changed)
+        edit_page = QWidget()
+        edit_row = QHBoxLayout(edit_page)
+        edit_row.setContentsMargins(0, 0, 0, 0)
+        edit_row.addStretch(1)
+        edit_row.addWidget(self._spin)
+        edit_row.addStretch(1)
+        self._stack.addWidget(edit_page)
+
+        # Page 1 (running): countdown plus its own nudge pair, since a live countdown
+        # can't be an editable field.
+        self._time_lbl = label("00:00", "time")
+        self._time_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Leave room for the nudge column so the number doesn't shift when the page swaps.
+        self._time_lbl.setFixedWidth(_TIME_WIDTH - 36)
+        self._up_btn = button("▲", "nudge")
+        self._down_btn = button("▼", "nudge")
+        for btn, slot, tip in (
+            (self._up_btn, self.nudge_up, "Add to the current round"),
+            (self._down_btn, self.nudge_down, "Take time off the current round"),
+        ):
+            btn.setFixedSize(28, 26)
+            btn.setToolTip(tip)
+            btn.clicked.connect(slot)
+
+        nudge_col = QVBoxLayout()
+        nudge_col.setSpacing(4)
+        nudge_col.addWidget(self._up_btn)
+        nudge_col.addWidget(self._down_btn)
+
+        run_page = QWidget()
+        run_row = QHBoxLayout(run_page)
+        run_row.setContentsMargins(0, 0, 0, 0)
+        run_row.addStretch(1)
+        run_row.addWidget(self._time_lbl)
+        run_row.addSpacing(8)
+        run_row.addLayout(nudge_col)
+        run_row.addStretch(1)
+        self._stack.addWidget(run_page)
+
+        self._stack.setCurrentIndex(_EDIT_PAGE)
+        return self._stack
+
+    def _build_step_row(self) -> QHBoxLayout:
+        row = QHBoxLayout()
+        row.setSpacing(5)
+        row.addStretch(1)
+        row.addWidget(label("steps of", "muted"))
+        self._step_box = QComboBox()
+        self._step_box.addItems([_fmt_step(m) for m in self._quick] + [_CUSTOM])
+        self._step_box.setCurrentText(_fmt_step(self._step))
+        self._step_box.setFixedWidth(76)
+        self._step_box.setToolTip("How much each ↑/↓ press changes the time")
+        self._step_box.activated.connect(self._on_step_activated)
+        row.addWidget(self._step_box)
+        row.addWidget(label("min", "muted"))
+        row.addStretch(1)
+        return row
+
+    def _build_controls(self) -> QHBoxLayout:
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        row.addStretch(1)
+        self._primary_btn = button(_PLAY, "primary")
+        self._primary_btn.setFixedSize(88, 42)
+        self._primary_btn.setToolTip("Start / pause  (Ctrl+Space)")
+        self._primary_btn.clicked.connect(self._primary)
+        row.addWidget(self._primary_btn)
+
+        self._stop_btn = button(_STOP, "transport")
+        self._stop_btn.setFixedSize(66, 42)
+        self._stop_btn.setToolTip("End the session  (Ctrl+.)")
+        self._stop_btn.clicked.connect(self._c.on_stop)
+        row.addWidget(self._stop_btn)
+        row.addStretch(1)
+        return row
+
+    def _apply_tab_order(self) -> None:
+        """Walk Tab through the controls in the order you'd actually use them."""
+        chain = [
+            self._spin,
+            self._up_btn,
+            self._down_btn,
+            self._step_box,
+            self._primary_btn,
+            self._stop_btn,
+        ]
+        for earlier, later in zip(chain, chain[1:], strict=False):
+            self.setTabOrder(earlier, later)
+
+    def focus_first(self) -> None:
+        """Put focus where a keyboard user starts: the duration field."""
+        self._spin.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def stop_button(self) -> QPushButton:
+        """Last control in the view's tab chain, so the window can continue it."""
+        return self._stop_btn
 
     # --- work-length editing (idle) --------------------------------------
-    def _refresh_entry(self) -> None:
-        self._time_entry.delete(0, "end")
-        self._time_entry.insert(0, format_timer(self._planned_minutes * 60))
+    def _on_planned_changed(self, minutes: int) -> None:
+        if self._is_idle:
+            self._c.on_set_work_minutes(int(minutes))
 
-    def _set_planned(self, minutes: int) -> None:
-        self._planned_minutes = max(1, minutes)
-        self._refresh_entry()
-        self._c.on_set_work_minutes(self._planned_minutes)
-
-    def _commit_planned(self) -> None:
-        minutes = _parse_minutes(self._time_entry.get())
-        if minutes is not None and minutes >= 1:
-            self._set_planned(minutes)
-        else:
-            self._refresh_entry()  # ignore invalid input, snap back
+    def commit_planned(self) -> None:
+        """Flush a half-typed duration before starting (spin box defers to focus-out)."""
+        self._spin.interpretText()
 
     # --- button glue -----------------------------------------------------
     def _primary(self) -> None:
         if self._is_idle:
-            self._commit_planned()
+            self.commit_planned()
             self._c.on_start()
         else:
             self._c.on_pause_resume()
 
-    def _on_step_change(self, choice: str) -> None:
-        if choice == _CUSTOM:
+    def _on_step_activated(self, index: int) -> None:
+        if self._step_box.itemText(index) == _CUSTOM:
             self._prompt_custom_step()
             return
-        self._step = float(choice)
+        self._set_step(int(self._step_box.itemText(index)))
 
     def _prompt_custom_step(self) -> None:
-        dialog = ctk.CTkInputDialog(text="Step size in minutes:", title="Custom step")
-        raw = dialog.get_input()
-        value: float | None = None
-        if raw:
-            try:
-                value = float(raw)
-            except ValueError:
-                value = None
-        if value is not None and value > 0:
-            self._step = value
-        self._step_menu.set(_fmt_step(self._step))  # never leave "Custom…" showing
+        value, ok = QInputDialog.getInt(self, "Custom step", "Step size in minutes:",
+                                        value=self._step, minValue=1, maxValue=120)
+        if ok:
+            self._set_step(value)
+        self._step_box.setCurrentText(_fmt_step(self._step))  # never leave "Custom…" showing
 
-    def _nudge_up(self) -> None:
-        self._nudge(self._step)
+    def _set_step(self, minutes: int) -> None:
+        self._step = max(1, int(minutes))
+        self._spin.setSingleStep(self._step)
 
-    def _nudge_down(self) -> None:
-        self._nudge(-self._step)
+    def nudge_up(self) -> None:
+        self._nudge(1)
 
-    def _nudge(self, delta: float) -> None:
+    def nudge_down(self) -> None:
+        self._nudge(-1)
+
+    def _nudge(self, direction: int) -> None:
+        """One step in either direction.
+
+        Idle, that means the planned work length; running, the current round. Same pair of
+        controls either way, so the ▲/▼ buttons and the Ctrl+↑/↓ shortcuts don't need to
+        care which mode the timer is in.
+        """
         if self._is_idle:
-            self._set_planned(int(round(self._planned_minutes + delta)))
+            self._spin.setValue(self._spin.value() + direction * self._step)
         else:
-            self._c.on_add_time(delta)
+            self._c.on_add_time(direction * self._step)
 
     # --- rendering -------------------------------------------------------
-    def render(self, snap: EngineState, today_seconds: int) -> None:
+    def render_state(self, snap: EngineState, today_seconds: int) -> None:
         self._is_idle = snap.state in (State.idle, State.done)
 
-        self._round_lbl.configure(text=f"Round {snap.round_index} / {snap.total_rounds}")
-        self._state_lbl.configure(
-            text=_STATE_LABEL[snap.state], text_color=_ACCENT.get(snap.state, "gray70")
+        self._round_lbl.setText(f"Round {snap.round_index} / {snap.total_rounds}")
+        self._state_lbl.setText(_STATE_LABEL[snap.state])
+        self._state_lbl.setStyleSheet(
+            f"color: {_STATE_COLOR.get(snap.state, theme.MUTED)};"
         )
         self._render_time(snap)
 
         running = snap.state in (State.work, State.break_)
-        self._primary_btn.configure(text=_PAUSE if running else _PLAY)
+        self._primary_btn.setText(_PAUSE if running else _PLAY)
 
         active = snap.state in (State.work, State.break_, State.paused)
-        self._stop_btn.configure(state="normal" if active else "disabled")
+        self._stop_btn.setEnabled(active)
 
-        self._today_lbl.configure(text=f"Today: {format_duration(today_seconds)}")
+        self._today_lbl.setText(f"Today: {format_duration(today_seconds)}")
 
     def _render_time(self, snap: EngineState) -> None:
         if self._is_idle:
-            if self._showing_entry is not True:
-                self._time_lbl.grid_remove()
-                self._time_entry.grid(row=2, column=0, pady=(4, 0))
-                self._hint_lbl.grid()
-                self._refresh_entry()  # safe: just switched in, user isn't typing yet
-                self._showing_entry = True
-            self._progress.set(0)
-        else:
-            if self._showing_entry is not False:
-                self._time_entry.grid_remove()
-                self._hint_lbl.grid_remove()
-                self._time_lbl.grid(row=2, column=0, pady=(4, 6))
-                self._showing_entry = False
-            self._time_lbl.configure(text=format_timer(snap.remaining_seconds))
-            target = snap.phase_target_seconds or 1
-            self._progress.set(max(0.0, min(1.0, (target - snap.remaining_seconds) / target)))
-            self._progress.configure(progress_color=_ACCENT.get(snap.state, "#3b8ed0"))
+            self._show_page(_EDIT_PAGE)
+            self._progress.setValue(0)
+            return
 
-    def set_status(self, text: str, color: str = "gray60") -> None:
-        self._status_lbl.configure(text=text, text_color=color)
+        self._show_page(_COUNTDOWN_PAGE)
+        self._time_lbl.setText(format_timer(snap.remaining_seconds))
+        target = snap.phase_target_seconds or 1
+        done = (target - snap.remaining_seconds) / target
+        self._progress.setValue(int(max(0.0, min(1.0, done)) * 1000))
+
+    def _show_page(self, page: int) -> None:
+        """Swap the time display, keeping keyboard focus somewhere usable.
+
+        Hiding a stack page strands the focus if it was on that page — a keyboard user
+        would be left with nothing focused the moment a session starts. Hand focus to the
+        control they'd reach for next instead.
+        """
+        if self._stack.currentIndex() == page:
+            return
+        # Qt's stubs type this as non-optional, but it really is None when nothing is focused.
+        focused: QWidget | None = self.focusWidget()
+        had_focus = focused is not None and self._stack.currentWidget().isAncestorOf(focused)
+        self._stack.setCurrentIndex(page)
+        if had_focus:
+            target = self._spin if page == _EDIT_PAGE else self._primary_btn
+            target.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def set_status(self, text: str, color: str = theme.MUTED) -> None:
+        self._status_lbl.setText(text)
+        self._status_lbl.setStyleSheet(f"color: {color}; font-size: 11px;")

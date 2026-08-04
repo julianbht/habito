@@ -23,3 +23,6 @@ Thumbs.db
 # NOTE: the tamper-evident event log lives in a SEPARATE data repo
 # (see config/settings.toml -> [paths].data_repo), so it is not affected
 # by this file.
+
+# Organization files
+TODO.md

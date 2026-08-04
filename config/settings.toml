@@ -19,8 +19,7 @@ commit_message_template = "event: {type} [{origin}] @ {iso}"
 warn_when_unpushed = true
 
 [ui]
-theme = "dark"             # "dark", "light", or "system"
-color_theme = "blue"       # customtkinter color theme
+theme = "dark"             # "dark", "light", or "system" (follows the OS)
 always_on_top = false
 
 [paths]

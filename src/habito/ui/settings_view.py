@@ -1,6 +1,6 @@
-"""The Settings tab: edit the Pomodoro format and add past sessions.
+"""The Settings dialog: edit the Pomodoro format and add past sessions.
 
-Kept off the main timer tab so the timer stays uncluttered. Saving validates through the
+Kept off the main timer window so the timer stays uncluttered. Saving validates through the
 controller (which persists to settings.toml and applies to the engine) and reports back a
 short confirmation or error.
 """
@@ -9,9 +9,20 @@ from __future__ import annotations
 
 from typing import Protocol
 
-import customtkinter as ctk
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QDialog,
+    QFormLayout,
+    QFrame,
+    QLabel,
+    QPushButton,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
 
 from habito.config.models import PomodoroConfig
+from habito.ui import theme
 
 
 class Controller(Protocol):
@@ -19,68 +30,74 @@ class Controller(Protocol):
     def on_open_backfill(self) -> None: ...
 
 
-class SettingsView(ctk.CTkFrame):
-    def __init__(self, master, controller: Controller, pomodoro: PomodoroConfig) -> None:
-        super().__init__(master, fg_color="transparent")
+class SettingsDialog(QDialog):
+    def __init__(
+        self,
+        controller: Controller,
+        pomodoro: PomodoroConfig,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
         self._c = controller
-        self.grid_columnconfigure(0, weight=1)
+        self.setWindowTitle("Settings")
+        self.setMinimumWidth(300)
         self._build(pomodoro)
 
     def _build(self, pomodoro: PomodoroConfig) -> None:
-        ctk.CTkLabel(
-            self, text="Session format", font=ctk.CTkFont(size=15, weight="bold")
-        ).grid(row=0, column=0, sticky="w", padx=20, pady=(18, 2))
-        ctk.CTkLabel(
-            self, text="Work length is set on the timer.", font=ctk.CTkFont(size=11),
-            text_color="gray50",
-        ).grid(row=1, column=0, sticky="w", padx=20, pady=(0, 8))
+        root = QVBoxLayout(self)
+        root.setContentsMargins(20, 18, 20, 18)
+        root.setSpacing(8)
 
-        form = ctk.CTkFrame(self, fg_color="transparent")
-        form.grid(row=2, column=0, sticky="ew", padx=20)
-        form.grid_columnconfigure(0, weight=1)
+        root.addWidget(QLabel("Session format", objectName="heading"))
+        root.addWidget(QLabel("Work length is set on the timer.", objectName="muted"))
 
-        self._entries: dict[str, ctk.CTkEntry] = {}
-        for i, (key, label, value) in enumerate(
-            [
-                ("break", "Break minutes", pomodoro.break_minutes),
-                ("rounds", "Rounds", pomodoro.rounds),
-            ]
+        form = QFormLayout()
+        form.setSpacing(8)
+        self._break_spin = self._spin(pomodoro.break_minutes, maximum=120)
+        self._rounds_spin = self._spin(pomodoro.rounds, maximum=24)
+        form.addRow("Break minutes", self._break_spin)
+        form.addRow("Rounds", self._rounds_spin)
+        root.addLayout(form)
+
+        self._save_btn = QPushButton("Save")
+        self._save_btn.setDefault(True)  # Enter saves
+        self._save_btn.clicked.connect(self._save)
+        root.addWidget(self._save_btn)
+
+        self._status = QLabel("")
+        self._status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        root.addWidget(self._status)
+
+        rule = QFrame()
+        rule.setFrameShape(QFrame.Shape.HLine)
+        rule.setStyleSheet("color: #43464d;")
+        root.addWidget(rule)
+
+        root.addWidget(QLabel("Missed a session?", objectName="muted"))
+        self._backfill_btn = QPushButton("Add past session")
+        self._backfill_btn.clicked.connect(self._c.on_open_backfill)
+        root.addWidget(self._backfill_btn)
+
+        for earlier, later in (
+            (self._break_spin, self._rounds_spin),
+            (self._rounds_spin, self._save_btn),
+            (self._save_btn, self._backfill_btn),
         ):
-            ctk.CTkLabel(form, text=label).grid(row=i, column=0, sticky="w", pady=6)
-            entry = ctk.CTkEntry(form, width=70, justify="center")
-            entry.insert(0, str(value))
-            entry.grid(row=i, column=1, sticky="e", pady=6)
-            self._entries[key] = entry
+            self.setTabOrder(earlier, later)
 
-        ctk.CTkButton(self, text="Save", width=120, command=self._save).grid(
-            row=3, column=0, pady=(14, 4)
-        )
-        self._status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=12))
-        self._status.grid(row=4, column=0, pady=(0, 8))
-
-        ctk.CTkFrame(self, height=1, fg_color="gray30").grid(
-            row=5, column=0, sticky="ew", padx=20, pady=10
-        )
-
-        ctk.CTkLabel(
-            self, text="Missed a session?", font=ctk.CTkFont(size=13)
-        ).grid(row=6, column=0, pady=(0, 6))
-        ctk.CTkButton(
-            self, text="Add past session", width=160, command=self._c.on_open_backfill
-        ).grid(row=7, column=0)
+    @staticmethod
+    def _spin(value: int, *, maximum: int) -> QSpinBox:
+        spin = QSpinBox()
+        spin.setRange(1, maximum)
+        spin.setValue(value)
+        spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        return spin
 
     def _save(self) -> None:
-        try:
-            brk = int(self._entries["break"].get())
-            rounds = int(self._entries["rounds"].get())
-        except ValueError:
-            self._status.configure(text="Values must be whole numbers.", text_color="#d9534f")
-            return
-
-        error = self._c.on_save_settings(brk, rounds)
+        error = self._c.on_save_settings(self._break_spin.value(), self._rounds_spin.value())
         if error:
-            self._status.configure(text=error, text_color="#d9534f")
+            self._status.setText(error)
+            self._status.setStyleSheet(f"color: {theme.ERROR};")
         else:
-            self._status.configure(
-                text="Saved ✓ — applies to your next session", text_color="#2fa572"
-            )
+            self._status.setText("Saved ✓ — applies to your next session")
+            self._status.setStyleSheet(f"color: {theme.OK};")
