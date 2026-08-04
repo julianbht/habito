@@ -14,9 +14,7 @@ A minimalist, keyboard-navigable cross-platform Pomodoro tracker for developers.
 
 ## Requirements
 
-- Python **3.11+**
-- [uv](https://docs.astral.sh/uv/)
-- git
+Python 3.11+ • [uv](https://docs.astral.sh/uv/) • git
 
 ## Setup
 
