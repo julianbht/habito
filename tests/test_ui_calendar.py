@@ -314,3 +314,57 @@ def test_the_month_total_follows_the_month_shown(view):
 
     view.show_month(other.year, other.month)
     assert "30m this month" in view._total_lbl.text()
+
+
+def build_app(qtbot, tmp_path):
+    from habito.app import _build_engine_and_store
+    from habito.config.models import Config
+    from habito.ui.app import HabitoApp
+
+    settings = tmp_path / "config" / "settings.toml"
+    settings.parent.mkdir(parents=True, exist_ok=True)
+    settings.write_text("[goals]\ndaily_minutes = 100\nbuffer_minutes = 5\n", encoding="utf-8")
+    config = Config.model_validate(
+        {
+            "paths": {"data_repo": str(tmp_path)},
+            "project_root": tmp_path,
+            "config_path": settings,
+        }
+    )
+    engine, store = _build_engine_and_store(config, test_mode=False)
+    app = HabitoApp(config, engine, store, test_mode=False)
+    qtbot.addWidget(app)
+    return app, config
+
+
+def test_changing_the_goal_recolours_the_calendar_without_a_restart(qtbot, tmp_path):
+    from habito.ui.settings_view import SettingsValues
+
+    app, _ = build_app(qtbot, tmp_path)
+    day = summary(ANCHOR, verified=70 * 60)  # short of the default 95-minute threshold
+    app._calendar.set_summaries({ANCHOR: day})
+    assert not app._calendar.calendar.meets_goal(day)
+
+    app.on_save_settings(
+        SettingsValues(
+            break_minutes=5, rounds=4, daily_minutes=60, buffer_minutes=5, sound="asterisk"
+        )
+    )
+
+    assert app._calendar.calendar.meets_goal(day)  # 70m now clears a 55m threshold
+    assert "55m" in app._calendar._hint_lbl.text()
+
+
+def test_the_goal_is_written_back_to_settings_toml(qtbot, tmp_path):
+    from habito.ui.settings_view import SettingsValues
+
+    app, config = build_app(qtbot, tmp_path)
+    app.on_save_settings(
+        SettingsValues(
+            break_minutes=5, rounds=4, daily_minutes=150, buffer_minutes=15, sound="asterisk"
+        )
+    )
+
+    written = config.settings_file().read_text(encoding="utf-8")
+    assert "daily_minutes = 150" in written
+    assert "buffer_minutes = 15" in written
