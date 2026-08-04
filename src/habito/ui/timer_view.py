@@ -14,6 +14,7 @@ from typing import Protocol
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QAbstractSpinBox,
     QComboBox,
     QHBoxLayout,
     QInputDialog,
@@ -100,7 +101,7 @@ class TimerView(QWidget):
         self._state_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self._state_lbl)
 
-        root.addWidget(self._build_time_stack(work_minutes))
+        root.addLayout(self._build_time_row(work_minutes))
         root.addLayout(self._build_step_row())
 
         self._progress = QProgressBar()
@@ -124,39 +125,40 @@ class TimerView(QWidget):
 
         self._apply_tab_order()
 
-    def _build_time_stack(self, work_minutes: int) -> QWidget:
-        """Editable duration and live countdown, swapped in place so nothing shifts."""
+    def _build_time_row(self, work_minutes: int) -> QHBoxLayout:
+        """The time — editable or counting down — with one ▲/▼ pair permanently beside it.
+
+        The spin box's own arrows are switched off: styling ``::up-button`` makes Qt stop
+        drawing the native indicators, and the replacements never look right. Owning the
+        buttons ourselves means one visible, tab-reachable pair that works the same whether
+        the timer is idle or running.
+        """
         self._stack = QStackedWidget()
-        self._stack.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        self._stack.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self._stack.setFixedWidth(_TIME_WIDTH)
 
         # Page 0 (idle): the spin box *is* the work-length control.
         self._spin = MinutesSpinBox(maximum=_MAX_WORK_MINUTES, object_name="time")
-        self._spin.setFixedWidth(_TIME_WIDTH)
+        self._spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
         self._spin.setValue(work_minutes)
         self._spin.setSingleStep(self._step)
-        self._spin.setToolTip("Work length for the next session — type it or use ↑/↓")
+        self._spin.setToolTip("Work length for the next session — type it, or use ▲/▼")
         self._spin.valueChanged.connect(self._on_planned_changed)
-        edit_page = QWidget()
-        edit_row = QHBoxLayout(edit_page)
-        edit_row.setContentsMargins(0, 0, 0, 0)
-        edit_row.addStretch(1)
-        edit_row.addWidget(self._spin)
-        edit_row.addStretch(1)
-        self._stack.addWidget(edit_page)
+        self._stack.addWidget(self._spin)
 
-        # Page 1 (running): countdown plus its own nudge pair, since a live countdown
-        # can't be an editable field.
+        # Page 1 (running): a live countdown can't be an editable field.
         self._time_lbl = label("00:00", "time")
         self._time_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        # Leave room for the nudge column so the number doesn't shift when the page swaps.
-        self._time_lbl.setFixedWidth(_TIME_WIDTH - 36)
+        self._stack.addWidget(self._time_lbl)
+        self._stack.setCurrentIndex(_EDIT_PAGE)
+
         self._up_btn = button("▲", "nudge")
         self._down_btn = button("▼", "nudge")
         for btn, slot, tip in (
-            (self._up_btn, self.nudge_up, "Add to the current round"),
-            (self._down_btn, self.nudge_down, "Take time off the current round"),
+            (self._up_btn, self.nudge_up, "Longer  (Ctrl+↑)"),
+            (self._down_btn, self.nudge_down, "Shorter  (Ctrl+↓)"),
         ):
-            btn.setFixedSize(28, 26)
+            btn.setFixedSize(34, 31)
             btn.setToolTip(tip)
             btn.clicked.connect(slot)
 
@@ -165,18 +167,13 @@ class TimerView(QWidget):
         nudge_col.addWidget(self._up_btn)
         nudge_col.addWidget(self._down_btn)
 
-        run_page = QWidget()
-        run_row = QHBoxLayout(run_page)
-        run_row.setContentsMargins(0, 0, 0, 0)
-        run_row.addStretch(1)
-        run_row.addWidget(self._time_lbl)
-        run_row.addSpacing(8)
-        run_row.addLayout(nudge_col)
-        run_row.addStretch(1)
-        self._stack.addWidget(run_page)
-
-        self._stack.setCurrentIndex(_EDIT_PAGE)
-        return self._stack
+        row = QHBoxLayout()
+        row.addStretch(1)
+        row.addWidget(self._stack)
+        row.addSpacing(8)
+        row.addLayout(nudge_col)
+        row.addStretch(1)
+        return row
 
     def _build_step_row(self) -> QHBoxLayout:
         row = QHBoxLayout()
@@ -319,19 +316,15 @@ class TimerView(QWidget):
     def _show_page(self, page: int) -> None:
         """Swap the time display, keeping keyboard focus somewhere usable.
 
-        Hiding a stack page strands the focus if it was on that page — a keyboard user
-        would be left with nothing focused the moment a session starts. Hand focus to the
-        control they'd reach for next instead.
+        The spin box is the only focusable widget inside the stack, so it's the only one
+        that can be stranded: hiding it while focused would leave a keyboard user with
+        nothing focused the moment a session starts. Hand focus on instead.
         """
         if self._stack.currentIndex() == page:
             return
-        # Qt's stubs type this as non-optional, but it really is None when nothing is focused.
-        focused: QWidget | None = self.focusWidget()
-        had_focus = focused is not None and self._stack.currentWidget().isAncestorOf(focused)
+        if page == _COUNTDOWN_PAGE and self._spin.hasFocus():
+            self._primary_btn.setFocus(Qt.FocusReason.OtherFocusReason)
         self._stack.setCurrentIndex(page)
-        if had_focus:
-            target = self._spin if page == _EDIT_PAGE else self._primary_btn
-            target.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def set_status(self, text: str, color: str = theme.MUTED) -> None:
         self._status_lbl.setText(text)

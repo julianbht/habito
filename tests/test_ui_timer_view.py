@@ -170,29 +170,23 @@ def tab_chain(widget, qtbot, steps: int) -> list:
     ]
 
 
-def test_tab_walks_the_idle_controls_in_order(view, qtbot):
+@pytest.mark.parametrize(
+    "state", [State.idle, State.work], ids=["idle", "running"]
+)
+def test_tab_walks_the_controls_in_order(view, qtbot, state):
+    """The chain is the same in both modes — the ▲/▼ pair is never hidden."""
     widget, _ = view
-    widget.focus_first()
-    assert widget.focusWidget() is widget._spin
+    widget.render_state(snapshot(state, remaining=900, target=1500), 0)
+    widget._spin.setFocus() if state is State.idle else widget._up_btn.setFocus()
 
-    # The ▲/▼ pair lives on the hidden countdown page, so Qt rightly skips it here.
-    assert tab_chain(widget, qtbot, 3) == [
-        widget._step_box,
-        widget._primary_btn,
-        widget._stop_btn,
-    ]
+    expected = [widget._up_btn, widget._down_btn, widget._step_box, widget._primary_btn]
+    if state is State.idle:
+        # Stop is disabled with no session to stop, and Qt skips disabled widgets.
+        assert not widget._stop_btn.isEnabled()
+    else:
+        expected = expected[1:] + [widget._stop_btn]  # started on ▲; the spin box is hidden
 
-
-def test_tab_reaches_the_nudge_buttons_once_running(view, qtbot):
-    widget, _ = view
-    widget.render_state(snapshot(State.work, remaining=900, target=1500), 0)
-    widget._up_btn.setFocus()
-
-    assert tab_chain(widget, qtbot, 3) == [
-        widget._down_btn,
-        widget._step_box,
-        widget._primary_btn,
-    ]
+    assert tab_chain(widget, qtbot, len(expected)) == expected
 
 
 def test_focus_survives_the_switch_into_a_running_session(view):
@@ -205,13 +199,14 @@ def test_focus_survives_the_switch_into_a_running_session(view):
     assert widget.focusWidget() is widget._primary_btn
 
 
-def test_focus_returns_to_the_duration_field_when_a_session_ends(view):
+def test_nudge_buttons_keep_focus_across_a_swap(view):
+    """They sit beside the stack, not inside it, so a swap can't disturb them."""
     widget, _ = view
     widget.render_state(snapshot(State.work, remaining=1500, target=1500), 0)
-    widget._up_btn.setFocus()  # focus parked on the countdown page
+    widget._up_btn.setFocus()
 
     widget.render_state(snapshot(State.done), 0)
-    assert widget.focusWidget() is widget._spin
+    assert widget.focusWidget() is widget._up_btn
 
 
 def test_focus_elsewhere_is_left_alone_when_the_page_swaps(view):

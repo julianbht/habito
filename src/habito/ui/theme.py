@@ -109,7 +109,7 @@ def build_stylesheet(accent: str, palette: Palette = DARK) -> str:
     }}
     QPushButton#primary:hover {{ background-color: {accent}; border-color: {p.text}; }}
     QPushButton#transport {{ font-size: 19px; }}
-    QPushButton#nudge {{ padding: 0px; font-size: 11px; border-radius: 4px; }}
+    QPushButton#nudge {{ padding: 0px; font-size: 13px; border-radius: 5px; }}
     QPushButton#gear {{ font-size: 15px; padding: 2px 7px; }}
 
     QSpinBox, QDateEdit, QTimeEdit, QLineEdit, QComboBox {{
@@ -124,11 +124,6 @@ def build_stylesheet(accent: str, palette: Palette = DARK) -> str:
         font-weight: bold;
         border-width: 2px;
         padding: 2px 4px;
-    }}
-    /* Give the big time's arrows a proportionate hit area. */
-    QSpinBox#time::up-button, QSpinBox#time::down-button {{
-        width: 26px;
-        border-left: 1px solid {p.border};
     }}
     QComboBox::drop-down {{ border: none; width: 16px; }}
     QComboBox QAbstractItemView {{
