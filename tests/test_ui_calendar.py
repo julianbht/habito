@@ -11,6 +11,7 @@ from datetime import date, datetime, time, timedelta
 import pytest
 from PySide6.QtCore import QDate, QRect
 from PySide6.QtGui import QImage, QPainter
+from PySide6.QtWidgets import QSpinBox, QToolButton, QWidget
 
 from habito.config.models import GoalsConfig
 from habito.projections.daily import DailySummary
@@ -239,3 +240,77 @@ def test_a_view_remembers_the_size_you_gave_it(qtbot, tmp_path):
     app.show_page(_LOG_PAGE)
 
     assert app.size().width() == 900
+
+
+# --- month navigation -----------------------------------------------------
+def test_qts_own_navigation_bar_is_used(view):
+    """Hand-rolling it was a mistake; the built-in one navigates and is keyboard-ready."""
+    assert view.calendar.isNavigationBarVisible()
+    assert view.calendar.findChild(QWidget, "qt_calendar_navigationbar") is not None
+
+
+def test_the_cramped_menu_arrow_is_hidden(qapp):
+    """Qt draws it in the month button's bottom-right corner, hard against the text."""
+    sheet = DARK.stylesheet()
+    assert "qt_calendar_monthbutton::menu-indicator" in sheet
+    assert "image: none" in sheet
+
+
+def test_the_arrow_buttons_are_left_unstyled(qapp):
+    """Styling QToolButton's box is what stops Qt drawing arrow-type buttons at all."""
+    sheet = DARK.stylesheet()
+    for name in ("qt_calendar_prevmonth", "qt_calendar_nextmonth"):
+        assert name not in sheet
+
+
+def test_the_month_button_still_opens_its_menu(view):
+    """Hiding the indicator is cosmetic — the button keeps its popup."""
+    month_button = view.calendar.findChild(QToolButton, "qt_calendar_monthbutton")
+    assert month_button is not None
+    assert month_button.menu() is not None
+    assert month_button.menu().actions()  # the twelve months
+
+
+def test_the_year_keeps_its_spin_box(view):
+    assert view.calendar.findChild(QSpinBox, "qt_calendar_yearedit") is not None
+
+
+def test_the_prev_and_next_buttons_exist(view):
+    for name in ("qt_calendar_prevmonth", "qt_calendar_nextmonth"):
+        assert view.calendar.findChild(QToolButton, name) is not None
+
+
+def test_paging_the_calendar_moves_the_month(view):
+    view.show_month(2026, 6)
+    assert view.shown_month() == (2026, 6)
+
+    view.calendar.showNextMonth()
+    assert view.shown_month() == (2026, 7)
+
+    view.calendar.showPreviousMonth()
+    assert view.shown_month() == (2026, 6)
+
+
+@pytest.mark.parametrize(
+    ("start", "expected"),
+    [((2026, 12), (2027, 1)), ((2026, 1), (2026, 2))],
+)
+def test_paging_rolls_over_the_year(view, start, expected):
+    view.show_month(*start)
+    view.calendar.showNextMonth()
+    assert view.shown_month() == expected
+
+
+def test_the_month_total_follows_the_month_shown(view):
+    other = ANCHOR.replace(day=10) - timedelta(days=40)
+    view.set_summaries(
+        {
+            ANCHOR: summary(ANCHOR, verified=100 * 60),
+            other: summary(other, verified=30 * 60),
+        }
+    )
+    view.show_month(ANCHOR.year, ANCHOR.month)
+    assert "1h 40m this month" in view._total_lbl.text()
+
+    view.show_month(other.year, other.month)
+    assert "30m this month" in view._total_lbl.text()

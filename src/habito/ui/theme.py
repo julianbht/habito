@@ -172,6 +172,46 @@ def build_stylesheet(accent: str, palette: Palette = DARK) -> str:
     /* Painted in ProgressBackground.paintEvent — it *is* the progress indicator. */
     QWidget#progressBackground {{ background: transparent; }}
 
+    /* The calendar. Qt's own navigation bar, themed to match. */
+    QCalendarWidget QAbstractItemView {{
+        background-color: {p.bg};
+        outline: none;
+        selection-background-color: transparent;
+        selection-color: {p.text};
+    }}
+    QCalendarWidget QWidget#qt_calendar_navigationbar {{
+        background-color: {p.surface};
+        border-top-left-radius: 6px;
+        border-top-right-radius: 6px;
+    }}
+    /* Colour only — deliberately no padding/border here. Styling QToolButton broadly is
+       what stops Qt drawing the prev/next arrows, which are arrow-type tool buttons. */
+    QCalendarWidget QToolButton {{
+        background-color: transparent;
+        color: {p.text};
+        font-size: 14px;
+        font-weight: bold;
+    }}
+    QCalendarWidget QToolButton:hover {{ background-color: {p.surface_hi}; }}
+    QCalendarWidget QToolButton:pressed {{ background-color: {p.border}; }}
+    /* Room to breathe, applied only to the two text buttons. */
+    QCalendarWidget QToolButton#qt_calendar_monthbutton,
+    QCalendarWidget QToolButton#qt_calendar_yearbutton {{
+        padding: 4px 14px;
+        margin: 4px 2px;
+        border-radius: 5px;
+    }}
+    /* Qt crams this arrow into the month button's bottom-right corner, hard against the
+       text. The button still opens its menu on click, so hiding it loses nothing. */
+    QCalendarWidget QToolButton#qt_calendar_monthbutton::menu-indicator {{
+        image: none;
+        width: 0px;
+    }}
+    QCalendarWidget QSpinBox {{
+        font-size: 14px;
+        margin: 3px 2px;
+    }}
+
     /* The log is a dense table; it gets a size of its own and room to breathe. */
     QTreeView {{
         background-color: {p.surface};

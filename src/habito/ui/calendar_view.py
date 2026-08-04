@@ -139,7 +139,7 @@ class CalendarView(QWidget):
         root.setSpacing(6)
 
         self.calendar = StudyCalendar(ui_theme, threshold_seconds)
-        self.calendar.currentPageChanged.connect(lambda *_: self._render_total())
+        self.calendar.currentPageChanged.connect(lambda *_: self._render_page())
         root.addWidget(self.calendar, 1)
 
         self._total_lbl = label("", "today")
@@ -151,12 +151,20 @@ class CalendarView(QWidget):
         self._hint_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self._hint_lbl)
 
-        self._render_total()
+        self._render_page()
 
+    # --- navigation ------------------------------------------------------
+    def shown_month(self) -> tuple[int, int]:
+        return self.calendar.yearShown(), self.calendar.monthShown()
+
+    def show_month(self, year: int, month: int) -> None:
+        self.calendar.setCurrentPage(year, month)
+
+    # --- contents --------------------------------------------------------
     def set_summaries(self, summaries: dict[date, DailySummary]) -> None:
         self._summaries = summaries
         self.calendar.set_summaries(summaries)
-        self._render_total()
+        self._render_page()
 
     def month_summaries(self) -> list[DailySummary]:
         year, month = self.calendar.yearShown(), self.calendar.monthShown()
@@ -164,7 +172,7 @@ class CalendarView(QWidget):
             s for day, s in self._summaries.items() if day.year == year and day.month == month
         ]
 
-    def _render_total(self) -> None:
+    def _render_page(self) -> None:
         days = self.month_summaries()
         studied = sum(s.total_work_seconds for s in days)
         met = sum(1 for s in days if self.calendar.meets_goal(s))
