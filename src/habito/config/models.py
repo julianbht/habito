@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 class PomodoroConfig(BaseModel):
@@ -25,18 +25,11 @@ class EvidenceConfig(BaseModel):
 class UIConfig(BaseModel):
     theme: str = "dark"  # "dark" | "light" | "system"
     notifications: bool = True
-    sound: str = "chime"  # a key from habito.ui.sounds.CATALOGUE
+    # A key from habito.ui.sounds.CATALOGUE, or a path to an audio file. Paths aren't
+    # checked here — a sound file going missing between runs isn't a reason to refuse to
+    # start, so that's handled at playback time instead.
+    sound: str = "notification"
     always_on_top: bool = False
-
-    @field_validator("sound")
-    @classmethod
-    def _known_sound(cls, v: str) -> str:
-        # Imported here: habito.config must not drag in Qt just to be validated.
-        from habito.ui.sounds import KEYS
-
-        if v not in KEYS:
-            raise ValueError(f"sound must be one of {', '.join(KEYS)}")
-        return v
 
 
 class PathsConfig(BaseModel):

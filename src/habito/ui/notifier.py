@@ -28,10 +28,11 @@ _MESSAGE_MS = 6000
 class Notification:
     title: str
     body: str
+    action: str = "OK"  # the label on the button that dismisses the prompt
 
 
 def notification_for(previous: State, snap: EngineState) -> Notification | None:
-    """What to announce when the engine leaves ``previous`` for ``snap.state``.
+    """What to say when the engine leaves ``previous`` for ``snap.state``.
 
     Only automatic transitions are worth announcing — you already know about the ones you
     triggered yourself, and the caller suppresses those.
@@ -40,20 +41,25 @@ def notification_for(previous: State, snap: EngineState) -> Notification | None:
     if previous == current:
         return None
 
-    if previous is State.work and current is State.break_:
+    if current is State.awaiting:
+        if snap.pending is State.break_:
+            return Notification(
+                "Round complete",
+                f"Round {snap.round_index} of {snap.total_rounds} done. "
+                "Your break starts when you're ready.",
+                action="Start break",
+            )
         return Notification(
-            "Break time",
-            f"Round {snap.round_index} of {snap.total_rounds} done — step away.",
+            "Break over",
+            f"Round {snap.round_index + 1} of {snap.total_rounds} is up next.",
+            action=f"Start round {snap.round_index + 1}",
         )
-    if previous is State.break_ and current is State.work:
-        return Notification(
-            "Back to work",
-            f"Round {snap.round_index} of {snap.total_rounds}.",
-        )
+
     if previous in (State.work, State.break_) and current is State.done:
         return Notification(
             "Session complete",
             f"{format_duration(snap.session_work_seconds)} of focus. Nicely done.",
+            action="Done",
         )
     return None
 

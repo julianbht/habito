@@ -22,7 +22,8 @@ from habito.projections.daily import summary_for
 from habito.storage.event_store import EventStore
 from habito.ui import theme
 from habito.ui.backfill_view import BackfillDialog
-from habito.ui.notifier import DesktopNotifier, Sink, notification_for
+from habito.ui.notifier import DesktopNotifier, Notification, Sink, notification_for
+from habito.ui.phase_dialog import PhaseDialog
 from habito.ui.progress_background import ProgressBackground
 from habito.ui.settings_view import SettingsDialog
 from habito.ui.sounds import SoundPlayer
@@ -53,6 +54,7 @@ class HabitoApp(QMainWindow):
         self._settings_dialog: SettingsDialog | None = None
         self._last_state = engine.state
         self._ending_by_hand = False
+        self._phase_dialog: PhaseDialog | None = None
 
         self.setWindowTitle("Habito — TEST MODE" if test_mode else "Habito")
         self.resize(380, 500)
@@ -162,6 +164,10 @@ class HabitoApp(QMainWindow):
         self._repaint()
 
     def on_pause_resume(self) -> None:
+        if self._engine.state is State.awaiting:
+            # ▶ on a finished phase means "get on with it", same as the prompt's button.
+            self._on_prompt_accepted()
+            return
         if self._engine.state is State.paused:
             self._engine.resume()
         else:
@@ -279,19 +285,57 @@ class HabitoApp(QMainWindow):
         self._announce(snap)
 
     def _announce(self, snap: EngineState) -> None:
-        """Notify on phase changes the engine made on its own.
+        """Prompt and notify on phase changes the engine made on its own.
 
         Transitions are read off consecutive snapshots rather than the event stream, which
         keeps backfilled sessions — appended straight to the store — from announcing
         themselves hours after the fact.
         """
         previous, self._last_state = self._last_state, snap.state
+        self._dismiss_stale_prompt(snap)
         if self._ending_by_hand:
             self._ending_by_hand = False
             return
         note = notification_for(previous, snap)
-        if note is not None:
-            self._notifier.send(note)
+        if note is None:
+            return
+        self._notifier.send(note)
+        self._prompt(note)
+
+    def _prompt(self, note: Notification) -> None:
+        """Put the phase prompt in front of whatever the user is doing."""
+        self._close_prompt()
+        self._phase_dialog = PhaseDialog(
+            note.title,
+            note.body,
+            note.action,
+            on_accept=self._on_prompt_accepted,
+            gates_phase=self._engine.state is State.awaiting,
+            parent=self,
+        )
+        self._phase_dialog.present()
+
+    def _on_prompt_accepted(self) -> None:
+        """Start the waiting phase and bring the timer back to the front."""
+        self._phase_dialog = None
+        self._engine.acknowledge()
+        self._last_state = self._engine.state  # already handled; don't re-announce it
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        self._view.focus_first()
+        self._repaint()
+
+    def _dismiss_stale_prompt(self, snap: EngineState) -> None:
+        """Take the prompt down if the session moved on without it being answered."""
+        dialog = self._phase_dialog
+        if dialog is not None and dialog.gates_phase and snap.state is not State.awaiting:
+            self._close_prompt()
+
+    def _close_prompt(self) -> None:
+        if self._phase_dialog is not None:
+            self._phase_dialog.close()
+            self._phase_dialog = None
 
     def _render_status(self, status: EvidenceStatus) -> None:
         if status.unpushed_count > 0:
@@ -306,6 +350,7 @@ class HabitoApp(QMainWindow):
 
     def closeEvent(self, event) -> None:  # noqa: N802 (Qt override)
         self._timer.stop()
+        self._close_prompt()
         if isinstance(self._notifier, DesktopNotifier):
             self._notifier.close()
         if self._worker is not None:

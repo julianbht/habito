@@ -37,6 +37,7 @@ class State(StrEnum):
     work = "work"
     break_ = "break"
     paused = "paused"
+    awaiting = "awaiting"  # a phase finished; the next one starts when you acknowledge it
     done = "done"
 
 
@@ -52,6 +53,7 @@ class EngineState:
     accumulated_work_seconds: int
     session_work_seconds: int  # accumulated + the current in-progress work phase
     paused_from: State | None
+    pending: State | None = None  # while awaiting: the phase acknowledgement will start
 
 
 class PomodoroEngine:
@@ -72,6 +74,7 @@ class PomodoroEngine:
         self._elapsed_before = 0.0  # accrued elapsed before the current running segment
         self._segment_start: float | None = None  # monotonic; None while paused/stopped
         self._paused_from: State | None = None
+        self._pending: tuple[State, int] | None = None
         self._accumulated_work = 0
 
     # --- derived time ----------------------------------------------------
@@ -111,6 +114,19 @@ class PomodoroEngine:
         self._segment_start = self._clock.monotonic()
         self._emit(BreakStarted, round_index=round_index)
 
+    def _hold_for(self, phase: State, round_index: int) -> None:
+        """Park between phases until :meth:`acknowledge`.
+
+        A break that starts while you're still typing isn't a break, so the clock stops at
+        the boundary and the next phase only begins when you say so. Nothing is emitted
+        here — the phase that just ended has already been recorded.
+        """
+        self._state = State.awaiting
+        self._pending = (phase, round_index)
+        self._segment_start = None
+        self._elapsed_before = 0.0
+        self._phase_target = 0.0
+
     def _complete_work(self) -> None:
         work_seconds = round(self._phase_elapsed())
         self._accumulated_work += work_seconds
@@ -118,16 +134,17 @@ class PomodoroEngine:
         if self._round_index >= self._config.rounds:
             self._end_session()
         else:
-            self._begin_break(self._round_index)
+            self._hold_for(State.break_, self._round_index)
 
     def _complete_break(self) -> None:
         break_seconds = round(self._phase_elapsed())
         self._emit(BreakEnded, round_index=self._round_index, break_seconds=break_seconds)
-        self._begin_work(self._round_index + 1)
+        self._hold_for(State.work, self._round_index + 1)
 
     def _end_session(self) -> None:
         self._emit(SessionEnded, total_work_seconds=self._accumulated_work)
         self._state = State.done
+        self._pending = None
         self._segment_start = None
 
     # --- commands --------------------------------------------------------
@@ -161,6 +178,17 @@ class PomodoroEngine:
         self._segment_start = self._clock.monotonic()
         self._emit(SessionResumed)
 
+    def acknowledge(self) -> None:
+        """Start the phase that's been waiting since the last one ended."""
+        if self._state is not State.awaiting or self._pending is None:
+            return
+        phase, round_index = self._pending
+        self._pending = None
+        if phase is State.work:
+            self._begin_work(round_index)
+        else:
+            self._begin_break(round_index)
+
     def skip(self) -> None:
         """Finish the current phase immediately and advance."""
         active = self._paused_from if self._state is State.paused else self._state
@@ -181,6 +209,10 @@ class PomodoroEngine:
 
     def stop(self) -> None:
         """End the session early, finalising the in-flight phase honestly."""
+        if self._state is State.awaiting:
+            # Nothing is running, and the finished phase was already recorded.
+            self._end_session()
+            return
         active = self._paused_from if self._state is State.paused else self._state
         if active is State.work:
             work_seconds = round(self._phase_elapsed())
@@ -214,6 +246,7 @@ class PomodoroEngine:
             accumulated_work_seconds=self._accumulated_work,
             session_work_seconds=self._accumulated_work + work_in_phase,
             paused_from=self._paused_from,
+            pending=self._pending[0] if self._pending else None,
         )
 
     @property

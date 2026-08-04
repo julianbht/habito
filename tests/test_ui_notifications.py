@@ -23,7 +23,12 @@ class RecordingSink:
         self.sent.append(note)
 
 
-def snapshot(state: State, round_index: int = 1, work_seconds: int = 0) -> EngineState:
+def snapshot(
+    state: State,
+    round_index: int = 1,
+    work_seconds: int = 0,
+    pending: State | None = None,
+) -> EngineState:
     return EngineState(
         state=state,
         round_index=round_index,
@@ -33,22 +38,27 @@ def snapshot(state: State, round_index: int = 1, work_seconds: int = 0) -> Engin
         accumulated_work_seconds=work_seconds,
         session_work_seconds=work_seconds,
         paused_from=None,
+        pending=pending,
     )
 
 
 # --- what gets said -------------------------------------------------------
-def test_finishing_a_round_announces_the_break():
-    note = notification_for(State.work, snapshot(State.break_, round_index=2))
+def test_finishing_a_round_offers_the_break():
+    snap = snapshot(State.awaiting, round_index=2, pending=State.break_)
+    note = notification_for(State.work, snap)
     assert note is not None
-    assert note.title == "Break time"
+    assert note.title == "Round complete"
     assert "Round 2 of 4" in note.body
+    assert note.action == "Start break"
 
 
-def test_finishing_a_break_announces_the_next_round():
-    note = notification_for(State.break_, snapshot(State.work, round_index=3))
+def test_finishing_a_break_offers_the_next_round():
+    snap = snapshot(State.awaiting, round_index=2, pending=State.work)
+    note = notification_for(State.break_, snap)
     assert note is not None
-    assert note.title == "Back to work"
-    assert "Round 3 of 4" in note.body
+    assert note.title == "Break over"
+    assert "Round 3 of 4" in note.body  # the one about to start, not the one just done
+    assert note.action == "Start round 3"
 
 
 def test_finishing_the_session_reports_the_total():
@@ -56,6 +66,7 @@ def test_finishing_the_session_reports_the_total():
     assert note is not None
     assert note.title == "Session complete"
     assert "1h 05m" in note.body
+    assert note.action == "Done"
 
 
 @pytest.mark.parametrize(
@@ -95,7 +106,7 @@ def test_an_automatic_phase_change_is_announced(app):
     app._engine.skip()  # finish the work round the way the clock would
     app._repaint()
 
-    assert [n.title for n in app._notifier.sent] == ["Break time"]
+    assert [n.title for n in app._notifier.sent] == ["Round complete"]
 
 
 def test_stopping_by_hand_is_not_announced(app):
@@ -112,7 +123,7 @@ def test_the_suppression_only_applies_to_the_stop_that_set_it(app):
     app._engine.skip()
     app._repaint()
 
-    assert [n.title for n in app._notifier.sent] == ["Break time"]
+    assert [n.title for n in app._notifier.sent] == ["Round complete"]
 
 
 def test_a_full_session_announces_every_phase_change(app):
@@ -120,9 +131,11 @@ def test_a_full_session_announces_every_phase_change(app):
     for _ in range(app._config.pomodoro.rounds * 2 - 1):
         app._engine.skip()
         app._repaint()
+        app._engine.acknowledge()  # the prompt's button, pressed
+        app._repaint()
 
     titles = [n.title for n in app._notifier.sent]
-    assert titles[0] == "Break time"
+    assert titles[0] == "Round complete"
     assert titles[-1] == "Session complete"
     assert titles.count("Session complete") == 1
 

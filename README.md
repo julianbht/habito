@@ -87,6 +87,7 @@ The **big time is also the work-length control**:
 
 - **Before you start** (or after a session ends) it's a spin box — type `30` (or `30:00`),
   or use the **▲/▼ buttons beside it**. This sets the work length for your next session.
+  Type `0:10` for ten seconds if you want to watch a round finish.
 - **While running** it becomes the live countdown, and the same ▲/▼ buttons adjust the
   current round on the fly. Live adjustments are recorded transparently in the log as
   `TimeAdjusted` events.
@@ -97,10 +98,26 @@ There's no progress bar: **the window background itself is the progress indicato
 left to right as the round elapses and tinted toward the current phase — green while you
 work, blue on a break, amber when paused.
 
-When a round or break ends, Habito announces it — a system-tray message, a flashing
-taskbar entry, and a beep, so you can look away from the window and still be told. Ends you
-trigger yourself aren't announced. Turn it off with `notifications = false` under `[ui]` in
-`settings.toml`.
+### When a phase ends
+
+Habito **stops the clock between phases**. A break that starts while you're still finishing
+a sentence isn't a break, so nothing advances on its own:
+
+- an always-on-top prompt appears — *Round 2 of 4 done* — with a **Start break** button;
+- no break time accrues while it waits, however long you take;
+- pressing the button starts the break **and brings the timer back to the front**.
+
+The prompt isn't modal, so you can ignore it and press ⏹ to end the session instead. ▶ (or
+`Ctrl+Space`) does the same thing as the button, if the timer is already in front of you.
+
+Alongside the prompt you get a system-tray message and a flashing taskbar entry, so it
+reaches you even when the app is buried. Set `notifications = false` under `[ui]` to drop
+the tray message and sound — the prompt still appears, since it's how you advance.
+
+**The sound** is your Windows system sounds (Asterisk, Notification, Exclamation, and so
+on — whatever you've set them to in Sound settings), or **your own audio file**: pick
+*Choose a file…* in Settings. ▶ Test plays the current choice. Off Windows the built-ins
+fall back to a plain beep, so a custom file is the way to get something specific.
 
 The **⚙ gear** opens Settings for **break length** and **round count** (work length lives on
 the timer), plus **Add past session** to backfill. Everything is saved back to
@@ -117,7 +134,7 @@ control draws a visible focus ring.
 | `Space` / `Enter` | Press the focused button (Qt only gives you `Space`; `Enter` is ours) |
 | `↑` / `↓` | Nudge the duration by a minute, while it has focus |
 | `Ctrl+↑` / `Ctrl+↓` | Nudge by a minute from anywhere — the duration when idle, the live round when running |
-| `Ctrl+Space` | Start / pause / resume |
+| `Ctrl+Space` | Start / pause / resume, or start a phase that's waiting |
 | `Ctrl+.` | Stop the session |
 | `Ctrl+,` | Open Settings |
 | `Esc` | Close a dialog |
@@ -149,10 +166,10 @@ For trying the UI out without polluting your real record. In this mode Habito:
 | `habito.domain` | Pydantic event models (append-only log entries) |
 | `habito.config` | TOML settings + validation |
 | `habito.storage` | Append-only JSONL event store (Repository) |
-| `habito.engine` | Pomodoro state machine + injectable Clock |
+| `habito.engine` | Pomodoro state machine (incl. the between-phase hold) + injectable Clock |
 | `habito.projections` | Fold events → daily summaries (verified vs backfilled) |
 | `habito.evidence` | git wrapper, background commit+push worker, Observer recorder |
-| `habito.ui` | PySide6/Qt timer, settings + backfill dialogs, window/controller, theme, progress background, notifications |
+| `habito.ui` | PySide6/Qt timer, dialogs (settings, backfill, phase prompt), window/controller, theme, progress background, notifications + sounds |
 | `habito.backfill` | Synthesize events for a past session |
 
 Only `habito.ui` knows about Qt. The views are purely presentational and talk to a

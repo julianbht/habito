@@ -19,7 +19,10 @@ warn_when_unpushed = true
 
 [ui]
 theme = "dark"             # "dark", "light", or "system" (follows the OS)
-notifications = true       # announce phase changes (tray message + taskbar flash + beep)
+notifications = true       # tray message + taskbar flash + sound when a phase ends
+# A system sound (asterisk, notification, exclamation, question, critical, default,
+# none) or a path to your own audio file.
+sound = "notification"
 always_on_top = false
 
 [paths]

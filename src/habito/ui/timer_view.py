@@ -32,12 +32,14 @@ _STATE_LABEL = {
     State.work: "Focus",
     State.break_: "Break",
     State.paused: "Paused",
+    State.awaiting: "Time's up",
     State.done: "Done",
 }
 _STATE_COLOR = {
     State.work: theme.OK,
     State.break_: theme.BREAK,
     State.paused: theme.WARN,
+    State.awaiting: theme.WARN,
     State.done: theme.OK,
     State.idle: theme.MUTED,
 }
@@ -68,6 +70,8 @@ def progress_for(snap: EngineState) -> tuple[float, str]:
     color = _STATE_COLOR.get(snap.state, theme.MUTED)
     if snap.state in (State.idle, State.done):
         return 0.0, color
+    if snap.state is State.awaiting:
+        return 1.0, color  # the phase is over; the window stays full until you move on
     target = snap.phase_target_seconds or 1
     return (target - snap.remaining_seconds) / target, color
 
@@ -262,7 +266,9 @@ class TimerView(QWidget):
         running = snap.state in (State.work, State.break_)
         self._primary_btn.setText(_PAUSE if running else _PLAY)
 
-        active = snap.state in (State.work, State.break_, State.paused)
+        # Stop stays available while a phase prompt is up, so you can end the session
+        # instead of taking the break it's offering.
+        active = snap.state in (State.work, State.break_, State.paused, State.awaiting)
         self._stop_btn.setEnabled(active)
 
         self._today_lbl.setText(f"Today: {format_duration(today_seconds)}")

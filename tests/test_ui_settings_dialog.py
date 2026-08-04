@@ -48,7 +48,7 @@ def test_edits_are_passed_to_the_controller(dialog, qtbot):
     widget._rounds_spin.setValue(6)
     qtbot.mouseClick(widget._save_btn, Qt.MouseButton.LeftButton)
 
-    assert controller.saved == [(12, 6, "chime")]
+    assert controller.saved == [(12, 6, "notification")]
     assert "Saved" in widget._status.text()
 
 
@@ -74,7 +74,7 @@ def test_enter_saves_when_the_save_button_has_focus(dialog, qtbot):
     widget._save_btn.setFocus()
     qtbot.keyClick(widget._save_btn, Qt.Key.Key_Return)
 
-    assert controller.saved == [(5, 4, "chime")]
+    assert controller.saved == [(5, 4, "notification")]
 
 
 def test_tab_reaches_every_control(dialog, qtbot):

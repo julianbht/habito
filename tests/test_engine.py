@@ -33,16 +33,39 @@ def test_start_emits_session_and_first_round():
     assert engine.snapshot().round_index == 1
 
 
-def test_full_two_round_session_auto_advances():
+def test_a_finished_phase_waits_to_be_acknowledged():
+    """The break shouldn't start while you're still finishing a thought."""
     engine, clock, events = build(work=25, brk=5, rounds=2)
     engine.start()
 
     clock.advance(25 * 60)
-    engine.tick()  # work 1 -> break 1
+    engine.tick()
+    assert engine.state is State.awaiting
+    assert engine.snapshot().pending is State.break_
+    assert isinstance(events[-1], RoundEnded)  # the round is recorded...
+
+    clock.advance(10 * 60)  # ...and no break time accrues while we wait
+    engine.tick()
+    assert engine.state is State.awaiting
+
+    engine.acknowledge()
+    assert engine.state is State.break_
+    assert isinstance(events[-1], BreakStarted)
+    assert engine.remaining_seconds() == 5 * 60  # a full break, not a shortened one
+
+
+def test_full_two_round_session_advances_when_acknowledged():
+    engine, clock, events = build(work=25, brk=5, rounds=2)
+    engine.start()
+
+    clock.advance(25 * 60)
+    engine.tick()  # work 1 -> waiting
+    engine.acknowledge()  # -> break 1
     assert isinstance(events[-1], BreakStarted)
 
     clock.advance(5 * 60)
-    engine.tick()  # break 1 -> work 2
+    engine.tick()  # break 1 -> waiting
+    engine.acknowledge()  # -> work 2
     assert isinstance(events[-1], RoundStarted)
     assert engine.snapshot().round_index == 2
 
@@ -51,6 +74,42 @@ def test_full_two_round_session_auto_advances():
     assert isinstance(events[-1], SessionEnded)
     assert events[-1].total_work_seconds == 2 * 25 * 60
     assert engine.state is State.done
+
+
+def test_the_last_round_ends_the_session_without_waiting():
+    engine, clock, events = build(work=25, brk=5, rounds=1)
+    engine.start()
+    clock.advance(25 * 60)
+    engine.tick()
+
+    assert engine.state is State.done  # nothing queued, so nothing to acknowledge
+    assert engine.snapshot().pending is None
+
+
+def test_acknowledge_does_nothing_when_no_phase_is_waiting():
+    engine, clock, events = build()
+    engine.acknowledge()
+    assert engine.state is State.idle
+
+    engine.start()
+    before = list(events)
+    engine.acknowledge()
+    assert engine.state is State.work
+    assert events == before
+
+
+def test_stopping_while_waiting_ends_the_session():
+    engine, clock, events = build(work=25, brk=5, rounds=4)
+    engine.start()
+    clock.advance(25 * 60)
+    engine.tick()
+    assert engine.state is State.awaiting
+
+    engine.stop()
+    assert engine.state is State.done
+    assert isinstance(events[-1], SessionEnded)
+    # The finished round was already recorded; stopping must not record it twice.
+    assert sum(isinstance(e, RoundEnded) for e in events) == 1
 
 
 def test_no_trailing_break_after_last_round():
@@ -67,8 +126,10 @@ def _run_full(work=25, brk=5, rounds=3):
         clock.advance(work * 60)
         engine.tick()
         if r < rounds:
+            engine.acknowledge()  # start the break
             clock.advance(brk * 60)
             engine.tick()
+            engine.acknowledge()  # start the next round
     return engine, clock, events
 
 
@@ -111,8 +172,11 @@ def test_skip_work_advances_to_break():
     engine.start()
     clock.advance(120)
     engine.skip()
-    assert isinstance(events[-2], RoundEnded)
-    assert events[-2].work_seconds == 120  # only elapsed time counted
+    assert isinstance(events[-1], RoundEnded)
+    assert events[-1].work_seconds == 120  # only elapsed time counted
+    assert engine.state is State.awaiting  # skipping still waits for you
+
+    engine.acknowledge()
     assert isinstance(events[-1], BreakStarted)
 
 
@@ -141,7 +205,9 @@ def test_session_work_seconds_tracks_live():
     assert engine.snapshot().session_work_seconds == 300
     clock.advance(25 * 60 - 300)
     engine.tick()  # complete round 1
+    engine.acknowledge()
     clock.advance(5 * 60)
-    engine.tick()  # complete break, start round 2
+    engine.tick()  # complete break
+    engine.acknowledge()  # start round 2
     clock.advance(100)
     assert engine.snapshot().session_work_seconds == 25 * 60 + 100

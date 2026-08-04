@@ -13,6 +13,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
+    QFileDialog,
     QFormLayout,
     QFrame,
     QHBoxLayout,
@@ -32,6 +33,12 @@ class Controller(Protocol):
     def on_preview_sound(self, sound: str) -> None: ...
 
 
+# Sentinel entries in the sound combo: one opens a file picker, the other marks the row
+# holding whatever file was picked.
+_BROWSE = "__browse__"
+_CUSTOM_SLOT = "__custom__"
+
+
 def _rule() -> QFrame:
     line = QFrame()
     line.setFrameShape(QFrame.Shape.HLine)
@@ -49,6 +56,7 @@ class SettingsDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self._c = controller
+        self._last_sound = sound
         self.setWindowTitle("Settings")
         self.setMinimumWidth(320)
         self._build(pomodoro, sound)
@@ -108,9 +116,13 @@ class SettingsDialog(QDialog):
         self._sound_box = QComboBox()
         for entry in sounds.CATALOGUE:
             self._sound_box.addItem(entry.label, entry.key)
+        self._sound_box.insertSeparator(self._sound_box.count())
+        self._sound_box.addItem("Choose a file…", _BROWSE)
+        if sounds.is_custom(sound):
+            self._add_custom(sound)
         self._sound_box.setCurrentIndex(max(0, self._sound_box.findData(sound)))
         self._sound_box.setToolTip("Played when a round or break ends")
-        self._sound_box.activated.connect(lambda _i: self._preview())
+        self._sound_box.activated.connect(self._on_sound_chosen)
         row.addWidget(self._sound_box, 1)
 
         self._preview_btn = button("▶ Test")
@@ -118,6 +130,31 @@ class SettingsDialog(QDialog):
         self._preview_btn.clicked.connect(self._preview)
         row.addWidget(self._preview_btn)
         return row
+
+    def _add_custom(self, path: str) -> None:
+        """Show a chosen file as its own entry, replacing any previous one."""
+        existing = self._sound_box.findData(_CUSTOM_SLOT, Qt.ItemDataRole.UserRole + 1)
+        if existing >= 0:
+            self._sound_box.removeItem(existing)
+        self._sound_box.insertItem(0, sounds.label_for(path), path)
+        self._sound_box.setItemData(0, _CUSTOM_SLOT, Qt.ItemDataRole.UserRole + 1)
+        self._sound_box.setItemData(0, path, Qt.ItemDataRole.ToolTipRole)
+        self._sound_box.setCurrentIndex(0)
+
+    def _on_sound_chosen(self, index: int) -> None:
+        if self._sound_box.itemData(index) != _BROWSE:
+            self._preview()
+            return
+
+        chosen, _ = QFileDialog.getOpenFileName(
+            self, "Choose a notification sound", "", sounds.FILE_FILTER
+        )
+        if chosen:
+            self._add_custom(chosen)
+            self._preview()
+        else:
+            # Never leave "Choose a file…" showing as though it were the selection.
+            self._sound_box.setCurrentIndex(max(0, self._sound_box.findData(self._last_sound)))
 
     @staticmethod
     def _spin(value: int, *, maximum: int) -> QSpinBox:
@@ -128,10 +165,12 @@ class SettingsDialog(QDialog):
         return spin
 
     def selected_sound(self) -> str:
-        return self._sound_box.currentData()
+        chosen = self._sound_box.currentData()
+        return self._last_sound if chosen in (None, _BROWSE) else chosen
 
     def _preview(self) -> None:
-        self._c.on_preview_sound(self.selected_sound())
+        self._last_sound = self.selected_sound()
+        self._c.on_preview_sound(self._last_sound)
 
     def _save(self) -> None:
         error = self._c.on_save_settings(
