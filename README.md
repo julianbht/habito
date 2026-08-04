@@ -1,20 +1,6 @@
 # Habito
 
-A minimalist, cross-platform (Windows + macOS) Pomodoro habit tracker with a
-**tamper-evident** study log. Every event is appended to an immutable log and — the moment
-it happens — committed and pushed to a separate GitHub repo, so the **push timestamps
-recorded by GitHub's servers** stand as third-party proof of when you actually studied.
-
-## Why the design is like this
-
-- **Git commit times are forgeable** (they come from your machine), so they prove nothing
-  on their own. What *is* hard to forge is **GitHub's server-recorded push time**. Habito
-  therefore commits **and pushes** after every event, immediately.
-- The log is **append-only** (event sourcing): nothing is ever edited, only appended.
-- Sessions you add later are stored with `origin = "backfilled"` and are reported
-  separately from live, in-the-moment evidence — they never masquerade as verified.
-- The log lives in a **separate git repo** that Habito owns exclusively, keeping the
-  evidence history clean and free of collisions with your code commits.
+A minimalist, keyboard-navigable cross-platform Pomodoro tracker for developers with logs stored on Github.
 
 ## Requirements
 
@@ -86,6 +72,17 @@ the timer now), plus **Add past session** to backfill. Everything is saved back 
 | `habito.evidence` | git wrapper, background commit+push worker, Observer recorder |
 | `habito.ui` | CustomTkinter timer + backfill views, window/controller |
 | `habito.backfill` | Synthesize events for a past session |
+
+## Tamper evident log
+
+- **Git commit times are forgeable** (they come from your machine), so they prove nothing
+  on their own. What *is* hard to forge is **GitHub's server-recorded push time**. Habito
+  therefore commits **and pushes** after every event, immediately.
+- The log is **append-only** (event sourcing): nothing is ever edited, only appended.
+- Sessions you add later are stored with `origin = "backfilled"` and are reported
+  separately from live, in-the-moment evidence — they never masquerade as verified.
+- The log lives in a **separate git repo** that Habito owns exclusively, keeping the
+  evidence history clean and free of collisions with your code commits.
 
 ## Tests
 
