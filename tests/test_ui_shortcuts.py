@@ -121,15 +121,24 @@ def test_settings_shortcut_does_not_stack_duplicate_dialogs(qtbot, app):
     assert app._settings_dialog is first
 
 
-def test_settings_is_the_last_menu_entry(qtbot, app, monkeypatch):
+def entries(app) -> list[str]:
+    """The ☰ menu's entries in order, separators as empty strings."""
+    return ["" if a.isSeparator() else a.text() for a in app.build_menu().actions()]
+
+
+def test_settings_is_the_last_menu_entry(qtbot, app):
     """Backfill sits above it, so Settings is where you'd expect: at the bottom."""
-    captured = []
+    assert entries(app) == ["Timer", "Calendar", "Log", "", "Backfill…", "Settings…"]
 
-    def fake_exec(self, *_args, **_kwargs):
-        captured.extend("" if a.isSeparator() else a.text() for a in self.actions())
 
-    monkeypatch.setattr("PySide6.QtWidgets.QMenu.exec", fake_exec)
-    app._open_menu()
+def test_backfill_comes_before_settings(qtbot, app):
+    listed = entries(app)
+    assert listed.index("Backfill…") < listed.index("Settings…")
 
-    assert captured == ["Timer", "Calendar", "Log", "", "Backfill…", "Settings…"]
-    assert captured[-1] == "Settings…"
+
+def test_the_current_view_is_ticked_in_the_menu(qtbot, app):
+    from habito.ui.app import _LOG_PAGE
+
+    app.show_page(_LOG_PAGE)
+    checked = [a.text() for a in app.build_menu().actions() if a.isChecked()]
+    assert checked == ["Log"]

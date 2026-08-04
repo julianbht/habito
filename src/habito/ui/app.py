@@ -153,6 +153,11 @@ class HabitoApp(QMainWindow):
 
     # --- views -----------------------------------------------------------
     def _open_menu(self) -> None:
+        menu = self.build_menu()
+        menu.exec(self._menu_btn.mapToGlobal(self._menu_btn.rect().bottomLeft()))
+
+    def build_menu(self) -> QMenu:
+        """Assemble the ☰ menu. Separate from showing it, so its contents are testable."""
         menu = QMenu(self)
         group = QActionGroup(menu)
         group.setExclusive(True)
@@ -173,7 +178,7 @@ class HabitoApp(QMainWindow):
             qta.icon("mdi6.calendar-plus", color=tint), "Backfill…", self.on_open_backfill
         )
         menu.addAction(qta.icon("mdi6.cog-outline", color=tint), "Settings…", self._open_settings)
-        menu.exec(self._menu_btn.mapToGlobal(self._menu_btn.rect().bottomLeft()))
+        return menu
 
     def show_page(self, index: int) -> None:
         # Both derived views are folded from the log on the way in, so they're never
