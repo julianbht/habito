@@ -36,7 +36,6 @@ _CUSTOM = "Custom…"
 # Media-transport glyphs for the control buttons.
 _PLAY = "▶"  # start / resume
 _PAUSE = "⏸"  # pause (primary button toggles to this while running)
-_SKIP = "⏭"  # skip current phase
 _STOP = "⏹"  # end session
 
 
@@ -62,7 +61,6 @@ def _parse_minutes(text: str) -> int | None:
 class Controller(Protocol):
     def on_start(self) -> None: ...
     def on_pause_resume(self) -> None: ...
-    def on_skip(self) -> None: ...
     def on_stop(self) -> None: ...
     def on_add_time(self, minutes: float) -> None: ...
     def on_set_work_minutes(self, minutes: int) -> str | None: ...
@@ -119,16 +117,11 @@ class TimerView(ctk.CTkFrame):
             controls, text=_PLAY, width=76, height=40, font=sym, command=self._primary
         )
         self._primary_btn.grid(row=0, column=0, padx=4)
-        self._skip_btn = ctk.CTkButton(
-            controls, text=_SKIP, width=58, height=40, font=sym, fg_color="gray30",
-            command=self._c.on_skip,
-        )
-        self._skip_btn.grid(row=0, column=1, padx=4)
         self._stop_btn = ctk.CTkButton(
             controls, text=_STOP, width=58, height=40, font=sym, fg_color="gray30",
             command=self._c.on_stop,
         )
-        self._stop_btn.grid(row=0, column=2, padx=4)
+        self._stop_btn.grid(row=0, column=1, padx=4)
 
         # Stepper: Adjust:  [ − ]  [ step ▾ ]  [ + ]  min
         add_row = ctk.CTkFrame(self, fg_color="transparent")
@@ -235,9 +228,7 @@ class TimerView(ctk.CTkFrame):
         self._primary_btn.configure(text=_PAUSE if running else _PLAY)
 
         active = snap.state in (State.work, State.break_, State.paused)
-        state_flag = "normal" if active else "disabled"
-        self._skip_btn.configure(state=state_flag)
-        self._stop_btn.configure(state=state_flag)
+        self._stop_btn.configure(state="normal" if active else "disabled")
 
         self._today_lbl.configure(text=f"Today: {format_duration(today_seconds)}")
 

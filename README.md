@@ -52,9 +52,9 @@ uv run habito init-data      # (re)create the data repo
 ```
 
 The main window is a clean timer with icon controls — **▶ play / ⏸ pause** (the primary
-button toggles: ▶ to start or resume, ⏸ to pause when you step away), **⏭ skip**, and **⏹
-stop** — plus a live **status** line (`synced ✓` when your log has reached GitHub,
-`offline · N to sync` when a push is behind).
+button toggles: ▶ to start or resume, ⏸ to pause when you step away) and **⏹ stop** — plus a
+live **status** line (`synced ✓` when your log has reached GitHub, `offline · N to sync`
+when a push is behind).
 
 The **big time is also the work-length control**:
 

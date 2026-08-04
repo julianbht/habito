@@ -108,9 +108,6 @@ class HabitoApp(ctk.CTk):
         else:
             self._engine.pause()
 
-    def on_skip(self) -> None:
-        self._engine.skip()
-
     def on_stop(self) -> None:
         self._engine.stop()
 
