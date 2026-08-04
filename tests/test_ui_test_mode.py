@@ -13,6 +13,7 @@ from habito.app import _build_engine_and_store, _events_path
 from habito.config.models import Config
 from habito.ui import theme
 from habito.ui.app import HabitoApp
+from habito.ui.settings_view import SettingsValues
 
 SETTINGS = """\
 [pomodoro]
@@ -35,6 +36,16 @@ def config(tmp_path) -> Config:
             "project_root": tmp_path,
             "config_path": settings,
         }
+    )
+
+
+def settings(*, brk: int = 5, rounds: int = 4, sound: str = "asterisk") -> SettingsValues:
+    return SettingsValues(
+        break_minutes=brk,
+        rounds=rounds,
+        daily_minutes=100,
+        buffer_minutes=5,
+        sound=sound,
     )
 
 
@@ -77,7 +88,7 @@ def test_settings_toml_is_not_rewritten(qtbot, config):
     before = config.settings_file().read_text(encoding="utf-8")
 
     app = build_app(qtbot, config, test_mode=True)
-    assert app.on_save_settings(brk=17, rounds=9, sound="asterisk") is None
+    assert app.on_save_settings(settings(brk=17, rounds=9)) is None
     assert app.on_set_work_minutes(42) is None
 
     assert config.settings_file().read_text(encoding="utf-8") == before
@@ -88,7 +99,7 @@ def test_settings_toml_is_not_rewritten(qtbot, config):
 
 def test_live_mode_does_rewrite_settings_toml(qtbot, config):
     app = build_app(qtbot, config, test_mode=False)
-    assert app.on_save_settings(brk=17, rounds=9, sound="asterisk") is None
+    assert app.on_save_settings(settings(brk=17, rounds=9)) is None
 
     assert "break_minutes = 17" in config.settings_file().read_text(encoding="utf-8")
 

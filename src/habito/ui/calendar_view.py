@@ -55,6 +55,10 @@ class StudyCalendar(QCalendarWidget):
     def threshold_seconds(self) -> int:
         return self._threshold
 
+    def set_threshold(self, seconds: int) -> None:
+        self._threshold = seconds
+        self.updateCells()
+
     def meets_goal(self, summary: DailySummary) -> bool:
         return summary.total_work_seconds >= self._threshold
 
@@ -161,6 +165,12 @@ class CalendarView(QWidget):
         self.calendar.setCurrentPage(year, month)
 
     # --- contents --------------------------------------------------------
+    def set_threshold(self, seconds: int) -> None:
+        """Apply a goal changed in Settings without needing a restart."""
+        self.calendar.set_threshold(seconds)
+        self._hint_lbl.setText(f"Green once a day reaches {format_duration(seconds)}")
+        self._render_page()
+
     def set_summaries(self, summaries: dict[date, DailySummary]) -> None:
         self._summaries = summaries
         self.calendar.set_summaries(summaries)

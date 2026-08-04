@@ -1,4 +1,4 @@
-"""The Settings dialog: Pomodoro format, notification sound, and past sessions.
+"""The Settings dialog: Pomodoro format, daily goal, notification sound, past sessions.
 
 Kept off the main timer window so the timer stays uncluttered. Saving validates through the
 controller (which persists to settings.toml and applies to the engine) and reports back a
@@ -7,6 +7,7 @@ short confirmation or error.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Protocol
 
 from PySide6.QtCore import Qt
@@ -22,13 +23,28 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from habito.config.models import PomodoroConfig
+from habito.config.models import GoalsConfig, PomodoroConfig
 from habito.ui import sounds, theme
-from habito.ui.widgets import button, label
+from habito.ui.widgets import button, format_duration, label
+
+
+@dataclass(frozen=True)
+class SettingsValues:
+    """Everything the dialog can change, handed over in one piece.
+
+    A single value object rather than a growing positional argument list — the dialog has
+    picked up a section per feature and would otherwise be passing five loose ints.
+    """
+
+    break_minutes: int
+    rounds: int
+    daily_minutes: int
+    buffer_minutes: int
+    sound: str
 
 
 class Controller(Protocol):
-    def on_save_settings(self, brk: int, rounds: int, sound: str) -> str | None: ...
+    def on_save_settings(self, values: SettingsValues) -> str | None: ...
     def on_open_backfill(self) -> None: ...
     def on_preview_sound(self, sound: str) -> None: ...
 
@@ -51,6 +67,7 @@ class SettingsDialog(QDialog):
         self,
         controller: Controller,
         pomodoro: PomodoroConfig,
+        goals: GoalsConfig | None = None,
         sound: str = sounds.DEFAULT,
         parent: QWidget | None = None,
     ) -> None:
@@ -58,10 +75,10 @@ class SettingsDialog(QDialog):
         self._c = controller
         self._last_sound = sound
         self.setWindowTitle("Settings")
-        self.setMinimumWidth(320)
-        self._build(pomodoro, sound)
+        self.setMinimumWidth(340)
+        self._build(pomodoro, goals or GoalsConfig(), sound)
 
-    def _build(self, pomodoro: PomodoroConfig, sound: str) -> None:
+    def _build(self, pomodoro: PomodoroConfig, goals: GoalsConfig, sound: str) -> None:
         root = QVBoxLayout(self)
         root.setContentsMargins(20, 18, 20, 18)
         root.setSpacing(8)
@@ -71,11 +88,17 @@ class SettingsDialog(QDialog):
 
         form = QFormLayout()
         form.setSpacing(8)
-        self._break_spin = self._spin(pomodoro.break_minutes, maximum=120)
+        self._break_spin = self._spin(pomodoro.break_minutes, maximum=120, suffix=" min")
         self._rounds_spin = self._spin(pomodoro.rounds, maximum=24)
-        form.addRow("Break minutes", self._break_spin)
+        form.addRow("Break length", self._break_spin)
         form.addRow("Rounds", self._rounds_spin)
         root.addLayout(form)
+
+        root.addWidget(_rule())
+        root.addWidget(label("Daily goal", "heading"))
+        root.addLayout(self._build_goal_form(goals))
+        self._goal_lbl = label("", "muted")
+        root.addWidget(self._goal_lbl)
 
         root.addWidget(_rule())
         root.addWidget(label("Notification sound", "heading"))
@@ -100,6 +123,8 @@ class SettingsDialog(QDialog):
         chain = [
             self._break_spin,
             self._rounds_spin,
+            self._goal_spin,
+            self._buffer_spin,
             self._sound_box,
             self._preview_btn,
             self._save_btn,
@@ -107,6 +132,38 @@ class SettingsDialog(QDialog):
         ]
         for earlier, later in zip(chain, chain[1:], strict=False):
             self.setTabOrder(earlier, later)
+
+        self._render_goal()
+
+    def _build_goal_form(self, goals: GoalsConfig) -> QFormLayout:
+        """How much study time earns a green day on the calendar."""
+        form = QFormLayout()
+        form.setSpacing(8)
+        self._goal_spin = self._spin(goals.daily_minutes, maximum=24 * 60, suffix=" min")
+        self._goal_spin.setSingleStep(5)
+        self._goal_spin.setToolTip("Study time that makes a day count")
+        self._goal_spin.valueChanged.connect(self._render_goal)
+
+        self._buffer_spin = self._spin(
+            goals.buffer_minutes, minimum=0, maximum=60, suffix=" min"
+        )
+        self._buffer_spin.setToolTip("Falling this far short still counts")
+        self._buffer_spin.valueChanged.connect(self._render_goal)
+
+        form.addRow("Goal", self._goal_spin)
+        form.addRow("Allowance", self._buffer_spin)
+        return form
+
+    def _render_goal(self) -> None:
+        """Spell the goal out in hours — nobody thinks in '95 minutes'."""
+        goal = GoalsConfig(
+            daily_minutes=max(1, self._goal_spin.value()),
+            buffer_minutes=self._buffer_spin.value(),
+        )
+        counts_from = format_duration(goal.threshold_seconds())
+        self._goal_lbl.setText(
+            f"{format_duration(goal.daily_minutes * 60)} a day — green from {counts_from}"
+        )
 
     def _build_sound_row(self, sound: str) -> QHBoxLayout:
         """The picker, plus a button to hear the choice before committing to it."""
@@ -157,10 +214,11 @@ class SettingsDialog(QDialog):
             self._sound_box.setCurrentIndex(max(0, self._sound_box.findData(self._last_sound)))
 
     @staticmethod
-    def _spin(value: int, *, maximum: int) -> QSpinBox:
+    def _spin(value: int, *, maximum: int, minimum: int = 1, suffix: str = "") -> QSpinBox:
         spin = QSpinBox()
-        spin.setRange(1, maximum)
+        spin.setRange(minimum, maximum)
         spin.setValue(value)
+        spin.setSuffix(suffix)
         spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
         return spin
 
@@ -168,14 +226,21 @@ class SettingsDialog(QDialog):
         chosen = self._sound_box.currentData()
         return self._last_sound if chosen in (None, _BROWSE) else chosen
 
+    def values(self) -> SettingsValues:
+        return SettingsValues(
+            break_minutes=self._break_spin.value(),
+            rounds=self._rounds_spin.value(),
+            daily_minutes=self._goal_spin.value(),
+            buffer_minutes=self._buffer_spin.value(),
+            sound=self.selected_sound(),
+        )
+
     def _preview(self) -> None:
         self._last_sound = self.selected_sound()
         self._c.on_preview_sound(self._last_sound)
 
     def _save(self) -> None:
-        error = self._c.on_save_settings(
-            self._break_spin.value(), self._rounds_spin.value(), self.selected_sound()
-        )
+        error = self._c.on_save_settings(self.values())
         if error:
             self._status.setText(error)
             self._status.setStyleSheet(f"color: {theme.ERROR};")

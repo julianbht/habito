@@ -21,8 +21,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from habito.config.models import Config, PomodoroConfig, UIConfig
-from habito.config.writer import save_pomodoro, save_ui
+from habito.config.models import Config, GoalsConfig, PomodoroConfig, UIConfig
+from habito.config.writer import save_goals, save_pomodoro, save_ui
 from habito.engine.pomodoro import EngineState, PomodoroEngine, State
 from habito.evidence.worker import EvidenceStatus, EvidenceWorker
 from habito.projections.daily import summarize_by_day, summary_for
@@ -34,7 +34,7 @@ from habito.ui.log_view import LogView
 from habito.ui.notifier import DesktopNotifier, Notification, Sink, notification_for
 from habito.ui.phase_dialog import PhaseDialog
 from habito.ui.progress_background import ProgressBackground
-from habito.ui.settings_view import SettingsDialog
+from habito.ui.settings_view import SettingsDialog, SettingsValues
 from habito.ui.sounds import SoundPlayer
 from habito.ui.timer_view import TimerView, progress_for
 from habito.ui.widgets import button
@@ -237,6 +237,7 @@ class HabitoApp(QMainWindow):
         self._settings_dialog = SettingsDialog(
             controller=self,
             pomodoro=self._config.pomodoro,
+            goals=self._config.goals,
             sound=self._config.ui.sound,
             parent=self,
         )
@@ -306,9 +307,33 @@ class HabitoApp(QMainWindow):
         """Set the work length from the timer's duration field."""
         return self._apply_pomodoro(work=minutes)
 
-    def on_save_settings(self, brk: int, rounds: int, sound: str) -> str | None:
-        """Save break length, round count and notification sound from Settings."""
-        return self._apply_pomodoro(brk=brk, rounds=rounds) or self._apply_sound(sound)
+    def on_save_settings(self, values: SettingsValues) -> str | None:
+        """Apply everything the Settings dialog can change, stopping at the first error."""
+        return (
+            self._apply_pomodoro(brk=values.break_minutes, rounds=values.rounds)
+            or self._apply_goals(values.daily_minutes, values.buffer_minutes)
+            or self._apply_sound(values.sound)
+        )
+
+    def _apply_goals(self, daily_minutes: int, buffer_minutes: int) -> str | None:
+        try:
+            updated = GoalsConfig(
+                daily_minutes=daily_minutes, buffer_minutes=buffer_minutes
+            )
+        except ValidationError as exc:
+            first = exc.errors()[0]
+            field = first["loc"][0] if first["loc"] else "goal"
+            return f"{field}: {first['msg']}"
+
+        self._config.goals = updated
+        self._calendar.set_threshold(updated.threshold_seconds())
+        if self._test_mode:
+            return None  # a test run must not rewrite your real settings.toml
+        try:
+            save_goals(self._config, updated)
+        except OSError as exc:
+            return f"Applied, but couldn't write settings.toml: {exc}"
+        return None
 
     def on_preview_sound(self, sound: str) -> None:
         """Play a sound without committing to it, so it can be auditioned."""
