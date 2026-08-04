@@ -89,7 +89,9 @@ def app(qtbot, tmp_path):
     config = Config.model_validate(
         {"paths": {"data_repo": str(tmp_path)}, "project_root": tmp_path}
     )
-    engine, store = _build_engine_and_store(config, test_mode=True)
+    # store built with test_mode=False so the log lives under tmp_path; the *window*
+    # still runs in test mode. Otherwise every test shares one scratch file.
+    engine, store = _build_engine_and_store(config, test_mode=False)
     window = HabitoApp(config, engine, store, test_mode=True)
     qtbot.addWidget(window)
     window._notifier = RecordingSink()
@@ -148,7 +150,9 @@ def test_notifications_can_be_switched_off(qtbot, tmp_path):
             "project_root": tmp_path,
         }
     )
-    engine, store = _build_engine_and_store(config, test_mode=True)
+    # store built with test_mode=False so the log lives under tmp_path; the *window*
+    # still runs in test mode. Otherwise every test shares one scratch file.
+    engine, store = _build_engine_and_store(config, test_mode=False)
     window = HabitoApp(config, engine, store, test_mode=True)
     qtbot.addWidget(window)
 

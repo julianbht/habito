@@ -32,6 +32,18 @@ class UIConfig(BaseModel):
     always_on_top: bool = False
 
 
+class GoalsConfig(BaseModel):
+    """What counts as a day's work done, for the calendar."""
+
+    daily_minutes: int = Field(default=100, gt=0)  # 4 rounds x 25 minutes
+    # Missing the target by a couple of minutes still means you did the work, so the
+    # calendar accepts anything within this of the goal.
+    buffer_minutes: int = Field(default=5, ge=0)
+
+    def threshold_seconds(self) -> int:
+        return max(0, self.daily_minutes - self.buffer_minutes) * 60
+
+
 class PathsConfig(BaseModel):
     data_repo: str = "../habito-data"
     events_filename: str = "events.jsonl"
@@ -43,6 +55,7 @@ class Config(BaseModel):
     pomodoro: PomodoroConfig = Field(default_factory=PomodoroConfig)
     evidence: EvidenceConfig = Field(default_factory=EvidenceConfig)
     ui: UIConfig = Field(default_factory=UIConfig)
+    goals: GoalsConfig = Field(default_factory=GoalsConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
 
     project_root: Path

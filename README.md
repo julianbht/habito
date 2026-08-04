@@ -11,6 +11,8 @@ A minimalist, keyboard-navigable cross-platform Pomodoro tracker for developers.
   start, stop and adjust.
 - **Honest backfilling** — sessions added after the fact are recorded as `backfilled` and
   reported separately, never masquerading as live evidence.
+- **[A calendar of your streak](#calendar)** — a month at a glance, green on every day you
+  hit the goal.
 
 ## Requirements
 
@@ -83,7 +85,7 @@ control draws a visible focus ring.
 
 | Key | Action |
 |---|---|
-| `Tab` / `Shift+Tab` | Move through duration → ▲ → ▼ → play/pause → stop → ⚙ |
+| `Tab` / `Shift+Tab` | Move through duration → ▲ → ▼ → play/pause → stop → ☰ |
 | `Space` / `Enter` | Press the focused button (Qt only gives you `Space`; `Enter` is ours) |
 | `↑` / `↓` | Nudge the duration by a minute, while it has focus |
 | `Ctrl+↑` / `Ctrl+↓` | Nudge by a minute from anywhere — the duration when idle, the live round when running |
@@ -122,7 +124,7 @@ For trying the UI out without polluting your real record. In this mode Habito:
 | `habito.engine` | Pomodoro state machine (incl. the between-phase hold) + injectable Clock |
 | `habito.projections` | Fold events → daily summaries (verified vs backfilled) |
 | `habito.evidence` | git wrapper, background commit+push worker, Observer recorder |
-| `habito.ui` | PySide6/Qt timer, dialogs (settings, backfill, phase prompt), window/controller, theme, progress background, notifications + sounds |
+| `habito.ui` | PySide6/Qt timer + calendar, dialogs (settings, backfill, phase prompt), window/controller, theme, progress background, notifications + sounds |
 | `habito.backfill` | Synthesize events for a past session |
 
 Only `habito.ui` knows about Qt. The views are purely presentational and talk to a

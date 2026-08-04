@@ -11,17 +11,25 @@ from datetime import date
 
 from pydantic import ValidationError
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QKeySequence, QShortcut
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QMainWindow, QVBoxLayout
+from PySide6.QtGui import QActionGroup, QKeySequence, QShortcut
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QMenu,
+    QStackedWidget,
+    QVBoxLayout,
+)
 
 from habito.config.models import Config, PomodoroConfig, UIConfig
 from habito.config.writer import save_pomodoro, save_ui
 from habito.engine.pomodoro import EngineState, PomodoroEngine, State
 from habito.evidence.worker import EvidenceStatus, EvidenceWorker
-from habito.projections.daily import summary_for
+from habito.projections.daily import summarize_by_day, summary_for
 from habito.storage.event_store import EventStore
 from habito.ui import theme
 from habito.ui.backfill_view import BackfillDialog
+from habito.ui.calendar_view import CalendarView
 from habito.ui.notifier import DesktopNotifier, Notification, Sink, notification_for
 from habito.ui.phase_dialog import PhaseDialog
 from habito.ui.progress_background import ProgressBackground
@@ -31,6 +39,9 @@ from habito.ui.timer_view import TimerView, progress_for
 from habito.ui.widgets import button
 
 _TICK_MS = 250
+
+_TIMER_PAGE = 0
+_CALENDAR_PAGE = 1
 
 
 class HabitoApp(QMainWindow):
@@ -92,26 +103,60 @@ class HabitoApp(QMainWindow):
             banner.setAlignment(Qt.AlignmentFlag.AlignCenter)
             root.addWidget(banner)
 
-        # Gear sits in its own top row rather than floating over the timer.
+        # The menu sits in its own top row rather than floating over the timer.
         top = QHBoxLayout()
         top.setContentsMargins(8, 6, 8, 0)
         top.addStretch(1)
-        self._gear = button("⚙", "gear")
-        self._gear.setFixedSize(30, 28)
-        self._gear.setToolTip("Settings  (Ctrl+,)")
-        self._gear.clicked.connect(self._open_settings)
-        top.addWidget(self._gear)
+        self._menu_btn = button("☰", "gear")
+        self._menu_btn.setFixedSize(30, 28)
+        self._menu_btn.setToolTip("Menu — switch view, settings")
+        self._menu_btn.clicked.connect(self._open_menu)
+        top.addWidget(self._menu_btn)
         root.addLayout(top)
 
         self._view = TimerView(
             controller=self,
             work_minutes=self._config.pomodoro.work_minutes,
         )
-        root.addWidget(self._view)
+        self._calendar = CalendarView(self._theme, self._config.goals.threshold_seconds())
+
+        self._pages = QStackedWidget()
+        self._pages.addWidget(self._view)
+        self._pages.addWidget(self._calendar)
+        root.addWidget(self._pages)
         self.setCentralWidget(self._background)
 
-        # Tab continues from the timer's last control into the gear, then wraps.
-        self.setTabOrder(self._view.stop_button(), self._gear)
+        # Tab continues from the timer's last control into the menu, then wraps.
+        self.setTabOrder(self._view.stop_button(), self._menu_btn)
+
+    # --- views -----------------------------------------------------------
+    def _open_menu(self) -> None:
+        menu = QMenu(self)
+        group = QActionGroup(menu)
+        group.setExclusive(True)
+        for index, name in ((_TIMER_PAGE, "Timer"), (_CALENDAR_PAGE, "Calendar")):
+            action = menu.addAction(name)
+            action.setCheckable(True)
+            action.setChecked(self._pages.currentIndex() == index)
+            action.triggered.connect(lambda _c=False, i=index: self.show_page(i))
+            group.addAction(action)
+
+        menu.addSeparator()
+        menu.addAction("Settings…", self._open_settings)
+        menu.addAction("Add past session…", self.on_open_backfill)
+        menu.exec(self._menu_btn.mapToGlobal(self._menu_btn.rect().bottomLeft()))
+
+    def show_page(self, index: int) -> None:
+        if index == _CALENDAR_PAGE:
+            self._refresh_calendar()
+        self._pages.setCurrentIndex(index)
+        if index == _TIMER_PAGE:
+            self._view.focus_first()
+        else:
+            self._calendar.calendar.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def _refresh_calendar(self) -> None:
+        self._calendar.set_summaries(summarize_by_day(self._store.read_all()))
 
     def _install_shortcuts(self) -> None:
         """Keyboard equivalents for the transport controls.
@@ -263,6 +308,7 @@ class HabitoApp(QMainWindow):
         for event in events:
             self._store.append(event)
         self._today_baseline = self._compute_today_baseline()
+        self._refresh_calendar()
 
     def _compute_today_baseline(self) -> int:
         summary = summary_for(self._store.read_all(), date.today())

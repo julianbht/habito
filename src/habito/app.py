@@ -62,6 +62,8 @@ def run_gui(config: Config, test_mode: bool = False) -> int:
 
     if test_mode:
         # No GitRepo, no worker, no recorder: nothing can reach the data repo from here.
+        # Start clean each run, so "Today" reflects this run and not last week's fiddling.
+        _events_path(config, test_mode).write_text("", encoding="utf-8")
         print(f"TEST MODE — events go to {_events_path(config, test_mode)}")
         print("            the data repo is not touched and settings.toml is not written")
         app.set_status_mode("status: TEST MODE · not recorded", theme.ACCENT_TEST)
