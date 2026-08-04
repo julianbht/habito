@@ -108,3 +108,46 @@ def test_push_deferred_when_remote_unreachable(tmp_path):
     assert repo.unpushed_count("origin", "main") >= 1
     assert any(s.committed for s in statuses), "expected at least one local commit"
     assert all(not s.pushed for s in statuses), "no push should have succeeded"
+
+
+def _accumulate_offline_backlog(tmp_path):
+    """Set up repos, study while 'offline', and return (remote, data, store, repo, worker)."""
+    remote, data = _make_repos(tmp_path)
+    store = EventStore(data / "events.jsonl")
+    repo = GitRepo(data)
+    worker = EvidenceWorker(repo, EvidenceConfig(), "events.jsonl")
+    worker.start()
+    store.subscribe(EvidenceRecorder(worker))
+
+    _git(data, "remote", "set-url", "origin", str(tmp_path / "offline.git"))
+    engine = PomodoroEngine(make_config(rounds=1), sink=store.append, clock=FakeClock())
+    engine.start()
+    engine.stop()
+    worker.wait_idle()
+    assert repo.unpushed_count("origin", "main") >= 1  # backlog accumulated offline
+    return remote, data, store, repo, worker
+
+
+def test_startup_flush_pushes_backlog_after_reconnect(tmp_path):
+    remote, data, _store, repo, worker = _accumulate_offline_backlog(tmp_path)
+
+    # Reconnect, then the startup flush() drains the backlog.
+    _git(data, "remote", "set-url", "origin", str(remote))
+    worker.flush()
+    worker.wait_idle()
+    worker.stop()
+
+    assert repo.unpushed_count("origin", "main") == 0
+    local_head = _git(data, "rev-parse", "HEAD").strip()
+    assert local_head == _git(data, "rev-parse", "origin/main").strip()
+    assert len(_git(remote, "log", "--oneline").strip().splitlines()) > 1
+
+
+def test_close_flush_pushes_backlog_after_reconnect(tmp_path):
+    remote, data, _store, repo, worker = _accumulate_offline_backlog(tmp_path)
+
+    # Reconnect and close — the shutdown flush should push the backlog.
+    _git(data, "remote", "set-url", "origin", str(remote))
+    worker.stop()
+
+    assert repo.unpushed_count("origin", "main") == 0

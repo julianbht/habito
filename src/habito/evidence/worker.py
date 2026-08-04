@@ -48,7 +48,7 @@ class EvidenceWorker:
         self._config = config
         self._filename = events_filename
         self._on_status = on_status
-        self._queue: queue.Queue = queue.Queue()
+        self._queue: queue.Queue[object] = queue.Queue()
         self._thread = threading.Thread(target=self._loop, name="evidence-worker", daemon=True)
 
     def start(self) -> None:
@@ -135,7 +135,7 @@ class EvidenceWorker:
                 self._repo.push(cfg.remote, cfg.branch)
                 return True
             except GitError as second:
-                log.warning("push deferred (will retry on next event/flush): %s / %s", first, second)
+                log.warning("push deferred (retries on next event/flush): %s / %s", first, second)
                 return False
 
     def _report(self, status: EvidenceStatus) -> None:
