@@ -103,10 +103,10 @@ class TimerView(ctk.CTkFrame):
         self._today_lbl = ctk.CTkLabel(self, text="Today: 0m", font=ctk.CTkFont(size=13))
         self._today_lbl.grid(row=6, column=0, pady=(16, 2))
 
-        self._evidence_lbl = ctk.CTkLabel(
-            self, text="evidence: –", font=ctk.CTkFont(size=11), text_color="gray60"
+        self._status_lbl = ctk.CTkLabel(
+            self, text="status: –", font=ctk.CTkFont(size=11), text_color="gray60"
         )
-        self._evidence_lbl.grid(row=7, column=0, pady=(2, 12))
+        self._status_lbl.grid(row=7, column=0, pady=(2, 12))
 
     # --- button glue -----------------------------------------------------
     def _primary(self) -> None:
@@ -151,5 +151,5 @@ class TimerView(ctk.CTkFrame):
 
         self._today_lbl.configure(text=f"Today: {format_duration(today_seconds)}")
 
-    def set_evidence(self, text: str, color: str = "gray60") -> None:
-        self._evidence_lbl.configure(text=text, text_color=color)
+    def set_status(self, text: str, color: str = "gray60") -> None:
+        self._status_lbl.configure(text=text, text_color=color)

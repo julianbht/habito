@@ -51,13 +51,15 @@ uv run habito doctor         # check config + evidence readiness
 uv run habito init-data      # (re)create the data repo
 ```
 
-The window has two tabs:
+The main window is a clean timer: Start / Pause / Skip / Stop, extend the current round
+with the `+1 / +3 / +5` (or custom) buttons, and see today's total plus a live **status**
+line (`synced ✓` when your log has reached GitHub, `offline · N to sync` when a push is
+behind).
 
-- **Timer** — Start / Pause / Skip / Stop, extend the current round with the
-  `+1 / +3 / +5` (or custom) buttons, and see today's total plus the live evidence status.
-- **Settings** — change the Pomodoro format (work / break / rounds; saved back to
-  `settings.toml` with your comments preserved, applied to your next session), and
-  **Add past session** to backfill a session you did away from the app.
+The **⚙ gear** (top-right) opens a small Settings window where you can change the Pomodoro
+format (work / break / rounds — saved back to `settings.toml` with your comments preserved,
+applied to your next session) and **Add past session** to backfill a session you did away
+from the app.
 
 ## Layout
 

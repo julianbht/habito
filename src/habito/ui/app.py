@@ -37,22 +37,24 @@ class HabitoApp(ctk.CTk):
         self._evidence_enabled = False
 
         self.title("Habito")
-        self.geometry("380x520")
-        self.minsize(360, 500)
+        self.geometry("360x480")
+        self.minsize(340, 470)
         if config.ui.always_on_top:
             self.attributes("-topmost", True)
 
-        self._tabs = ctk.CTkTabview(self)
-        self._tabs.pack(fill="both", expand=True, padx=6, pady=6)
-        timer_tab = self._tabs.add("Timer")
-        settings_tab = self._tabs.add("Settings")
-
         self._view = TimerView(
-            timer_tab, controller=self, quick_add_minutes=config.pomodoro.quick_add_minutes
+            self, controller=self, quick_add_minutes=config.pomodoro.quick_add_minutes
         )
         self._view.pack(fill="both", expand=True)
-        self._settings = SettingsView(settings_tab, controller=self, pomodoro=config.pomodoro)
-        self._settings.pack(fill="both", expand=True)
+
+        # Small gear in the top-right corner opens the Settings window.
+        self._settings_win: ctk.CTkToplevel | None = None
+        self._gear = ctk.CTkButton(
+            self, text="⚙", width=30, height=30, corner_radius=6,
+            fg_color="transparent", hover_color="gray25",
+            font=ctk.CTkFont(size=16), command=self._open_settings,
+        )
+        self._gear.place(relx=1.0, x=-10, y=10, anchor="ne")
 
         self._today_baseline = self._compute_today_baseline()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -67,8 +69,30 @@ class HabitoApp(ctk.CTk):
         """Called from the worker thread; just hand off to the UI thread via the queue."""
         self._status_queue.put(status)
 
-    def set_evidence_mode(self, text: str, color: str = "gray60") -> None:
-        self._view.set_evidence(text, color)
+    def set_status_mode(self, text: str, color: str = "gray60") -> None:
+        self._view.set_status(text, color)
+
+    def _open_settings(self) -> None:
+        if self._settings_win is not None and self._settings_win.winfo_exists():
+            self._settings_win.focus()
+            return
+        win = ctk.CTkToplevel(self)
+        win.title("Settings")
+        win.geometry("300x340")
+        win.resizable(False, False)
+        if self._config.ui.always_on_top:
+            win.attributes("-topmost", True)
+        SettingsView(win, controller=self, pomodoro=self._config.pomodoro).pack(
+            fill="both", expand=True
+        )
+        win.protocol("WM_DELETE_WINDOW", self._close_settings)
+        win.after(80, win.lift)  # CTkToplevel can open behind; bring it forward
+        self._settings_win = win
+
+    def _close_settings(self) -> None:
+        if self._settings_win is not None:
+            self._settings_win.destroy()
+            self._settings_win = None
 
     # --- controller callbacks (from the view) ----------------------------
     def on_start(self) -> None:
@@ -153,14 +177,14 @@ class HabitoApp(ctk.CTk):
 
     def _render_status(self, status: EvidenceStatus) -> None:
         if status.unpushed_count > 0:
-            # Commits are safe locally; only the push (the third-party proof) is behind.
-            self._view.set_evidence(
-                f"evidence: offline · {status.unpushed_count} pending", "#d9863b"
+            # Saved locally; only the push to GitHub (the third-party proof) is behind.
+            self._view.set_status(
+                f"status: offline · {status.unpushed_count} to sync", "#d9863b"
             )
         elif status.pushed:
-            self._view.set_evidence("evidence: pushed ✓", "#2fa572")
+            self._view.set_status("status: synced ✓", "#2fa572")
         elif status.committed:
-            self._view.set_evidence("evidence: committed", "gray70")
+            self._view.set_status("status: saved locally", "gray70")
 
     def _on_close(self) -> None:
         if self._worker is not None:

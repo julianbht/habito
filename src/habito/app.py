@@ -55,12 +55,12 @@ def run_gui(config: Config) -> int:
         store.subscribe(EvidenceRecorder(worker))
         app.attach_worker(worker)
         if repo.has_remote(config.evidence.remote):
-            app.set_evidence_mode("evidence: ready", "gray60")
+            app.set_status_mode("status: ready", "gray60")
             worker.flush()  # push any backlog left unpushed from a prior offline run
         else:
-            app.set_evidence_mode("evidence: no remote (local commits)", "#d9863b")
+            app.set_status_mode("status: local only (no remote)", "#d9863b")
     else:
-        app.set_evidence_mode("evidence: off — run 'habito doctor'", "#d9863b")
+        app.set_status_mode("status: not set up — run 'habito doctor'", "#d9863b")
 
     app.run()
     return 0
