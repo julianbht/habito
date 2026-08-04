@@ -1,0 +1,31 @@
+# Habito settings — edit these to change app behaviour.
+# All values are validated on startup (see src/habito/config/models.py).
+
+[pomodoro]
+work_minutes = 25          # length of a work round
+break_minutes = 5          # length of a break between rounds
+rounds = 4                 # number of work rounds per session
+quick_add_minutes = [1, 3, 5]   # quick "+N min" buttons shown during a round
+
+[evidence]
+# The tamper-evident proof relies on GitHub's server-recorded push time.
+# After every event, the app commits + pushes to the data repo below.
+auto_commit = true
+auto_push = true
+remote = "origin"
+branch = "main"
+# {type}=event type, {origin}=live|backfilled, {iso}=UTC timestamp
+commit_message_template = "event: {type} [{origin}] @ {iso}"
+warn_when_unpushed = true
+
+[ui]
+theme = "dark"             # "dark", "light", or "system"
+color_theme = "blue"       # customtkinter color theme
+always_on_top = false
+
+[paths]
+# Directory of the SEPARATE git repo that stores your evidence log.
+# Relative paths are resolved against this project's root.
+# Create it once:  git init ../habito-data && (add a GitHub remote) && git push -u origin main
+data_repo = "../habito-data"
+events_filename = "events.jsonl"

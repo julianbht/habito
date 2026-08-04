@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# uv
+# (uv.lock IS committed on purpose for reproducible installs)
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local editor
+.vscode/
+.idea/
+
+# NOTE: the tamper-evident event log lives in a SEPARATE data repo
+# (see config/settings.toml -> [paths].data_repo), so it is not affected
+# by this file.

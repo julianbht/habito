@@ -1,0 +1,63 @@
+"""Pydantic models for application configuration (validated on startup)."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from pydantic import BaseModel, Field, field_validator
+
+
+class PomodoroConfig(BaseModel):
+    work_minutes: int = Field(default=25, gt=0)
+    break_minutes: int = Field(default=5, gt=0)
+    rounds: int = Field(default=4, gt=0)
+    quick_add_minutes: list[int] = Field(default_factory=lambda: [1, 3, 5])
+
+    @field_validator("quick_add_minutes")
+    @classmethod
+    def _all_positive(cls, v: list[int]) -> list[int]:
+        if any(n <= 0 for n in v):
+            raise ValueError("quick_add_minutes must all be positive")
+        return v
+
+
+class EvidenceConfig(BaseModel):
+    auto_commit: bool = True
+    auto_push: bool = True
+    remote: str = "origin"
+    branch: str = "main"
+    commit_message_template: str = "event: {type} [{origin}] @ {iso}"
+    warn_when_unpushed: bool = True
+
+
+class UIConfig(BaseModel):
+    theme: str = "dark"  # "dark" | "light" | "system"
+    color_theme: str = "blue"
+    always_on_top: bool = False
+
+
+class PathsConfig(BaseModel):
+    data_repo: str = "../habito-data"
+    events_filename: str = "events.jsonl"
+
+
+class Config(BaseModel):
+    """Root config. ``project_root`` is injected by the loader, not read from TOML."""
+
+    pomodoro: PomodoroConfig = Field(default_factory=PomodoroConfig)
+    evidence: EvidenceConfig = Field(default_factory=EvidenceConfig)
+    ui: UIConfig = Field(default_factory=UIConfig)
+    paths: PathsConfig = Field(default_factory=PathsConfig)
+
+    project_root: Path
+
+    def data_repo_path(self) -> Path:
+        """Absolute path of the separate git repo that stores the evidence log."""
+        p = Path(self.paths.data_repo).expanduser()
+        if not p.is_absolute():
+            p = (self.project_root / p).resolve()
+        return p
+
+    def events_path(self) -> Path:
+        """Absolute path of the events.jsonl file inside the data repo."""
+        return self.data_repo_path() / self.paths.events_filename
