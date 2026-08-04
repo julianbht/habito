@@ -123,27 +123,6 @@ def test_the_goal_fields_start_from_the_config(qtbot):
     assert widget._buffer_spin.value() == 10
 
 
-def test_the_goal_is_spelled_out_in_hours(dialog):
-    """"95 minutes" is not how anyone thinks about a study target."""
-    widget, _ = dialog
-    widget._goal_spin.setValue(100)
-    widget._buffer_spin.setValue(5)
-
-    assert "1h 40m a day" in widget._goal_lbl.text()
-    assert "green from 1h 35m" in widget._goal_lbl.text()
-
-
-def test_the_readout_follows_the_allowance(dialog):
-    widget, _ = dialog
-    widget._goal_spin.setValue(100)
-
-    widget._buffer_spin.setValue(0)
-    assert "green from 1h 40m" in widget._goal_lbl.text()
-
-    widget._buffer_spin.setValue(20)
-    assert "green from 1h 20m" in widget._goal_lbl.text()
-
-
 def test_the_allowance_may_be_zero_but_the_goal_may_not(dialog):
     widget, _ = dialog
     assert widget._buffer_spin.minimum() == 0

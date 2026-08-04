@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 
 from habito.config.models import GoalsConfig, PomodoroConfig
 from habito.ui import sounds, theme
-from habito.ui.widgets import button, format_duration, label
+from habito.ui.widgets import button, label
 
 
 @dataclass(frozen=True)
@@ -84,7 +84,6 @@ class SettingsDialog(QDialog):
         root.setSpacing(8)
 
         root.addWidget(label("Session format", "heading"))
-        root.addWidget(label("Work length is set on the timer.", "muted"))
 
         form = QFormLayout()
         form.setSpacing(8)
@@ -97,8 +96,6 @@ class SettingsDialog(QDialog):
         root.addWidget(_rule())
         root.addWidget(label("Daily goal", "heading"))
         root.addLayout(self._build_goal_form(goals))
-        self._goal_lbl = label("", "muted")
-        root.addWidget(self._goal_lbl)
 
         root.addWidget(_rule())
         root.addWidget(label("Notification sound", "heading"))
@@ -133,8 +130,6 @@ class SettingsDialog(QDialog):
         for earlier, later in zip(chain, chain[1:], strict=False):
             self.setTabOrder(earlier, later)
 
-        self._render_goal()
-
     def _build_goal_form(self, goals: GoalsConfig) -> QFormLayout:
         """How much study time earns a green day on the calendar."""
         form = QFormLayout()
@@ -142,28 +137,15 @@ class SettingsDialog(QDialog):
         self._goal_spin = self._spin(goals.daily_minutes, maximum=24 * 60, suffix=" min")
         self._goal_spin.setSingleStep(5)
         self._goal_spin.setToolTip("Study time that makes a day count")
-        self._goal_spin.valueChanged.connect(self._render_goal)
 
         self._buffer_spin = self._spin(
             goals.buffer_minutes, minimum=0, maximum=60, suffix=" min"
         )
         self._buffer_spin.setToolTip("Falling this far short still counts")
-        self._buffer_spin.valueChanged.connect(self._render_goal)
 
         form.addRow("Goal", self._goal_spin)
         form.addRow("Allowance", self._buffer_spin)
         return form
-
-    def _render_goal(self) -> None:
-        """Spell the goal out in hours — nobody thinks in '95 minutes'."""
-        goal = GoalsConfig(
-            daily_minutes=max(1, self._goal_spin.value()),
-            buffer_minutes=self._buffer_spin.value(),
-        )
-        counts_from = format_duration(goal.threshold_seconds())
-        self._goal_lbl.setText(
-            f"{format_duration(goal.daily_minutes * 60)} a day — green from {counts_from}"
-        )
 
     def _build_sound_row(self, sound: str) -> QHBoxLayout:
         """The picker, plus a button to hear the choice before committing to it."""
