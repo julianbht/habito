@@ -12,7 +12,7 @@ from datetime import date
 from pydantic import ValidationError
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QMainWindow, QPushButton, QVBoxLayout
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QMainWindow, QVBoxLayout
 
 from habito.config.models import Config, PomodoroConfig
 from habito.config.writer import save_pomodoro
@@ -25,6 +25,7 @@ from habito.ui.backfill_view import BackfillDialog
 from habito.ui.progress_background import ProgressBackground
 from habito.ui.settings_view import SettingsDialog
 from habito.ui.timer_view import TimerView, progress_for
+from habito.ui.widgets import button
 
 _TICK_MS = 250
 
@@ -84,7 +85,7 @@ class HabitoApp(QMainWindow):
         top = QHBoxLayout()
         top.setContentsMargins(8, 6, 8, 0)
         top.addStretch(1)
-        self._gear = QPushButton("⚙", objectName="gear")
+        self._gear = button("⚙", "gear")
         self._gear.setFixedSize(30, 28)
         self._gear.setToolTip("Settings  (Ctrl+,)")
         self._gear.clicked.connect(self._open_settings)

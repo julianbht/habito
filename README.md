@@ -109,7 +109,7 @@ control draws a visible focus ring.
 | Key | Action |
 |---|---|
 | `Tab` / `Shift+Tab` | Move through duration → ▲ → ▼ → play/pause → stop → ⚙ |
-| `Space` / `Enter` | Press the focused button |
+| `Space` / `Enter` | Press the focused button (Qt only gives you `Space`; `Enter` is ours) |
 | `↑` / `↓` | Nudge the duration by a minute, while it has focus |
 | `Ctrl+↑` / `Ctrl+↓` | Nudge by a minute from anywhere — the duration when idle, the live round when running |
 | `Ctrl+Space` | Start / pause / resume |

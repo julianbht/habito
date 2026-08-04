@@ -101,6 +101,24 @@ def test_progress_fills_the_whole_window_including_the_gear_row(qtbot, app):
     assert image.pixelColor(left, image.height() - 2) == fill  # and the very bottom
 
 
+@pytest.mark.parametrize("key", [Qt.Key.Key_Space, Qt.Key.Key_Return], ids=["space", "return"])
+def test_the_gear_opens_settings_from_the_keyboard(qtbot, app, key):
+    app._gear.setFocus()
+    qtbot.keyClick(app._gear, key, Qt.KeyboardModifier.NoModifier)
+
+    assert app._settings_dialog is not None and app._settings_dialog.isVisible()
+
+
+def test_tab_from_the_timer_reaches_the_gear(qtbot, app):
+    app.on_start()  # stop is disabled while idle, and Qt skips disabled widgets
+    stop = app._view.stop_button()
+    assert stop.isEnabled()
+
+    stop.setFocus()
+    qtbot.keyClick(app.focusWidget(), Qt.Key.Key_Tab)
+    assert app.focusWidget() is app._gear
+
+
 def test_settings_shortcut_does_not_stack_duplicate_dialogs(qtbot, app):
     press(qtbot, app, Qt.Key.Key_Comma)
     first = app._settings_dialog

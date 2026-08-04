@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QValidator
+from PySide6.QtGui import QKeyEvent, QValidator
 from PySide6.QtWidgets import QLabel, QPushButton, QSpinBox, QWidget
 
 _MINUTES_RE = re.compile(r"\d{0,3}(:\d{0,2})?")
@@ -57,9 +57,26 @@ def label(text: str = "", object_name: str = "") -> QLabel:
     return widget
 
 
-def button(text: str = "", object_name: str = "") -> QPushButton:
-    """A ``QPushButton`` tagged for the stylesheet. See :func:`label`."""
-    widget = QPushButton(text)
+class Button(QPushButton):
+    """A push button that Enter activates, not just Space.
+
+    Qt reserves Return/Enter for a *dialog's* default button, so in a plain window a
+    focused button ignores it — which is surprising once you've tabbed onto it and are
+    expecting the same key that works everywhere else to press it.
+    """
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802 (Qt override)
+        enter = (Qt.Key.Key_Return, Qt.Key.Key_Enter)
+        if event.key() in enter and not event.isAutoRepeat() and self.isEnabled():
+            self.click()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+
+def button(text: str = "", object_name: str = "") -> Button:
+    """A :class:`Button` tagged for the stylesheet. See :func:`label`."""
+    widget = Button(text)
     widget.setObjectName(object_name)
     return widget
 

@@ -212,11 +212,37 @@ def test_focus_elsewhere_is_left_alone_when_the_page_swaps(view):
     assert widget.focusWidget() is widget._stop_btn
 
 
-def test_space_activates_the_focused_button(view, qtbot):
+@pytest.mark.parametrize(
+    "key", [Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter], ids=["space", "return", "enter"]
+)
+def test_focused_button_is_activated_by_space_and_enter(view, qtbot, key):
+    """Qt only gives Space for free; Return normally goes to a dialog's default button."""
     widget, controller = view
     widget._primary_btn.setFocus()
-    qtbot.keyClick(widget._primary_btn, Qt.Key.Key_Space)
+    qtbot.keyClick(widget._primary_btn, key)
     assert controller.started == 1
+
+
+def test_enter_does_not_activate_a_disabled_button(view, qtbot):
+    widget, controller = view
+    widget.render_state(snapshot(State.idle), 0)
+    assert not widget._stop_btn.isEnabled()
+
+    widget._stop_btn.setFocus()
+    qtbot.keyClick(widget._stop_btn, Qt.Key.Key_Return)
+    assert controller.stopped == 0
+
+
+def test_enter_in_the_duration_field_still_commits_the_value(view, qtbot):
+    """The button handling must not swallow Return where a field needs it."""
+    widget, controller = view
+    widget._spin.setFocus()
+    widget._spin.lineEdit().selectAll()
+    qtbot.keyClicks(widget._spin, "40")
+    qtbot.keyClick(widget._spin, Qt.Key.Key_Return)
+
+    assert widget._spin.value() == 40
+    assert controller.started == 0  # and didn't leak through to a button
 
 
 def test_nudging_while_idle_changes_the_planned_length_not_the_round(view):
