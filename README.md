@@ -51,10 +51,13 @@ uv run habito doctor         # check config + evidence readiness
 uv run habito init-data      # (re)create the data repo
 ```
 
-The main window is a clean timer: Start / Pause / Skip / Stop, extend the current round
-with the `+1 / +3 / +5` (or custom) buttons, and see today's total plus a live **status**
-line (`synced ✓` when your log has reached GitHub, `offline · N to sync` when a push is
-behind).
+The main window is a clean timer: Start / Pause / Skip / Stop, and a live **status** line
+(`synced ✓` when your log has reached GitHub, `offline · N to sync` when a push is behind).
+
+To adjust the current round, use the **stepper**: `Adjust: [ − ] [ step ▾ ] [ + ]`. Pick a
+step from the dropdown (the values come from `quick_add_minutes`, plus a **Custom…** entry
+for any amount), then tap `−` or `+` to nudge the timer down or up by that many minutes.
+Each adjustment is recorded transparently in the log as a `TimeAdjusted` event.
 
 The **⚙ gear** (top-right) opens a small Settings window where you can change the Pomodoro
 format (work / break / rounds — saved back to `settings.toml` with your comments preserved,

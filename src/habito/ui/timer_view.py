@@ -27,6 +27,11 @@ _ACCENT = {
     State.done: "#2fa572",
     State.idle: "#4a4a4a",
 }
+_CUSTOM = "Custom…"
+
+
+def _fmt_step(value: float) -> str:
+    return str(int(value)) if float(value).is_integer() else f"{value:g}"
 
 
 class Controller(Protocol):
@@ -46,8 +51,10 @@ class TimerView(ctk.CTkFrame):
     ) -> None:
         super().__init__(master, fg_color="transparent")
         self._c = controller
-        self._quick = quick_add_minutes
+        self._quick = quick_add_minutes or [1]
         self._is_idle = True
+        self._add_enabled = False
+        self._step = float(self._quick[0])
         self._build()
 
     # --- layout ----------------------------------------------------------
@@ -82,23 +89,27 @@ class TimerView(ctk.CTkFrame):
         )
         self._stop_btn.grid(row=0, column=2, padx=4)
 
+        # Stepper: Adjust:  [ − ]  [ step ▾ ]  [ + ]  min
         add_row = ctk.CTkFrame(self, fg_color="transparent")
-        add_row.grid(row=5, column=0, pady=(4, 0))
-        ctk.CTkLabel(add_row, text="Add:").grid(row=0, column=0, padx=(0, 6))
-        self._add_btns: list[ctk.CTkButton] = []
-        for i, m in enumerate(self._quick):
-            b = ctk.CTkButton(
-                add_row, text=f"+{m}", width=44, fg_color="gray25",
-                command=lambda mm=m: self._c.on_add_time(mm),
-            )
-            b.grid(row=0, column=1 + i, padx=3)
-            self._add_btns.append(b)
-        self._custom_entry = ctk.CTkEntry(add_row, width=52, placeholder_text="min")
-        self._custom_entry.grid(row=0, column=1 + len(self._quick), padx=(8, 3))
-        self._custom_btn = ctk.CTkButton(
-            add_row, text="+", width=30, fg_color="gray25", command=self._add_custom
+        add_row.grid(row=5, column=0, pady=(6, 0))
+        ctk.CTkLabel(add_row, text="Adjust:").grid(row=0, column=0, padx=(0, 8))
+        self._minus_btn = ctk.CTkButton(
+            add_row, text="−", width=38, fg_color="gray30", command=self._nudge_down
         )
-        self._custom_btn.grid(row=0, column=2 + len(self._quick), padx=3)
+        self._minus_btn.grid(row=0, column=1, padx=3)
+        self._step_menu = ctk.CTkOptionMenu(
+            add_row,
+            width=86,
+            values=[_fmt_step(m) for m in self._quick] + [_CUSTOM],
+            command=self._on_step_change,
+        )
+        self._step_menu.set(_fmt_step(self._step))
+        self._step_menu.grid(row=0, column=2, padx=3)
+        self._plus_btn = ctk.CTkButton(
+            add_row, text="+", width=38, fg_color="gray30", command=self._nudge_up
+        )
+        self._plus_btn.grid(row=0, column=3, padx=3)
+        ctk.CTkLabel(add_row, text="min").grid(row=0, column=4, padx=(6, 0))
 
         self._today_lbl = ctk.CTkLabel(self, text="Today: 0m", font=ctk.CTkFont(size=13))
         self._today_lbl.grid(row=6, column=0, pady=(16, 2))
@@ -112,15 +123,32 @@ class TimerView(ctk.CTkFrame):
     def _primary(self) -> None:
         self._c.on_start() if self._is_idle else self._c.on_pause_resume()
 
-    def _add_custom(self) -> None:
-        raw = self._custom_entry.get().strip()
-        self._custom_entry.delete(0, "end")
-        try:
-            minutes = float(raw)
-        except ValueError:
+    def _on_step_change(self, choice: str) -> None:
+        if choice == _CUSTOM:
+            self._prompt_custom_step()
             return
-        if minutes > 0:
-            self._c.on_add_time(minutes)
+        self._step = float(choice)
+
+    def _prompt_custom_step(self) -> None:
+        dialog = ctk.CTkInputDialog(text="Step size in minutes:", title="Custom step")
+        raw = dialog.get_input()
+        value: float | None = None
+        if raw:
+            try:
+                value = float(raw)
+            except ValueError:
+                value = None
+        if value is not None and value > 0:
+            self._step = value
+        self._step_menu.set(_fmt_step(self._step))  # never leave "Custom…" showing
+
+    def _nudge_up(self) -> None:
+        if self._add_enabled:
+            self._c.on_add_time(self._step)
+
+    def _nudge_down(self) -> None:
+        if self._add_enabled:
+            self._c.on_add_time(-self._step)
 
     # --- rendering -------------------------------------------------------
     def render(self, snap: EngineState, today_seconds: int) -> None:
@@ -146,8 +174,11 @@ class TimerView(ctk.CTkFrame):
 
         active = snap.state in (State.work, State.break_, State.paused)
         state_flag = "normal" if active else "disabled"
-        for b in (self._skip_btn, self._stop_btn, self._custom_btn, *self._add_btns):
-            b.configure(state=state_flag)
+        self._skip_btn.configure(state=state_flag)
+        self._stop_btn.configure(state=state_flag)
+        self._add_enabled = active
+        for widget in (self._minus_btn, self._plus_btn, self._step_menu):
+            widget.configure(state=state_flag)
 
         self._today_lbl.configure(text=f"Today: {format_duration(today_seconds)}")
 
