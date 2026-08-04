@@ -56,6 +56,7 @@ def run_gui(config: Config) -> int:
         app.attach_worker(worker)
         if repo.has_remote(config.evidence.remote):
             app.set_evidence_mode("evidence: ready", "gray60")
+            worker.flush()  # push any backlog left unpushed from a prior offline run
         else:
             app.set_evidence_mode("evidence: no remote (local commits)", "#d9863b")
     else:

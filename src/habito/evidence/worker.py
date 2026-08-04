@@ -1,9 +1,10 @@
 """Background worker that commits+pushes each event, off the UI thread.
 
 A single-consumer queue preserves event order. Network/git latency never blocks the UI.
-On push failure the local commit still stands (the JSONL line is already fsynced), the
-worker reports an ``unpushed`` status, and the next event's push attempt drains the
-backlog. A non-fast-forward rejection triggers one ``pull --rebase`` retry.
+On push failure the local commit still stands (the JSONL line is already fsynced) and the
+worker reports an ``unpushed`` status. The backlog is flushed by a later push attempt:
+when the next event fires, on startup (:meth:`flush`), and on graceful shutdown. A
+non-fast-forward rejection triggers one ``pull --rebase`` retry.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from habito.evidence.git import GitError, GitRepo
 log = logging.getLogger("habito.evidence")
 
 _SENTINEL = object()
+_FLUSH = object()
 
 
 @dataclass(frozen=True)
@@ -56,6 +58,10 @@ class EvidenceWorker:
         """Observer entry point — enqueue an event for commit+push."""
         self._queue.put(event)
 
+    def flush(self) -> None:
+        """Request a push of any unpushed backlog (e.g. on startup / reconnect)."""
+        self._queue.put(_FLUSH)
+
     def wait_idle(self) -> None:
         """Block until every submitted event has been processed (mainly for tests)."""
         self._queue.join()
@@ -71,8 +77,12 @@ class EvidenceWorker:
             item = self._queue.get()
             try:
                 if item is _SENTINEL:
+                    self._flush()  # best-effort final push on graceful close
                     return
-                self._process(item)
+                if item is _FLUSH:
+                    self._flush()
+                else:
+                    self._process(item)
             finally:
                 self._queue.task_done()
 
@@ -102,6 +112,17 @@ class EvidenceWorker:
         unpushed = self._repo.unpushed_count(cfg.remote, cfg.branch)
         self._report(EvidenceStatus(committed, pushed, unpushed, error))
 
+    def _flush(self) -> None:
+        """Push any backlog. No-op (and silent) when already in sync or push disabled."""
+        cfg = self._config
+        if not cfg.auto_push:
+            return
+        if self._repo.unpushed_count(cfg.remote, cfg.branch) == 0:
+            return  # nothing pending — don't overwrite the current status label
+        pushed = self._try_push()
+        after = self._repo.unpushed_count(cfg.remote, cfg.branch)
+        self._report(EvidenceStatus(committed=False, pushed=pushed, unpushed_count=after))
+
     def _try_push(self) -> bool:
         cfg = self._config
         try:
@@ -114,7 +135,7 @@ class EvidenceWorker:
                 self._repo.push(cfg.remote, cfg.branch)
                 return True
             except GitError as second:
-                log.warning("push deferred (will retry on next event): %s / %s", first, second)
+                log.warning("push deferred (will retry on next event/flush): %s / %s", first, second)
                 return False
 
     def _report(self, status: EvidenceStatus) -> None:

@@ -120,10 +120,11 @@ class HabitoApp(ctk.CTk):
             self._render_status(latest)
 
     def _render_status(self, status: EvidenceStatus) -> None:
-        if status.error:
-            self._view.set_evidence("evidence: ⚠ push deferred", "#d9863b")
-        elif status.unpushed_count > 0:
-            self._view.set_evidence(f"evidence: {status.unpushed_count} unpushed", "#d9863b")
+        if status.unpushed_count > 0:
+            # Commits are safe locally; only the push (the third-party proof) is behind.
+            self._view.set_evidence(
+                f"evidence: offline · {status.unpushed_count} pending", "#d9863b"
+            )
         elif status.pushed:
             self._view.set_evidence("evidence: pushed ✓", "#2fa572")
         elif status.committed:
