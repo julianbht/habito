@@ -54,6 +54,11 @@ class GitRepo:
         except ValueError:
             return 0
 
+    def has_staged_changes(self, path: str) -> bool:
+        """True if ``path`` has staged changes to commit (``git diff --cached``)."""
+        proc = self._run("diff", "--cached", "--quiet", "--", path, check=False)
+        return proc.returncode == 1  # 0 = clean, 1 = differences staged
+
     # --- mutations -------------------------------------------------------
     def add(self, path: str) -> None:
         self._run("add", "--", path)

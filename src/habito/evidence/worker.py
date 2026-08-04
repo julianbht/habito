@@ -56,6 +56,10 @@ class EvidenceWorker:
         """Observer entry point — enqueue an event for commit+push."""
         self._queue.put(event)
 
+    def wait_idle(self) -> None:
+        """Block until every submitted event has been processed (mainly for tests)."""
+        self._queue.join()
+
     def stop(self, timeout: float | None = 10.0) -> None:
         self._queue.put(_SENTINEL)
         if self._thread.is_alive():
@@ -83,10 +87,13 @@ class EvidenceWorker:
         error: str | None = None
         try:
             self._repo.add(self._filename)
-            if cfg.auto_commit:
+            # A prior commit may already contain this line (events that fired close
+            # together bundle into one commit). That's fine — skip the empty commit,
+            # but still push so any backlog is flushed.
+            if cfg.auto_commit and self._repo.has_staged_changes(self._filename):
                 self._repo.commit(self._filename, message)
                 committed = True
-            if cfg.auto_commit and cfg.auto_push:
+            if cfg.auto_push:
                 pushed = self._try_push()
         except GitError as exc:
             error = str(exc)
