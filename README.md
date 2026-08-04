@@ -10,20 +10,31 @@ A minimalist, keyboard-navigable cross-platform Pomodoro tracker for developers 
 
 ## Setup
 
+Install dependencies:
+
 ```bash
-uv sync                      # create the venv and install deps
+uv sync
+```
 
-# 1. Create the separate data repo Habito will commit to:
-uv run habito init-data      # creates ../habito-data and `git init`s it
+Create the separate data repo Habito commits to (makes `../habito-data` and `git init`s it):
 
-# 2. Give it a GitHub remote (create an empty repo on GitHub first), e.g.:
+```bash
+uv run habito init-data
+```
+
+Create an empty repo on GitHub, then give the data repo that remote:
+
+```bash
 cd ../habito-data
 git remote add origin https://github.com/<you>/habito-data.git
 git push -u origin main
 cd -
+```
 
-# 3. Verify everything is wired up:
-uv run habito doctor         # should report "Evidence: READY"
+Verify everything is wired up — this should report `Evidence: READY`:
+
+```bash
+uv run habito doctor
 ```
 
 Settings live in [`config/settings.toml`](config/settings.toml) — Pomodoro format
@@ -31,11 +42,31 @@ Settings live in [`config/settings.toml`](config/settings.toml) — Pomodoro for
 
 ## Usage
 
+Launch the timer UI:
+
 ```bash
-uv run habito                # launch the timer UI
-uv run habito doctor         # check config + evidence readiness
-uv run habito init-data      # (re)create the data repo
+uv run habito
 ```
+
+Check config + evidence readiness:
+
+```bash
+uv run habito doctor
+```
+
+(Re)create the data repo:
+
+```bash
+uv run habito init-data
+```
+
+Run against a throwaway log, without touching the data repo — see [Test mode](#test-mode):
+
+```bash
+uv run habito --test-mode
+```
+
+## The timer
 
 The main window is a clean timer with icon controls — **▶ play / ⏸ pause** (the primary
 button toggles: ▶ to start or resume, ⏸ to pause when you step away) and **⏹ stop** — plus a
@@ -44,19 +75,53 @@ when a push is behind).
 
 The **big time is also the work-length control**:
 
-- **Before you start** (or after a session ends) it's an editable field — click in and type
-  `30` (or `30:00`), or nudge it with the stepper below. This sets the work length for your
-  next session.
-- **While running** it locks to the live countdown, and the stepper adjusts the current
-  round on the fly.
+- **Before you start** (or after a session ends) it's a spin box — type `30` (or `30:00`),
+  or use the **▲/▼ arrows on its right edge**. This sets the work length for your next
+  session.
+- **While running** it becomes the live countdown, with its own **▲/▼ pair beside it** that
+  adjusts the current round on the fly. Live adjustments are recorded transparently in the
+  log as `TimeAdjusted` events.
 
-The **stepper** — `Adjust: [ − ] [ step ▾ ] [ + ]` — picks a step from the dropdown (values
-from `quick_add_minutes`, plus a **Custom…** entry for any amount) and nudges by that many
-minutes. Live adjustments are recorded transparently in the log as `TimeAdjusted` events.
+Under the time, **`steps of [ N ▾ ] min`** picks how much one arrow press is worth — values
+come from `quick_add_minutes`, plus a **Custom…** entry for any amount.
 
 The **⚙ gear** opens Settings for **break length** and **round count** (work length lives on
-the timer now), plus **Add past session** to backfill. Everything is saved back to
+the timer), plus **Add past session** to backfill. Everything is saved back to
 `settings.toml` with your comments preserved, applied to your next session.
+
+## Keyboard
+
+The whole app is reachable without a mouse. Focus starts in the duration field, and every
+control draws a visible focus ring.
+
+| Key | Action |
+|---|---|
+| `Tab` / `Shift+Tab` | Move through duration → step size → play/pause → stop → ⚙ |
+| `Space` / `Enter` | Press the focused button |
+| `↑` / `↓` | Nudge the duration, while it has focus |
+| `Ctrl+↑` / `Ctrl+↓` | Nudge by one step from anywhere — the duration when idle, the live round when running |
+| `Ctrl+Space` | Start / pause / resume |
+| `Ctrl+.` | Stop the session |
+| `Ctrl+,` | Open Settings |
+| `Esc` | Close a dialog |
+
+The transport shortcuts are `Ctrl`-prefixed on purpose: plain `Space` and `Enter` have to
+keep meaning "press the focused button", or `Tab` navigation stops making sense.
+
+## Test mode
+
+```bash
+uv run habito --test-mode
+```
+
+For trying the UI out without polluting your real record. In this mode Habito:
+
+- writes events to a **throwaway file in your temp directory** (the path is printed on
+  startup) — the data repo is never touched;
+- starts **no evidence worker**, so nothing is committed or pushed;
+- leaves **`settings.toml` unwritten** — format changes apply to the run only;
+- paints the entire app **red**, with a red title bar and a `TEST MODE — nothing is
+  recorded` banner, so it can't be mistaken for a real session.
 
 ## Layout
 
@@ -70,8 +135,12 @@ the timer now), plus **Add past session** to backfill. Everything is saved back 
 | `habito.engine` | Pomodoro state machine + injectable Clock |
 | `habito.projections` | Fold events → daily summaries (verified vs backfilled) |
 | `habito.evidence` | git wrapper, background commit+push worker, Observer recorder |
-| `habito.ui` | CustomTkinter timer + backfill views, window/controller |
+| `habito.ui` | PySide6/Qt timer, settings + backfill dialogs, window/controller, theme |
 | `habito.backfill` | Synthesize events for a past session |
+
+Only `habito.ui` knows about Qt. The views are purely presentational and talk to a
+`Controller` protocol, so the engine, storage, projection and evidence layers are entirely
+UI-agnostic.
 
 ## Tamper evident log
 
@@ -86,10 +155,29 @@ the timer now), plus **Add past session** to backfill. Everything is saved back 
 
 ## Tests
 
+Run the suite — unit tests, UI tests, and a hermetic end-to-end evidence test:
+
 ```bash
-uv run pytest        # unit + a hermetic end-to-end evidence test (local bare remote)
-uv run ruff check    # lint
+uv run pytest
 ```
+
+Lint:
+
+```bash
+uv run ruff check
+```
+
+Just the UI tests:
+
+```bash
+uv run pytest tests/test_ui_timer_view.py tests/test_ui_test_mode.py
+```
+
+The UI tests use [pytest-qt](https://pytest-qt.readthedocs.io/). Its `qtbot` fixture
+delivers **real** mouse and key events through Qt's event loop, so focus, tab order and
+shortcuts are genuinely exercised rather than faked by calling handlers directly. They run
+headless — `conftest.py` sets `QT_QPA_PLATFORM=offscreen`, so no window ever appears and
+nothing steals your focus.
 
 The evidence integration test stands up a local *bare* git repo as a stand-in "remote"
 and proves each event is committed and pushed in order, off the UI thread — no network
