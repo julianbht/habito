@@ -33,6 +33,12 @@ _ACCENT = {
 }
 _CUSTOM = "Custom…"
 
+# Media-transport glyphs for the control buttons.
+_PLAY = "▶"  # start / resume
+_PAUSE = "⏸"  # pause (primary button toggles to this while running)
+_SKIP = "⏭"  # skip current phase
+_STOP = "⏹"  # end session
+
 
 def _fmt_step(value: float) -> str:
     return str(int(value)) if float(value).is_integer() else f"{value:g}"
@@ -108,14 +114,19 @@ class TimerView(ctk.CTkFrame):
 
         controls = ctk.CTkFrame(self, fg_color="transparent")
         controls.grid(row=5, column=0, pady=(0, 8))
-        self._primary_btn = ctk.CTkButton(controls, text="Start", width=110, command=self._primary)
+        sym = ctk.CTkFont(size=20)
+        self._primary_btn = ctk.CTkButton(
+            controls, text=_PLAY, width=76, height=40, font=sym, command=self._primary
+        )
         self._primary_btn.grid(row=0, column=0, padx=4)
         self._skip_btn = ctk.CTkButton(
-            controls, text="Skip", width=70, fg_color="gray30", command=self._c.on_skip
+            controls, text=_SKIP, width=58, height=40, font=sym, fg_color="gray30",
+            command=self._c.on_skip,
         )
         self._skip_btn.grid(row=0, column=1, padx=4)
         self._stop_btn = ctk.CTkButton(
-            controls, text="Stop", width=70, fg_color="gray30", command=self._c.on_stop
+            controls, text=_STOP, width=58, height=40, font=sym, fg_color="gray30",
+            command=self._c.on_stop,
         )
         self._stop_btn.grid(row=0, column=2, padx=4)
 
@@ -220,12 +231,8 @@ class TimerView(ctk.CTkFrame):
         )
         self._render_time(snap)
 
-        if snap.state in (State.idle, State.done):
-            self._primary_btn.configure(text="Start")
-        elif snap.state is State.paused:
-            self._primary_btn.configure(text="Resume")
-        else:
-            self._primary_btn.configure(text="Pause")
+        running = snap.state in (State.work, State.break_)
+        self._primary_btn.configure(text=_PAUSE if running else _PLAY)
 
         active = snap.state in (State.work, State.break_, State.paused)
         state_flag = "normal" if active else "disabled"
