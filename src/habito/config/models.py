@@ -50,6 +50,11 @@ class Config(BaseModel):
     paths: PathsConfig = Field(default_factory=PathsConfig)
 
     project_root: Path
+    config_path: Path | None = None  # the settings.toml this config was loaded from
+
+    def settings_file(self) -> Path:
+        """The settings.toml to read/write (the loaded one, or the default location)."""
+        return self.config_path or (self.project_root / "config" / "settings.toml")
 
     def data_repo_path(self) -> Path:
         """Absolute path of the separate git repo that stores the evidence log."""

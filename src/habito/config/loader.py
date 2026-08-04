@@ -35,4 +35,5 @@ def load_config(
             data = tomllib.load(f)
 
     data["project_root"] = project_root
+    data["config_path"] = config_path
     return Config.model_validate(data)

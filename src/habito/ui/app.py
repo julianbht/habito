@@ -11,13 +11,16 @@ import queue
 from datetime import date
 
 import customtkinter as ctk
+from pydantic import ValidationError
 
-from habito.config.models import Config
+from habito.config.models import Config, PomodoroConfig
+from habito.config.writer import save_pomodoro
 from habito.engine.pomodoro import PomodoroEngine, State
 from habito.evidence.worker import EvidenceStatus, EvidenceWorker
 from habito.projections.daily import summary_for
 from habito.storage.event_store import EventStore
 from habito.ui.backfill_view import BackfillDialog
+from habito.ui.settings_view import SettingsView
 from habito.ui.timer_view import TimerView
 
 _TICK_MS = 250
@@ -34,15 +37,22 @@ class HabitoApp(ctk.CTk):
         self._evidence_enabled = False
 
         self.title("Habito")
-        self.geometry("360x470")
-        self.minsize(340, 460)
+        self.geometry("380x520")
+        self.minsize(360, 500)
         if config.ui.always_on_top:
             self.attributes("-topmost", True)
 
+        self._tabs = ctk.CTkTabview(self)
+        self._tabs.pack(fill="both", expand=True, padx=6, pady=6)
+        timer_tab = self._tabs.add("Timer")
+        settings_tab = self._tabs.add("Settings")
+
         self._view = TimerView(
-            self, controller=self, quick_add_minutes=config.pomodoro.quick_add_minutes
+            timer_tab, controller=self, quick_add_minutes=config.pomodoro.quick_add_minutes
         )
         self._view.pack(fill="both", expand=True)
+        self._settings = SettingsView(settings_tab, controller=self, pomodoro=config.pomodoro)
+        self._settings.pack(fill="both", expand=True)
 
         self._today_baseline = self._compute_today_baseline()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -79,6 +89,28 @@ class HabitoApp(ctk.CTk):
 
     def on_add_time(self, minutes: float) -> None:
         self._engine.add_time(minutes)
+
+    def on_save_settings(self, work: int, brk: int, rounds: int) -> str | None:
+        """Validate, persist, and apply new Pomodoro settings. Returns an error or None."""
+        try:
+            updated = PomodoroConfig(
+                work_minutes=work,
+                break_minutes=brk,
+                rounds=rounds,
+                quick_add_minutes=self._config.pomodoro.quick_add_minutes,
+            )
+        except ValidationError as exc:
+            first = exc.errors()[0]
+            field = first["loc"][0] if first["loc"] else "value"
+            return f"{field}: {first['msg']}"
+
+        self._config.pomodoro = updated
+        self._engine.update_config(updated)
+        try:
+            save_pomodoro(self._config, updated)
+        except OSError as exc:
+            return f"Applied, but couldn't write settings.toml: {exc}"
+        return None
 
     def on_open_backfill(self) -> None:
         BackfillDialog(

@@ -35,7 +35,6 @@ class Controller(Protocol):
     def on_skip(self) -> None: ...
     def on_stop(self) -> None: ...
     def on_add_time(self, minutes: float) -> None: ...
-    def on_open_backfill(self) -> None: ...
 
 
 class TimerView(ctk.CTkFrame):
@@ -104,16 +103,10 @@ class TimerView(ctk.CTkFrame):
         self._today_lbl = ctk.CTkLabel(self, text="Today: 0m", font=ctk.CTkFont(size=13))
         self._today_lbl.grid(row=6, column=0, pady=(16, 2))
 
-        footer = ctk.CTkFrame(self, fg_color="transparent")
-        footer.grid(row=7, column=0, pady=(2, 12))
         self._evidence_lbl = ctk.CTkLabel(
-            footer, text="evidence: –", font=ctk.CTkFont(size=11), text_color="gray60"
+            self, text="evidence: –", font=ctk.CTkFont(size=11), text_color="gray60"
         )
-        self._evidence_lbl.grid(row=0, column=0, padx=6)
-        ctk.CTkButton(
-            footer, text="Add past session", width=140, height=24,
-            fg_color="transparent", border_width=1, command=self._c.on_open_backfill,
-        ).grid(row=0, column=1, padx=6)
+        self._evidence_lbl.grid(row=7, column=0, pady=(2, 12))
 
     # --- button glue -----------------------------------------------------
     def _primary(self) -> None:

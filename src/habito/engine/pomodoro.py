@@ -219,3 +219,7 @@ class PomodoroEngine:
     @property
     def state(self) -> State:
         return self._state
+
+    def update_config(self, config: PomodoroConfig) -> None:
+        """Apply new Pomodoro settings. Takes effect from the next phase/session."""
+        self._config = config

@@ -8,6 +8,7 @@ authors = [{ name = "Julian" }]
 dependencies = [
     "customtkinter>=5.2.2",
     "pydantic>=2.6",
+    "tomlkit>=0.12",
 ]
 
 [project.scripts]

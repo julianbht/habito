@@ -127,6 +127,13 @@ def test_stop_finalizes_and_ends_session():
     assert engine.state is State.done
 
 
+def test_update_config_takes_effect_next_session():
+    engine, clock, events = build(work=25, brk=5, rounds=1)
+    engine.update_config(make_config(work=50, brk=10, rounds=1))
+    engine.start()
+    assert engine.remaining_seconds() == 50 * 60
+
+
 def test_session_work_seconds_tracks_live():
     engine, clock, events = build(work=25, brk=5, rounds=2)
     engine.start()
