@@ -18,15 +18,11 @@ class FakeController:
     def __init__(self) -> None:
         self.saved: list[SettingsValues] = []
         self.previewed: list[str] = []
-        self.backfills = 0
         self.error: str | None = None
 
     def on_save_settings(self, values: SettingsValues) -> str | None:
         self.saved.append(values)
         return self.error
-
-    def on_open_backfill(self) -> None:
-        self.backfills += 1
 
     def on_preview_sound(self, sound: str) -> None:
         self.previewed.append(sound)
@@ -72,10 +68,10 @@ def test_a_rejected_save_is_reported(dialog, qtbot):
 
 def test_enter_presses_the_focused_button_not_the_default(dialog, qtbot):
     widget, controller = dialog
-    widget._backfill_btn.setFocus()
-    qtbot.keyClick(widget._backfill_btn, Qt.Key.Key_Return)
+    widget._preview_btn.setFocus()
+    qtbot.keyClick(widget._preview_btn, Qt.Key.Key_Return)
 
-    assert controller.backfills == 1
+    assert controller.previewed == ["notification"]
     assert controller.saved == []  # Save is the default button, but wasn't focused
 
 
@@ -94,7 +90,7 @@ def test_tab_reaches_every_control(dialog, qtbot):
     widget._break_spin.setFocus()
 
     seen = []
-    for _ in range(7):
+    for _ in range(6):
         qtbot.keyClick(widget.focusWidget(), Qt.Key.Key_Tab)
         seen.append(widget.focusWidget())
 
@@ -105,7 +101,6 @@ def test_tab_reaches_every_control(dialog, qtbot):
         widget._sound_box,
         widget._preview_btn,
         widget._save_btn,
-        widget._backfill_btn,
     ]
 
 
@@ -137,3 +132,11 @@ def test_goal_edits_reach_the_controller(dialog, qtbot):
 
     assert controller.saved[0].daily_minutes == 150
     assert controller.saved[0].buffer_minutes == 15
+
+
+def test_backfill_is_not_offered_here(qtbot, dialog):
+    """It lives in the ☰ menu; having it in both places was just a duplicate."""
+    widget, _ = dialog
+    labels = [b.text() for b in widget.findChildren(type(widget._save_btn))]
+
+    assert not any("past session" in text.lower() for text in labels)
