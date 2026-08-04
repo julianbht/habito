@@ -45,8 +45,7 @@ Verify everything is wired up — this should report `Evidence: READY`:
 uv run habito doctor
 ```
 
-Settings live in [`config/settings.toml`](config/settings.toml) — Pomodoro format
-(default 25 + 5, 4 rounds), theme, notifications, and the data-repo path.
+Settings live in [`config/settings.toml`](config/settings.toml)
 
 ## Usage
 
