@@ -8,6 +8,7 @@ authors = [{ name = "Julian" }]
 dependencies = [
     "pydantic>=2.6",
     "pyside6>=6.11.1",
+    "qtawesome>=1.4.2",
     "tomlkit>=0.12",
 ]
 

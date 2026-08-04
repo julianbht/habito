@@ -12,7 +12,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from PySide6.QtCore import Qt
+import qtawesome as qta
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QHBoxLayout,
@@ -46,10 +47,13 @@ _STATE_COLOR = {
 # One press of ▲/▼ is worth one minute — deliberately not configurable.
 _STEP_SECONDS = 60
 
-# Media-transport glyphs for the control buttons.
-_PLAY = "▶"  # start / resume
-_PAUSE = "⏸"  # pause (primary button toggles to this while running)
-_STOP = "⏹"  # end session
+# Icon names (Material Design Icons, via qtawesome). Drawn glyphs at one weight beat the
+# Unicode symbols they replaced, which the font resolved from three different blocks.
+_PLAY = "mdi6.play"  # start / resume
+_PAUSE = "mdi6.pause"  # the primary button toggles to this while running
+_STOP = "mdi6.stop"  # end session
+_UP = "mdi6.chevron-up"
+_DOWN = "mdi6.chevron-down"
 
 _EDIT_PAGE = 0
 _COUNTDOWN_PAGE = 1
@@ -89,10 +93,12 @@ class TimerView(QWidget):
         self,
         controller: Controller,
         work_minutes: float,
+        ui_theme: theme.Theme | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._c = controller
+        self._theme = ui_theme or theme.Theme.resolve("dark", test_mode=False)
         self._is_idle = True
         self._build(round(work_minutes * 60))
 
@@ -156,13 +162,15 @@ class TimerView(QWidget):
         self._stack.addWidget(self._time_lbl)
         self._stack.setCurrentIndex(_EDIT_PAGE)
 
-        self._up_btn = button("▲", "nudge")
-        self._down_btn = button("▼", "nudge")
-        for btn, slot, tip in (
-            (self._up_btn, self.nudge_up, "Longer  (Ctrl+↑)"),
-            (self._down_btn, self.nudge_down, "Shorter  (Ctrl+↓)"),
+        self._up_btn = button("", "nudge")
+        self._down_btn = button("", "nudge")
+        for btn, name, slot, tip in (
+            (self._up_btn, _UP, self.nudge_up, "Longer  (Ctrl+↑)"),
+            (self._down_btn, _DOWN, self.nudge_down, "Shorter  (Ctrl+↓)"),
         ):
             btn.setFixedSize(34, 31)
+            btn.setIcon(qta.icon(name, color=self._theme.palette.text))
+            btn.setIconSize(QSize(18, 18))
             btn.setToolTip(tip)
             btn.clicked.connect(slot)
 
@@ -183,19 +191,29 @@ class TimerView(QWidget):
         row = QHBoxLayout()
         row.setSpacing(8)
         row.addStretch(1)
-        self._primary_btn = button(_PLAY, "primary")
+        self._primary_btn = button("", "primary")
         self._primary_btn.setFixedSize(88, 42)
+        self._primary_btn.setIconSize(QSize(26, 26))
+        self._set_primary_icon(_PLAY)
         self._primary_btn.setToolTip("Start / pause  (Ctrl+Space)")
         self._primary_btn.clicked.connect(self._primary)
         row.addWidget(self._primary_btn)
 
-        self._stop_btn = button(_STOP, "transport")
+        self._stop_btn = button("", "transport")
         self._stop_btn.setFixedSize(66, 42)
+        self._stop_btn.setIcon(qta.icon(_STOP, color=self._theme.palette.text))
+        self._stop_btn.setIconSize(QSize(24, 24))
         self._stop_btn.setToolTip("End the session  (Ctrl+.)")
         self._stop_btn.clicked.connect(self._c.on_stop)
         row.addWidget(self._stop_btn)
         row.addStretch(1)
         return row
+
+    def _set_primary_icon(self, name: str) -> None:
+        """White on the accent fill, whichever palette is in use."""
+        if name != getattr(self, "_primary_icon", None):
+            self._primary_icon = name
+            self._primary_btn.setIcon(qta.icon(name, color="#ffffff"))
 
     def _apply_tab_order(self) -> None:
         """Walk Tab through the controls in the order you'd actually use them."""
@@ -264,7 +282,7 @@ class TimerView(QWidget):
         self._render_time(snap)
 
         running = snap.state in (State.work, State.break_)
-        self._primary_btn.setText(_PAUSE if running else _PLAY)
+        self._set_primary_icon(_PAUSE if running else _PLAY)
 
         # Stop stays available while a phase prompt is up, so you can end the session
         # instead of taking the break it's offering.

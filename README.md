@@ -83,7 +83,7 @@ control draws a visible focus ring.
 
 | Key | Action |
 |---|---|
-| `Tab` / `Shift+Tab` | Move through duration → ▲ → ▼ → play/pause → stop → ☰ |
+| `Tab` / `Shift+Tab` | Move through duration → up → down → play/pause → stop → menu |
 | `Space` / `Enter` | Press the focused button (Qt only gives you `Space`; `Enter` is ours) |
 | `↑` / `↓` | Nudge the duration by a minute, while it has focus |
 | `Ctrl+↑` / `Ctrl+↓` | Nudge by a minute from anywhere — the duration when idle, the live round when running |
@@ -134,6 +134,9 @@ to quietly remove the evidence.
 | `habito.evidence` | git wrapper, background commit+push worker, Observer recorder |
 | `habito.ui` | PySide6/Qt timer + calendar + log, dialogs (settings, backfill, phase prompt), window/controller, theme, progress background, notifications + sounds |
 | `habito.backfill` | Synthesize events for a past session |
+
+Icons are [qtawesome](https://github.com/spyder-ide/qtawesome) (Material Design Icons),
+recoloured per palette — so they follow light/dark and go red in test mode.
 
 Only `habito.ui` knows about Qt. The views are purely presentational and talk to a
 `Controller` protocol, so the engine, storage, projection and evidence layers are entirely

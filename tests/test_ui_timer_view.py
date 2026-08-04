@@ -12,6 +12,7 @@ import pytest
 from PySide6.QtCore import Qt
 
 from habito.engine.pomodoro import EngineState, State
+from habito.ui import theme
 from habito.ui.timer_view import TimerView
 from habito.ui.widgets import DurationSpinBox, parse_seconds
 
@@ -289,3 +290,54 @@ def test_nudging_while_running_adjusts_the_round_not_the_planned_length(view):
 
     assert controller.added == [1, -1]
     assert widget._spin.value() == 1500  # planned length untouched mid-session
+
+
+# --- icons ----------------------------------------------------------------
+def test_controls_use_drawn_icons_not_unicode_glyphs(view):
+    """The old ▶ ⏸ ⏹ ▲ ▼ came from three Unicode blocks at mismatched weights."""
+    widget, _ = view
+    for btn in (widget._primary_btn, widget._stop_btn, widget._up_btn, widget._down_btn):
+        assert btn.text() == ""
+        assert not btn.icon().isNull()
+
+
+def test_the_primary_icon_follows_the_running_state(view):
+    widget, _ = view
+    widget.render_state(snapshot(State.idle), 0)
+    assert widget._primary_icon == "mdi6.play"
+
+    widget.render_state(snapshot(State.work, remaining=900, target=1500), 0)
+    assert widget._primary_icon == "mdi6.pause"
+
+    widget.render_state(snapshot(State.paused, remaining=900, target=1500), 0)
+    assert widget._primary_icon == "mdi6.play"
+
+
+def test_the_primary_icon_is_only_rebuilt_when_it_changes(view):
+    """render_state runs four times a second; re-rasterising each tick would be waste."""
+    widget, _ = view
+    widget.render_state(snapshot(State.work, remaining=900, target=1500), 0)
+    first = widget._primary_btn.icon().cacheKey()
+
+    widget.render_state(snapshot(State.work, remaining=880, target=1500), 0)
+    assert widget._primary_btn.icon().cacheKey() == first
+
+
+def test_icons_take_the_palette_colour(qtbot):
+    """Test mode paints the app red; the icons have to be able to follow."""
+    light = TimerView(
+        controller=FakeController(),
+        work_minutes=25,
+        ui_theme=theme.Theme(accent=theme.ACCENT_LIVE, palette=theme.LIGHT),
+    )
+    qtbot.addWidget(light)
+    dark = TimerView(
+        controller=FakeController(),
+        work_minutes=25,
+        ui_theme=theme.Theme(accent=theme.ACCENT_LIVE, palette=theme.DARK),
+    )
+    qtbot.addWidget(dark)
+
+    assert light._theme.palette.text != dark._theme.palette.text
+    assert not light._stop_btn.icon().isNull()
+    assert not dark._stop_btn.icon().isNull()

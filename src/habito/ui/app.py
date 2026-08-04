@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import date
 
+import qtawesome as qta
 from pydantic import ValidationError
 from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QActionGroup, QKeySequence, QShortcut
@@ -123,8 +124,10 @@ class HabitoApp(QMainWindow):
         top = QHBoxLayout()
         top.setContentsMargins(8, 6, 8, 0)
         top.addStretch(1)
-        self._menu_btn = button("☰", "gear")
+        self._menu_btn = button("", "gear")
         self._menu_btn.setFixedSize(30, 28)
+        self._menu_btn.setIcon(qta.icon("mdi6.menu", color=self._theme.palette.text))
+        self._menu_btn.setIconSize(QSize(18, 18))
         self._menu_btn.setToolTip("Menu — switch view, settings")
         self._menu_btn.clicked.connect(self._open_menu)
         top.addWidget(self._menu_btn)
@@ -133,6 +136,7 @@ class HabitoApp(QMainWindow):
         self._view = TimerView(
             controller=self,
             work_minutes=self._config.pomodoro.work_minutes,
+            ui_theme=self._theme,
         )
         self._calendar = CalendarView(self._theme, self._config.goals.threshold_seconds())
         self._log = LogView(self._theme)
@@ -152,20 +156,25 @@ class HabitoApp(QMainWindow):
         menu = QMenu(self)
         group = QActionGroup(menu)
         group.setExclusive(True)
-        for index, name in (
-            (_TIMER_PAGE, "Timer"),
-            (_CALENDAR_PAGE, "Calendar"),
-            (_LOG_PAGE, "Log"),
+        tint = self._theme.palette.text
+        for index, name, glyph in (
+            (_TIMER_PAGE, "Timer", "mdi6.timer-outline"),
+            (_CALENDAR_PAGE, "Calendar", "mdi6.calendar-month-outline"),
+            (_LOG_PAGE, "Log", "mdi6.format-list-bulleted"),
         ):
-            action = menu.addAction(name)
+            action = menu.addAction(qta.icon(glyph, color=tint), name)
             action.setCheckable(True)
             action.setChecked(self._pages.currentIndex() == index)
             action.triggered.connect(lambda _c=False, i=index: self.show_page(i))
             group.addAction(action)
 
         menu.addSeparator()
-        menu.addAction("Settings…", self._open_settings)
-        menu.addAction("Add past session…", self.on_open_backfill)
+        menu.addAction(qta.icon("mdi6.cog-outline", color=tint), "Settings…", self._open_settings)
+        menu.addAction(
+            qta.icon("mdi6.calendar-plus", color=tint),
+            "Add past session…",
+            self.on_open_backfill,
+        )
         menu.exec(self._menu_btn.mapToGlobal(self._menu_btn.rect().bottomLeft()))
 
     def show_page(self, index: int) -> None:

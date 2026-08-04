@@ -10,7 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from PySide6.QtCore import Qt
+import qtawesome as qta
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -156,7 +157,9 @@ class SettingsDialog(QDialog):
         self._sound_box.activated.connect(self._on_sound_chosen)
         row.addWidget(self._sound_box, 1)
 
-        self._preview_btn = button("▶ Test")
+        self._preview_btn = button("Test")
+        self._preview_btn.setIcon(qta.icon("mdi6.volume-high", color=theme.MUTED))
+        self._preview_btn.setIconSize(QSize(16, 16))
         self._preview_btn.setToolTip("Hear the selected sound")
         self._preview_btn.clicked.connect(self._preview)
         row.addWidget(self._preview_btn)
