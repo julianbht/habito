@@ -14,25 +14,23 @@ def test_save_pomodoro_updates_values_and_preserves_comments(tmp_path):
         "work_minutes = 25  # inline note\n"
         "break_minutes = 5\n"
         "rounds = 4\n"
-        "quick_add_minutes = [1, 3, 5]\n",
+        "hand_edited_extra = 7\n",
         encoding="utf-8",
     )
 
     config = load_config(project_root=tmp_path, config_path=cfg_file)
-    save_pomodoro(
-        config,
-        PomodoroConfig(work_minutes=50, break_minutes=10, rounds=2, quick_add_minutes=[1, 3, 5]),
-    )
+    save_pomodoro(config, PomodoroConfig(work_minutes=50, break_minutes=10, rounds=2))
 
     text = cfg_file.read_text(encoding="utf-8")
     assert "# my custom comment" in text
     assert "inline note" in text  # comments survive the round-trip
+    # Keys the model doesn't know about are left exactly as the user wrote them.
+    assert "hand_edited_extra = 7" in text
 
     reloaded = load_config(project_root=tmp_path, config_path=cfg_file)
     assert reloaded.pomodoro.work_minutes == 50
     assert reloaded.pomodoro.break_minutes == 10
     assert reloaded.pomodoro.rounds == 2
-    assert reloaded.pomodoro.quick_add_minutes == [1, 3, 5]  # untouched field preserved
 
 
 def test_save_pomodoro_creates_section_when_missing(tmp_path):

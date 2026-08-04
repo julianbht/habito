@@ -4,21 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 class PomodoroConfig(BaseModel):
     work_minutes: int = Field(default=25, gt=0)
     break_minutes: int = Field(default=5, gt=0)
     rounds: int = Field(default=4, gt=0)
-    quick_add_minutes: list[int] = Field(default_factory=lambda: [1, 3, 5])
-
-    @field_validator("quick_add_minutes")
-    @classmethod
-    def _all_positive(cls, v: list[int]) -> list[int]:
-        if any(n <= 0 for n in v):
-            raise ValueError("quick_add_minutes must all be positive")
-        return v
 
 
 class EvidenceConfig(BaseModel):

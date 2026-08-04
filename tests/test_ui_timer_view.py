@@ -59,7 +59,7 @@ def snapshot(state: State, remaining: int = 0, target: int = 0, work: int = 0) -
 @pytest.fixture
 def view(qtbot):
     controller = FakeController()
-    widget = TimerView(controller=controller, quick_add_minutes=[1, 3, 5], work_minutes=25)
+    widget = TimerView(controller=controller, work_minutes=25)
     qtbot.addWidget(widget)
     widget.show()
     qtbot.waitExposed(widget)
@@ -82,14 +82,11 @@ def test_spin_box_displays_mm_ss(qtbot):
     assert spin.text() == "25:00"
 
 
-def test_spin_box_arrows_step_by_configured_amount(view, qtbot):
+def test_spin_box_steps_by_one_minute(view, qtbot):
     widget, controller = view
-    widget._step_box.setCurrentText("5")
-    widget._on_step_activated(widget._step_box.currentIndex())
-
     widget._spin.stepUp()
-    assert widget._spin.value() == 30
-    assert controller.work_minutes[-1] == 30
+    assert widget._spin.value() == 26
+    assert controller.work_minutes[-1] == 26
 
 
 def test_typing_a_duration_commits_on_enter(view, qtbot):
@@ -179,7 +176,7 @@ def test_tab_walks_the_controls_in_order(view, qtbot, state):
     widget.render_state(snapshot(state, remaining=900, target=1500), 0)
     widget._spin.setFocus() if state is State.idle else widget._up_btn.setFocus()
 
-    expected = [widget._up_btn, widget._down_btn, widget._step_box, widget._primary_btn]
+    expected = [widget._up_btn, widget._down_btn, widget._primary_btn]
     if state is State.idle:
         # Stop is disabled with no session to stop, and Qt skips disabled widgets.
         assert not widget._stop_btn.isEnabled()

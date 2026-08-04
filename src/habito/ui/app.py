@@ -89,7 +89,6 @@ class HabitoApp(QMainWindow):
 
         self._view = TimerView(
             controller=self,
-            quick_add_minutes=self._config.pomodoro.quick_add_minutes,
             work_minutes=self._config.pomodoro.work_minutes,
         )
         root.addWidget(self._view)
@@ -173,7 +172,6 @@ class HabitoApp(QMainWindow):
                 work_minutes=cur.work_minutes if work is None else work,
                 break_minutes=cur.break_minutes if brk is None else brk,
                 rounds=cur.rounds if rounds is None else rounds,
-                quick_add_minutes=cur.quick_add_minutes,
             )
         except ValidationError as exc:
             first = exc.errors()[0]

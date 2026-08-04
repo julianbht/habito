@@ -112,7 +112,7 @@ def build_stylesheet(accent: str, palette: Palette = DARK) -> str:
     QPushButton#nudge {{ padding: 0px; font-size: 13px; border-radius: 5px; }}
     QPushButton#gear {{ font-size: 15px; padding: 2px 7px; }}
 
-    QSpinBox, QDateEdit, QTimeEdit, QLineEdit, QComboBox {{
+    QSpinBox, QDateEdit, QTimeEdit, QLineEdit {{
         background-color: {p.surface};
         border: 1px solid {p.border};
         border-radius: 6px;
@@ -125,15 +125,8 @@ def build_stylesheet(accent: str, palette: Palette = DARK) -> str:
         border-width: 2px;
         padding: 2px 4px;
     }}
-    QComboBox::drop-down {{ border: none; width: 16px; }}
-    QComboBox QAbstractItemView {{
-        background-color: {p.surface};
-        border: 1px solid {p.border};
-        selection-background-color: {accent};
-    }}
-
     /* The focus ring — the whole point of the keyboard work; must be obvious. */
-    QPushButton:focus, QSpinBox:focus, QComboBox:focus,
+    QPushButton:focus, QSpinBox:focus,
     QDateEdit:focus, QTimeEdit:focus, QLineEdit:focus {{
         border: 2px solid {accent};
     }}

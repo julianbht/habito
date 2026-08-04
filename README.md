@@ -48,7 +48,7 @@ uv run habito doctor
 ```
 
 Settings live in [`config/settings.toml`](config/settings.toml) — Pomodoro format
-(default 25 + 5, 4 rounds), quick-add increments, theme, and the data-repo path.
+(default 25 + 5, 4 rounds), theme, and the data-repo path.
 
 ## Usage
 
@@ -86,14 +86,12 @@ when a push is behind).
 The **big time is also the work-length control**:
 
 - **Before you start** (or after a session ends) it's a spin box — type `30` (or `30:00`),
-  or use the **▲/▼ arrows on its right edge**. This sets the work length for your next
-  session.
-- **While running** it becomes the live countdown, with its own **▲/▼ pair beside it** that
-  adjusts the current round on the fly. Live adjustments are recorded transparently in the
-  log as `TimeAdjusted` events.
+  or use the **▲/▼ buttons beside it**. This sets the work length for your next session.
+- **While running** it becomes the live countdown, and the same ▲/▼ buttons adjust the
+  current round on the fly. Live adjustments are recorded transparently in the log as
+  `TimeAdjusted` events.
 
-Under the time, **`steps of [ N ▾ ] min`** picks how much one arrow press is worth — values
-come from `quick_add_minutes`, plus a **Custom…** entry for any amount.
+Each press is worth one minute, in both cases.
 
 The **⚙ gear** opens Settings for **break length** and **round count** (work length lives on
 the timer), plus **Add past session** to backfill. Everything is saved back to
@@ -106,10 +104,10 @@ control draws a visible focus ring.
 
 | Key | Action |
 |---|---|
-| `Tab` / `Shift+Tab` | Move through duration → step size → play/pause → stop → ⚙ |
+| `Tab` / `Shift+Tab` | Move through duration → ▲ → ▼ → play/pause → stop → ⚙ |
 | `Space` / `Enter` | Press the focused button |
-| `↑` / `↓` | Nudge the duration, while it has focus |
-| `Ctrl+↑` / `Ctrl+↓` | Nudge by one step from anywhere — the duration when idle, the live round when running |
+| `↑` / `↓` | Nudge the duration by a minute, while it has focus |
+| `Ctrl+↑` / `Ctrl+↓` | Nudge by a minute from anywhere — the duration when idle, the live round when running |
 | `Ctrl+Space` | Start / pause / resume |
 | `Ctrl+.` | Stop the session |
 | `Ctrl+,` | Open Settings |

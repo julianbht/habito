@@ -15,9 +15,7 @@ from typing import Protocol
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
-    QComboBox,
     QHBoxLayout,
-    QInputDialog,
     QProgressBar,
     QPushButton,
     QSizePolicy,
@@ -44,7 +42,8 @@ _STATE_COLOR = {
     State.done: theme.OK,
     State.idle: theme.MUTED,
 }
-_CUSTOM = "Custom…"
+# One press of ▲/▼ is worth one minute — deliberately not configurable.
+_STEP_MINUTES = 1
 
 # Media-transport glyphs for the control buttons.
 _PLAY = "▶"  # start / resume
@@ -60,10 +59,6 @@ _MAX_WORK_MINUTES = 180
 _TIME_WIDTH = 212
 
 
-def _fmt_step(value: int) -> str:
-    return str(int(value))
-
-
 class Controller(Protocol):
     def on_start(self) -> None: ...
     def on_pause_resume(self) -> None: ...
@@ -76,15 +71,12 @@ class TimerView(QWidget):
     def __init__(
         self,
         controller: Controller,
-        quick_add_minutes: list[int],
         work_minutes: int,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._c = controller
-        self._quick = [int(m) for m in quick_add_minutes] or [1]
         self._is_idle = True
-        self._step = self._quick[0]
         self._build(int(work_minutes))
 
     # --- layout ----------------------------------------------------------
@@ -102,7 +94,6 @@ class TimerView(QWidget):
         root.addWidget(self._state_lbl)
 
         root.addLayout(self._build_time_row(work_minutes))
-        root.addLayout(self._build_step_row())
 
         self._progress = QProgressBar()
         self._progress.setRange(0, 1000)
@@ -141,7 +132,7 @@ class TimerView(QWidget):
         self._spin = MinutesSpinBox(maximum=_MAX_WORK_MINUTES, object_name="time")
         self._spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
         self._spin.setValue(work_minutes)
-        self._spin.setSingleStep(self._step)
+        self._spin.setSingleStep(_STEP_MINUTES)
         self._spin.setToolTip("Work length for the next session — type it, or use ▲/▼")
         self._spin.valueChanged.connect(self._on_planned_changed)
         self._stack.addWidget(self._spin)
@@ -175,22 +166,6 @@ class TimerView(QWidget):
         row.addStretch(1)
         return row
 
-    def _build_step_row(self) -> QHBoxLayout:
-        row = QHBoxLayout()
-        row.setSpacing(5)
-        row.addStretch(1)
-        row.addWidget(label("steps of", "muted"))
-        self._step_box = QComboBox()
-        self._step_box.addItems([_fmt_step(m) for m in self._quick] + [_CUSTOM])
-        self._step_box.setCurrentText(_fmt_step(self._step))
-        self._step_box.setFixedWidth(76)
-        self._step_box.setToolTip("How much each ↑/↓ press changes the time")
-        self._step_box.activated.connect(self._on_step_activated)
-        row.addWidget(self._step_box)
-        row.addWidget(label("min", "muted"))
-        row.addStretch(1)
-        return row
-
     def _build_controls(self) -> QHBoxLayout:
         row = QHBoxLayout()
         row.setSpacing(8)
@@ -215,7 +190,6 @@ class TimerView(QWidget):
             self._spin,
             self._up_btn,
             self._down_btn,
-            self._step_box,
             self._primary_btn,
             self._stop_btn,
         ]
@@ -247,23 +221,6 @@ class TimerView(QWidget):
         else:
             self._c.on_pause_resume()
 
-    def _on_step_activated(self, index: int) -> None:
-        if self._step_box.itemText(index) == _CUSTOM:
-            self._prompt_custom_step()
-            return
-        self._set_step(int(self._step_box.itemText(index)))
-
-    def _prompt_custom_step(self) -> None:
-        value, ok = QInputDialog.getInt(self, "Custom step", "Step size in minutes:",
-                                        value=self._step, minValue=1, maxValue=120)
-        if ok:
-            self._set_step(value)
-        self._step_box.setCurrentText(_fmt_step(self._step))  # never leave "Custom…" showing
-
-    def _set_step(self, minutes: int) -> None:
-        self._step = max(1, int(minutes))
-        self._spin.setSingleStep(self._step)
-
     def nudge_up(self) -> None:
         self._nudge(1)
 
@@ -271,16 +228,16 @@ class TimerView(QWidget):
         self._nudge(-1)
 
     def _nudge(self, direction: int) -> None:
-        """One step in either direction.
+        """One minute in either direction.
 
         Idle, that means the planned work length; running, the current round. Same pair of
         controls either way, so the ▲/▼ buttons and the Ctrl+↑/↓ shortcuts don't need to
         care which mode the timer is in.
         """
         if self._is_idle:
-            self._spin.setValue(self._spin.value() + direction * self._step)
+            self._spin.setValue(self._spin.value() + direction * _STEP_MINUTES)
         else:
-            self._c.on_add_time(direction * self._step)
+            self._c.on_add_time(direction * _STEP_MINUTES)
 
     # --- rendering -------------------------------------------------------
     def render_state(self, snap: EngineState, today_seconds: int) -> None:
