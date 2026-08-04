@@ -103,7 +103,7 @@ class DurationSpinBox(QSpinBox):
     def __init__(
         self,
         parent: QWidget | None = None,
-        minimum: int = 5,
+        minimum: int = 1,
         maximum: int = 180 * 60,
         object_name: str = "",
     ) -> None:

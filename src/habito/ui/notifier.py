@@ -29,6 +29,9 @@ class Notification:
     title: str
     body: str
     action: str = "OK"  # the label on the button that dismisses the prompt
+    # Whether this one makes a noise. Only a phase *finishing* does: those are the moments
+    # you need pulling away from what you're doing. Everything else shows silently.
+    sound: bool = False
 
 
 def notification_for(previous: State, snap: EngineState) -> Notification | None:
@@ -48,11 +51,13 @@ def notification_for(previous: State, snap: EngineState) -> Notification | None:
                 f"Round {snap.round_index} of {snap.total_rounds} done. "
                 "Your break starts when you're ready.",
                 action="Start break",
+                sound=True,
             )
         return Notification(
             "Break over",
             f"Round {snap.round_index + 1} of {snap.total_rounds} is up next.",
             action=f"Start round {snap.round_index + 1}",
+            sound=True,
         )
 
     if previous in (State.work, State.break_) and current is State.done:
@@ -104,7 +109,8 @@ class DesktopNotifier:
         if isinstance(app, QApplication):
             # Flash the taskbar entry until the window is looked at (0 = until focused).
             app.alert(self._window, 0)
-        self._player.play(self._sound)
+        if note.sound:
+            self._player.play(self._sound)
 
     def close(self) -> None:
         if self._tray is not None:

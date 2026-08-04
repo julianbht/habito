@@ -95,3 +95,62 @@ def test_the_default_config_sound_is_a_real_one():
 def test_a_file_path_is_accepted_as_a_config_sound():
     """A path that doesn't exist yet mustn't stop the app from starting."""
     assert UIConfig(sound=r"D:\nope\gone.wav").sound == r"D:\nope\gone.wav"
+
+
+# --- which events make a noise --------------------------------------------
+def _snapshot(state, pending=None, round_index=1):
+    from habito.engine.pomodoro import EngineState
+
+    return EngineState(
+        state=state,
+        round_index=round_index,
+        total_rounds=4,
+        remaining_seconds=0,
+        phase_target_seconds=1500,
+        accumulated_work_seconds=0,
+        session_work_seconds=0,
+        paused_from=None,
+        pending=pending,
+    )
+
+
+def test_finishing_a_round_or_a_break_makes_a_noise():
+    from habito.engine.pomodoro import State
+    from habito.ui.notifier import notification_for
+
+    round_done = notification_for(State.work, _snapshot(State.awaiting, State.break_))
+    break_done = notification_for(State.break_, _snapshot(State.awaiting, State.work))
+
+    assert round_done.sound is True
+    assert break_done.sound is True
+
+
+def test_the_session_summary_is_silent():
+    """The two phase completions are what pull you away; the wrap-up doesn't need to."""
+    from habito.engine.pomodoro import State
+    from habito.ui.notifier import notification_for
+
+    assert notification_for(State.work, _snapshot(State.done)).sound is False
+
+
+def test_a_silent_notification_shows_without_playing_anything():
+    from habito.ui.notifier import DesktopNotifier, Notification
+
+    played = []
+
+    class Recorder:
+        def play(self, setting):
+            played.append(setting)
+
+    notifier = DesktopNotifier.__new__(DesktopNotifier)
+    notifier._window = None
+    notifier._player = Recorder()
+    notifier._sound = "asterisk"
+    notifier._enabled = True
+    notifier._tray = None
+
+    notifier.send(Notification("Quiet", "no noise"))
+    assert played == []
+
+    notifier.send(Notification("Loud", "noise", sound=True))
+    assert played == ["asterisk"]

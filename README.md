@@ -87,7 +87,8 @@ The **big time is also the work-length control**:
 
 - **Before you start** (or after a session ends) it's a spin box — type `30` (or `30:00`),
   or use the **▲/▼ buttons beside it**. This sets the work length for your next session.
-  Type `0:10` for ten seconds if you want to watch a round finish.
+  Anything with a colon is read literally, so `0:03` is three seconds — handy for
+  watching a round finish rather than waiting one out.
 - **While running** it becomes the live countdown, and the same ▲/▼ buttons adjust the
   current round on the fly. Live adjustments are recorded transparently in the log as
   `TimeAdjusted` events.
@@ -111,7 +112,8 @@ The prompt isn't modal, so you can ignore it and press ⏹ to end the session in
 `Ctrl+Space`) does the same thing as the button, if the timer is already in front of you.
 
 Alongside the prompt you get a system-tray message and a flashing taskbar entry, so it
-reaches you even when the app is buried. Set `notifications = false` under `[ui]` to drop
+reaches you even when the app is buried. **Only the two phase completions make a sound** —
+a round finishing and a break finishing. The end-of-session summary appears silently. Set `notifications = false` under `[ui]` to drop
 the tray message and sound — the prompt still appears, since it's how you advance.
 
 **The sound** is your Windows system sounds (Asterisk, Notification, Exclamation, and so

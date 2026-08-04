@@ -57,7 +57,7 @@ _COUNTDOWN_PAGE = 1
 # A work round longer than three hours isn't a Pomodoro. The floor is seconds rather than
 # minutes so a round can be made short enough to watch it finish.
 _MAX_WORK_SECONDS = 180 * 60
-_MIN_WORK_SECONDS = 5
+_MIN_WORK_SECONDS = 1  # a whole second is a legitimate round when you're testing
 _TIME_WIDTH = 212
 
 
