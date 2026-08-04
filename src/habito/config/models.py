@@ -24,6 +24,7 @@ class EvidenceConfig(BaseModel):
 
 class UIConfig(BaseModel):
     theme: str = "dark"  # "dark" | "light" | "system"
+    notifications: bool = True
     always_on_top: bool = False
 
 

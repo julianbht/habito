@@ -48,7 +48,7 @@ uv run habito doctor
 ```
 
 Settings live in [`config/settings.toml`](config/settings.toml) — Pomodoro format
-(default 25 + 5, 4 rounds), theme, and the data-repo path.
+(default 25 + 5, 4 rounds), theme, notifications, and the data-repo path.
 
 ## Usage
 
@@ -96,6 +96,11 @@ Each press is worth one minute, in both cases.
 There's no progress bar: **the window background itself is the progress indicator**, filling
 left to right as the round elapses and tinted toward the current phase — green while you
 work, blue on a break, amber when paused.
+
+When a round or break ends, Habito announces it — a system-tray message, a flashing
+taskbar entry, and a beep, so you can look away from the window and still be told. Ends you
+trigger yourself aren't announced. Turn it off with `notifications = false` under `[ui]` in
+`settings.toml`.
 
 The **⚙ gear** opens Settings for **break length** and **round count** (work length lives on
 the timer), plus **Add past session** to backfill. Everything is saved back to
@@ -147,7 +152,7 @@ For trying the UI out without polluting your real record. In this mode Habito:
 | `habito.engine` | Pomodoro state machine + injectable Clock |
 | `habito.projections` | Fold events → daily summaries (verified vs backfilled) |
 | `habito.evidence` | git wrapper, background commit+push worker, Observer recorder |
-| `habito.ui` | PySide6/Qt timer, settings + backfill dialogs, window/controller, theme, progress background |
+| `habito.ui` | PySide6/Qt timer, settings + backfill dialogs, window/controller, theme, progress background, notifications |
 | `habito.backfill` | Synthesize events for a past session |
 
 Only `habito.ui` knows about Qt. The views are purely presentational and talk to a

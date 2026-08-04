@@ -19,6 +19,7 @@ warn_when_unpushed = true
 
 [ui]
 theme = "dark"             # "dark", "light", or "system" (follows the OS)
+notifications = true       # announce phase changes (tray message + taskbar flash + beep)
 always_on_top = false
 
 [paths]

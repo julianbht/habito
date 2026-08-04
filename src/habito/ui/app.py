@@ -16,12 +16,13 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QMainWindow, QVBoxLayout
 
 from habito.config.models import Config, PomodoroConfig
 from habito.config.writer import save_pomodoro
-from habito.engine.pomodoro import PomodoroEngine, State
+from habito.engine.pomodoro import EngineState, PomodoroEngine, State
 from habito.evidence.worker import EvidenceStatus, EvidenceWorker
 from habito.projections.daily import summary_for
 from habito.storage.event_store import EventStore
 from habito.ui import theme
 from habito.ui.backfill_view import BackfillDialog
+from habito.ui.notifier import DesktopNotifier, Sink, notification_for
 from habito.ui.progress_background import ProgressBackground
 from habito.ui.settings_view import SettingsDialog
 from habito.ui.timer_view import TimerView, progress_for
@@ -49,6 +50,8 @@ class HabitoApp(QMainWindow):
         self._theme = theme.Theme.resolve(config.ui.theme, test_mode)
         self._worker: EvidenceWorker | None = None
         self._settings_dialog: SettingsDialog | None = None
+        self._last_state = engine.state
+        self._ending_by_hand = False
 
         self.setWindowTitle("Habito — TEST MODE" if test_mode else "Habito")
         self.resize(380, 500)
@@ -58,6 +61,7 @@ class HabitoApp(QMainWindow):
 
         self._build()
         self._install_shortcuts()
+        self._notifier: Sink = DesktopNotifier(self, enabled=config.ui.notifications)
 
         self._status_arrived.connect(self._render_status)
         self._today_baseline = self._compute_today_baseline()
@@ -165,6 +169,7 @@ class HabitoApp(QMainWindow):
             self.on_pause_resume()
 
     def on_stop(self) -> None:
+        self._ending_by_hand = True  # you know you just stopped it; no need to be told
         self._engine.stop()
         self._repaint()
 
@@ -239,6 +244,22 @@ class HabitoApp(QMainWindow):
         snap = self._engine.snapshot()
         self._view.render_state(snap, self._today_baseline + snap.session_work_seconds)
         self._background.set_progress(*progress_for(snap))
+        self._announce(snap)
+
+    def _announce(self, snap: EngineState) -> None:
+        """Notify on phase changes the engine made on its own.
+
+        Transitions are read off consecutive snapshots rather than the event stream, which
+        keeps backfilled sessions — appended straight to the store — from announcing
+        themselves hours after the fact.
+        """
+        previous, self._last_state = self._last_state, snap.state
+        if self._ending_by_hand:
+            self._ending_by_hand = False
+            return
+        note = notification_for(previous, snap)
+        if note is not None:
+            self._notifier.send(note)
 
     def _render_status(self, status: EvidenceStatus) -> None:
         if status.unpushed_count > 0:
@@ -253,6 +274,8 @@ class HabitoApp(QMainWindow):
 
     def closeEvent(self, event) -> None:  # noqa: N802 (Qt override)
         self._timer.stop()
+        if isinstance(self._notifier, DesktopNotifier):
+            self._notifier.close()
         if self._worker is not None:
             self._worker.stop()
         super().closeEvent(event)
