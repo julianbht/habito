@@ -241,3 +241,36 @@ def test_the_store_is_never_written_to(qtbot, tmp_path):
 
     assert app._log.tree.topLevelItemCount() == 1
     assert log_file.read_bytes() == before
+
+
+def test_day_rows_span_the_columns_and_children_do_not_indent(view):
+    """Column 0 of an event must line up with the "Time" header, not sit under its day."""
+    view.set_events([make_day(0, 0)])
+    day_row = view.tree.topLevelItem(0)
+
+    assert view.tree.indentation() == 0
+    assert day_row.isFirstColumnSpanned()
+    assert day_row.child(0).text(0) == "12:00:00"  # the event's own column 0, unindented
+
+
+def test_day_rows_show_whether_they_are_folded(view):
+    view.set_events([make_day(0, 0), make_day(-1, 0)])
+    today, older = view.tree.topLevelItem(0), view.tree.topLevelItem(1)
+
+    assert today.text(0).startswith("▾")  # expanded
+    assert older.text(0).startswith("▸")  # folded
+
+    older.setExpanded(True)
+    assert older.text(0).startswith("▾")
+    older.setExpanded(False)
+    assert older.text(0).startswith("▸")
+
+
+def test_the_day_heading_survives_being_folded_and_unfolded(view):
+    view.set_events([make_day(0, 0)])
+    row = view.tree.topLevelItem(0)
+    heading = row.text(0).lstrip("▾▸ ")
+
+    row.setExpanded(False)
+    row.setExpanded(True)
+    assert row.text(0).lstrip("▾▸ ") == heading  # not re-parsed out of its own label

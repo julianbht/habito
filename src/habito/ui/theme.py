@@ -171,4 +171,25 @@ def build_stylesheet(accent: str, palette: Palette = DARK) -> str:
 
     /* Painted in ProgressBackground.paintEvent — it *is* the progress indicator. */
     QWidget#progressBackground {{ background: transparent; }}
+
+    /* The log is a dense table; it gets a size of its own and room to breathe. */
+    QTreeView {{
+        background-color: {p.surface};
+        alternate-background-color: {p.bg};  /* a faint stripe helps a dense table scan */
+        border: 1px solid {p.border};
+        border-radius: 6px;
+        font-size: 14px;
+    }}
+    QTreeView::item {{ padding: 5px 4px; border: none; }}
+    QTreeView::item:selected {{ background-color: {accent}; color: #ffffff; }}
+    QTreeView::branch {{ background: transparent; }}
+    QHeaderView::section {{
+        background-color: {p.surface_hi};
+        color: {p.text};
+        border: none;
+        border-bottom: 1px solid {p.border};
+        padding: 6px 6px;
+        font-size: 13px;
+        font-weight: bold;
+    }}
     """

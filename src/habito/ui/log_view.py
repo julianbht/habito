@@ -35,6 +35,10 @@ from habito.projections.daily import local_date
 from habito.ui import theme
 from habito.ui.widgets import format_duration, label
 
+# Where a day row keeps its heading text, so the ▾/▸ prefix can be rewritten without
+# having to parse it back out of the label.
+_HEADING_ROLE = Qt.ItemDataRole.UserRole + 1
+
 
 @dataclass(frozen=True)
 class Line:
@@ -125,13 +129,19 @@ class LogView(QWidget):
         self.tree = QTreeWidget()
         self.tree.setColumnCount(3)
         self.tree.setHeaderLabels(["Time", "Event", "Detail"])
-        self.tree.setRootIsDecorated(True)
-        self.tree.setAlternatingRowColors(False)
+        # No indentation and no branch decoration, so a child row's first column lines up
+        # with the "Time" header instead of being pushed right under its day. The day rows
+        # carry their own ▾/▸ in the text (see _mark_expanded) to say they can be folded.
+        self.tree.setIndentation(0)
+        self.tree.setRootIsDecorated(False)
+        self.tree.setAlternatingRowColors(True)
         self.tree.setSelectionMode(QTreeWidget.SelectionMode.SingleSelection)
         self.tree.setUniformRowHeights(True)
         # Read-only by construction, not just by omission: no item carries the editable
         # flag, and the view refuses the gestures that would start an edit anyway.
         self.tree.setEditTriggers(QTreeWidget.EditTrigger.NoEditTriggers)
+        self.tree.itemExpanded.connect(self._mark_expanded)
+        self.tree.itemCollapsed.connect(self._mark_expanded)
         root.addWidget(self.tree, 1)
 
         self._summary_lbl = label("", "muted")
@@ -148,23 +158,33 @@ class LogView(QWidget):
 
         self.tree.clear()
         for day, day_events in days.items():
-            parent = QTreeWidgetItem(self.tree, [day_heading(day, day_events)])
+            parent = QTreeWidgetItem(self.tree, [""])
+            parent.setData(0, _HEADING_ROLE, day_heading(day, day_events))
             parent.setFirstColumnSpanned(True)
             bold = QFont(parent.font(0))
             bold.setBold(True)
             parent.setFont(0, bold)
             for event in day_events:
                 self._add_line(parent, describe(event))
+            self._mark_expanded(parent)
 
         # Today is the one you'd look at first; everything older stays folded away.
         if self.tree.topLevelItemCount():
             self.tree.topLevelItem(0).setExpanded(True)
-        for column in range(3):
+        for column in (0, 1):
             self.tree.resizeColumnToContents(column)
 
         self._summary_lbl.setText(
             f"{len(entries)} events across {len(days)} day{'s' if len(days) != 1 else ''}"
         )
+
+    @staticmethod
+    def _mark_expanded(item: QTreeWidgetItem) -> None:
+        """Keep the day row's ▾/▸ in step with whether it's open."""
+        if item.parent() is not None:
+            return
+        arrow = "▾" if item.isExpanded() else "▸"
+        item.setText(0, f"{arrow}  {item.data(0, _HEADING_ROLE)}")
 
     def _add_line(self, parent: QTreeWidgetItem, line: Line) -> None:
         detail = f"{line.detail} (backfilled)" if line.backfilled else line.detail

@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import date
 
 from pydantic import ValidationError
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QActionGroup, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -45,6 +45,19 @@ _TIMER_PAGE = 0
 _CALENDAR_PAGE = 1
 _LOG_PAGE = 2
 
+# Each view wants a different amount of room — the timer is a widget, the log is a table.
+# Whatever you resize a view to is remembered and restored when you come back to it.
+_PAGE_SIZES = {
+    _TIMER_PAGE: QSize(380, 500),
+    _CALENDAR_PAGE: QSize(460, 580),
+    _LOG_PAGE: QSize(820, 660),
+}
+_PAGE_MINIMUMS = {
+    _TIMER_PAGE: QSize(340, 470),
+    _CALENDAR_PAGE: QSize(340, 470),
+    _LOG_PAGE: QSize(520, 380),
+}
+
 
 class HabitoApp(QMainWindow):
     # Emitted from the evidence worker thread; Qt delivers it on the UI thread.
@@ -70,8 +83,9 @@ class HabitoApp(QMainWindow):
         self._phase_dialog: PhaseDialog | None = None
 
         self.setWindowTitle("Habito — TEST MODE" if test_mode else "Habito")
-        self.resize(380, 500)
-        self.setMinimumSize(340, 470)
+        self._page_sizes = dict(_PAGE_SIZES)
+        self.setMinimumSize(_PAGE_MINIMUMS[_TIMER_PAGE])
+        self.resize(_PAGE_SIZES[_TIMER_PAGE])
         if config.ui.always_on_top:
             self.setWindowFlag(Qt.WindowType.WindowStaysOnTop, True)
 
@@ -162,6 +176,7 @@ class HabitoApp(QMainWindow):
         elif index == _LOG_PAGE:
             self._log.set_events(self._store.read_all())
 
+        self._resize_for(index)
         self._pages.setCurrentIndex(index)
         if index == _TIMER_PAGE:
             self._view.focus_first()
@@ -169,6 +184,16 @@ class HabitoApp(QMainWindow):
             self._calendar.calendar.setFocus(Qt.FocusReason.OtherFocusReason)
         else:
             self._log.tree.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def _resize_for(self, index: int) -> None:
+        """Give each view the room it needs, keeping whatever size you last chose for it."""
+        current = self._pages.currentIndex()
+        if current == index:
+            return
+        self._page_sizes[current] = self.size()
+        self.setMinimumSize(_PAGE_MINIMUMS[index])
+        if not self.isMaximized() and not self.isFullScreen():
+            self.resize(self._page_sizes[index])
 
     def _refresh_calendar(self) -> None:
         self._calendar.set_summaries(summarize_by_day(self._store.read_all()))

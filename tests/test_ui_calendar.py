@@ -194,3 +194,48 @@ def test_opening_the_calendar_reads_the_log(qtbot, tmp_path):
     assert ANCHOR in days
     assert days[ANCHOR].total_work_seconds == 100 * 60
     assert app._calendar.calendar.meets_goal(days[ANCHOR])
+
+
+def test_each_view_gets_a_size_that_suits_it(qtbot, tmp_path):
+    """The log is a wide table; the timer is a small widget. They shouldn't share a size."""
+    from habito.app import _build_engine_and_store
+    from habito.config.models import Config
+    from habito.ui.app import _LOG_PAGE, _TIMER_PAGE, HabitoApp
+
+    config = Config.model_validate(
+        {"paths": {"data_repo": str(tmp_path)}, "project_root": tmp_path}
+    )
+    engine, store = _build_engine_and_store(config, test_mode=False)
+    app = HabitoApp(config, engine, store, test_mode=True)
+    qtbot.addWidget(app)
+    app.show()
+    qtbot.waitExposed(app)
+
+    timer_size = app.size()
+    app.show_page(_LOG_PAGE)
+    assert app.width() > timer_size.width()
+
+    app.show_page(_TIMER_PAGE)
+    assert app.width() == timer_size.width()
+
+
+def test_a_view_remembers_the_size_you_gave_it(qtbot, tmp_path):
+    from habito.app import _build_engine_and_store
+    from habito.config.models import Config
+    from habito.ui.app import _LOG_PAGE, _TIMER_PAGE, HabitoApp
+
+    config = Config.model_validate(
+        {"paths": {"data_repo": str(tmp_path)}, "project_root": tmp_path}
+    )
+    engine, store = _build_engine_and_store(config, test_mode=False)
+    app = HabitoApp(config, engine, store, test_mode=True)
+    qtbot.addWidget(app)
+    app.show()
+    qtbot.waitExposed(app)
+
+    app.show_page(_LOG_PAGE)
+    app.resize(900, 700)
+    app.show_page(_TIMER_PAGE)
+    app.show_page(_LOG_PAGE)
+
+    assert app.size().width() == 900
