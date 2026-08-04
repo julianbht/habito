@@ -1,4 +1,4 @@
-"""The Settings dialog: Pomodoro format, daily goal, notification sound, past sessions.
+"""The Settings dialog: Pomodoro format, daily goal, notification sound.
 
 Kept off the main timer window so the timer stays uncluttered. Saving validates through the
 controller (which persists to settings.toml and applies to the engine) and reports back a
@@ -45,7 +45,6 @@ class SettingsValues:
 
 class Controller(Protocol):
     def on_save_settings(self, values: SettingsValues) -> str | None: ...
-    def on_open_backfill(self) -> None: ...
     def on_preview_sound(self, sound: str) -> None: ...
 
 
@@ -111,12 +110,6 @@ class SettingsDialog(QDialog):
         self._status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self._status)
 
-        root.addWidget(_rule())
-        root.addWidget(label("Missed a session?", "muted"))
-        self._backfill_btn = button("Add past session")
-        self._backfill_btn.clicked.connect(self._c.on_open_backfill)
-        root.addWidget(self._backfill_btn)
-
         chain = [
             self._break_spin,
             self._rounds_spin,
@@ -125,7 +118,6 @@ class SettingsDialog(QDialog):
             self._sound_box,
             self._preview_btn,
             self._save_btn,
-            self._backfill_btn,
         ]
         for earlier, later in zip(chain, chain[1:], strict=False):
             self.setTabOrder(earlier, later)
