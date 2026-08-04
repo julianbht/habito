@@ -9,10 +9,8 @@ A minimalist, keyboard-navigable cross-platform Pomodoro tracker for developers.
   server-recorded push times stand as third-party proof of when you actually studied.
 - **[Fully keyboard-driven](#keyboard)** — Tab reaches every control, with shortcuts for
   start, stop and adjust.
-- **Honest backfilling** — sessions added after the fact are recorded as `backfilled` and
-  reported separately, never masquerading as live evidence.
 - **[A calendar of your streak](#calendar)** — a month at a glance, green on every day you
-  hit the goal.
+  hit your goal.
 
 ## Requirements
 
