@@ -119,3 +119,17 @@ def test_settings_shortcut_does_not_stack_duplicate_dialogs(qtbot, app):
     press(qtbot, app, Qt.Key.Key_Comma)
 
     assert app._settings_dialog is first
+
+
+def test_settings_is_the_last_menu_entry(qtbot, app, monkeypatch):
+    """Backfill sits above it, so Settings is where you'd expect: at the bottom."""
+    captured = []
+
+    def fake_exec(self, *_args, **_kwargs):
+        captured.extend("" if a.isSeparator() else a.text() for a in self.actions())
+
+    monkeypatch.setattr("PySide6.QtWidgets.QMenu.exec", fake_exec)
+    app._open_menu()
+
+    assert captured == ["Timer", "Calendar", "Log", "", "Backfill…", "Settings…"]
+    assert captured[-1] == "Settings…"

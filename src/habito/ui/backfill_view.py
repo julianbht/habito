@@ -44,7 +44,7 @@ class BackfillDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self._on_submit = on_submit
-        self.setWindowTitle("Add past session")
+        self.setWindowTitle("Backfill")
         self.setMinimumWidth(320)
         self.setModal(True)
         self._build(default_work, default_break, default_rounds)

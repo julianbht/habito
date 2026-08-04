@@ -169,12 +169,10 @@ class HabitoApp(QMainWindow):
             group.addAction(action)
 
         menu.addSeparator()
-        menu.addAction(qta.icon("mdi6.cog-outline", color=tint), "Settings…", self._open_settings)
         menu.addAction(
-            qta.icon("mdi6.calendar-plus", color=tint),
-            "Add past session…",
-            self.on_open_backfill,
+            qta.icon("mdi6.calendar-plus", color=tint), "Backfill…", self.on_open_backfill
         )
+        menu.addAction(qta.icon("mdi6.cog-outline", color=tint), "Settings…", self._open_settings)
         menu.exec(self._menu_btn.mapToGlobal(self._menu_btn.rect().bottomLeft()))
 
     def show_page(self, index: int) -> None:
