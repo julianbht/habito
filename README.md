@@ -76,55 +76,6 @@ Run against a throwaway log, without touching the data repo — see [Test mode](
 uv run habito --test-mode
 ```
 
-## The timer
-
-The main window is a clean timer with icon controls — **▶ play / ⏸ pause** (the primary
-button toggles: ▶ to start or resume, ⏸ to pause when you step away) and **⏹ stop** — plus a
-live **status** line (`synced ✓` when your log has reached GitHub, `offline · N to sync`
-when a push is behind).
-
-The **big time is also the work-length control**:
-
-- **Before you start** (or after a session ends) it's a spin box — type `30` (or `30:00`),
-  or use the **▲/▼ buttons beside it**. This sets the work length for your next session.
-  Anything with a colon is read literally, so `0:03` is three seconds — handy for
-  watching a round finish rather than waiting one out.
-- **While running** it becomes the live countdown, and the same ▲/▼ buttons adjust the
-  current round on the fly. Live adjustments are recorded transparently in the log as
-  `TimeAdjusted` events.
-
-Each press is worth one minute, in both cases.
-
-There's no progress bar: **the window background itself is the progress indicator**, filling
-left to right as the round elapses and tinted toward the current phase — green while you
-work, blue on a break, amber when paused.
-
-### When a phase ends
-
-Habito **stops the clock between phases**. A break that starts while you're still finishing
-a sentence isn't a break, so nothing advances on its own:
-
-- an always-on-top prompt appears — *Round 2 of 4 done* — with a **Start break** button;
-- no break time accrues while it waits, however long you take;
-- pressing the button starts the break **and brings the timer back to the front**.
-
-The prompt isn't modal, so you can ignore it and press ⏹ to end the session instead. ▶ (or
-`Ctrl+Space`) does the same thing as the button, if the timer is already in front of you.
-
-Alongside the prompt you get a system-tray message and a flashing taskbar entry, so it
-reaches you even when the app is buried. **Only the two phase completions make a sound** —
-a round finishing and a break finishing. The end-of-session summary appears silently. Set `notifications = false` under `[ui]` to drop
-the tray message and sound — the prompt still appears, since it's how you advance.
-
-**The sound** is your Windows system sounds (Asterisk, Notification, Exclamation, and so
-on — whatever you've set them to in Sound settings), or **your own audio file**: pick
-*Choose a file…* in Settings. ▶ Test plays the current choice. Off Windows the built-ins
-fall back to a plain beep, so a custom file is the way to get something specific.
-
-The **⚙ gear** opens Settings for **break length** and **round count** (work length lives on
-the timer), plus **Add past session** to backfill. Everything is saved back to
-`settings.toml` with your comments preserved, applied to your next session.
-
 ## Keyboard
 
 The whole app is reachable without a mouse. Focus starts in the duration field, and every
