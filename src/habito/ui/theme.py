@@ -1,7 +1,7 @@
 """The application stylesheet: a light/dark palette plus one parameterised accent colour.
 
-Everything that signals "this is the live app" — the primary button, the progress bar, the
-focus ring — draws from one accent. Test mode swaps that accent to red, so a run that
+Everything that signals "this is the live app" — the primary button, the progress fill,
+the focus ring — draws from one accent. Test mode swaps that accent to red, so a run that
 records nothing is unmistakable at a glance rather than something you have to remember.
 """
 
@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QColor, QGuiApplication
 
 ACCENT_LIVE = "#3b8ed0"
 ACCENT_TEST = "#d9534f"
@@ -65,6 +65,44 @@ def palette_for(theme: str) -> Palette:
     if hints is not None and hints.colorScheme() == Qt.ColorScheme.Light:
         return LIGHT
     return DARK
+
+
+def mix(base: str, tint: str, amount: float) -> QColor:
+    """Blend ``amount`` of ``tint`` into ``base`` (0.0 → base, 1.0 → tint)."""
+    a, b = QColor(base), QColor(tint)
+    amount = max(0.0, min(1.0, amount))
+    return QColor(
+        round(a.red() + (b.red() - a.red()) * amount),
+        round(a.green() + (b.green() - a.green()) * amount),
+        round(a.blue() + (b.blue() - a.blue()) * amount),
+    )
+
+
+# How much of the phase colour bleeds into the background as a session fills it. Enough to
+# read as progress across the whole window, not enough to compete with the text on top.
+PROGRESS_TINT = 0.16
+
+
+@dataclass(frozen=True)
+class Theme:
+    """The resolved look for one run: which accent, which palette."""
+
+    accent: str
+    palette: Palette
+
+    @classmethod
+    def resolve(cls, ui_theme: str, test_mode: bool) -> Theme:
+        return cls(accent=accent_for(test_mode), palette=palette_for(ui_theme))
+
+    def stylesheet(self) -> str:
+        return build_stylesheet(self.accent, self.palette)
+
+    def background(self) -> QColor:
+        return QColor(self.palette.bg)
+
+    def progress_fill(self, phase_color: str) -> QColor:
+        """The background colour for the elapsed portion of the window."""
+        return mix(self.palette.bg, phase_color, PROGRESS_TINT)
 
 
 def build_stylesheet(accent: str, palette: Palette = DARK) -> str:
@@ -131,12 +169,6 @@ def build_stylesheet(accent: str, palette: Palette = DARK) -> str:
         border: 2px solid {accent};
     }}
 
-    QProgressBar {{
-        background-color: {p.surface};
-        border: none;
-        border-radius: 4px;
-        height: 8px;
-        text-align: center;
-    }}
-    QProgressBar::chunk {{ background-color: {accent}; border-radius: 4px; }}
+    /* Painted in ProgressBackground.paintEvent — it *is* the progress indicator. */
+    QWidget#progressBackground {{ background: transparent; }}
     """

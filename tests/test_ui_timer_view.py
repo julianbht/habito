@@ -132,14 +132,13 @@ def test_swaps_between_editor_and_countdown(view):
     assert widget._stack.currentIndex() == 0  # back to editable when finished
 
 
-def test_progress_and_stop_button_track_state(view):
+def test_stop_button_tracks_state(view):
     widget, _ = view
     widget.render_state(snapshot(State.idle), 0)
     assert not widget._stop_btn.isEnabled()
 
     widget.render_state(snapshot(State.work, remaining=750, target=1500), 0)
     assert widget._stop_btn.isEnabled()
-    assert widget._progress.value() == 500  # half of a 1000-step bar
 
 
 def test_primary_button_toggles_between_start_and_pause(view, qtbot):

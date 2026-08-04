@@ -55,11 +55,7 @@ def run_gui(config: Config, test_mode: bool = False) -> int:
     from habito.ui.app import HabitoApp
 
     qt_app = QApplication.instance() or QApplication(sys.argv[:1])
-    qt_app.setStyleSheet(
-        theme.build_stylesheet(
-            theme.accent_for(test_mode), theme.palette_for(config.ui.theme)
-        )
-    )
+    qt_app.setStyleSheet(theme.Theme.resolve(config.ui.theme, test_mode).stylesheet())
 
     engine, store = _build_engine_and_store(config, test_mode)
     app = HabitoApp(config, engine, store, test_mode=test_mode)

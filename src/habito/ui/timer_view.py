@@ -16,7 +16,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QHBoxLayout,
-    QProgressBar,
     QPushButton,
     QSizePolicy,
     QStackedWidget,
@@ -59,6 +58,19 @@ _MAX_WORK_MINUTES = 180
 _TIME_WIDTH = 212
 
 
+def progress_for(snap: EngineState) -> tuple[float, str]:
+    """How far through the phase we are, and the colour that progress should read as.
+
+    Lives here beside :data:`_STATE_COLOR` but is used by the window, which owns the
+    background the fill is painted onto.
+    """
+    color = _STATE_COLOR.get(snap.state, theme.MUTED)
+    if snap.state in (State.idle, State.done):
+        return 0.0, color
+    target = snap.phase_target_seconds or 1
+    return (target - snap.remaining_seconds) / target, color
+
+
 class Controller(Protocol):
     def on_start(self) -> None: ...
     def on_pause_resume(self) -> None: ...
@@ -94,15 +106,7 @@ class TimerView(QWidget):
         root.addWidget(self._state_lbl)
 
         root.addLayout(self._build_time_row(work_minutes))
-
-        self._progress = QProgressBar()
-        self._progress.setRange(0, 1000)
-        self._progress.setValue(0)
-        self._progress.setTextVisible(False)
-        root.addSpacing(6)
-        root.addWidget(self._progress)
-        root.addSpacing(8)
-
+        root.addSpacing(14)
         root.addLayout(self._build_controls())
 
         root.addStretch(1)
@@ -261,14 +265,10 @@ class TimerView(QWidget):
     def _render_time(self, snap: EngineState) -> None:
         if self._is_idle:
             self._show_page(_EDIT_PAGE)
-            self._progress.setValue(0)
             return
 
         self._show_page(_COUNTDOWN_PAGE)
         self._time_lbl.setText(format_timer(snap.remaining_seconds))
-        target = snap.phase_target_seconds or 1
-        done = (target - snap.remaining_seconds) / target
-        self._progress.setValue(int(max(0.0, min(1.0, done)) * 1000))
 
     def _show_page(self, page: int) -> None:
         """Swap the time display, keeping keyboard focus somewhere usable.

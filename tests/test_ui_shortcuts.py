@@ -12,6 +12,7 @@ from PySide6.QtCore import Qt
 from habito.app import _build_engine_and_store
 from habito.config.models import Config
 from habito.engine.pomodoro import State
+from habito.ui import theme
 from habito.ui.app import HabitoApp
 
 
@@ -81,6 +82,23 @@ def test_ctrl_comma_opens_settings_and_escape_closes_it(qtbot, app):
 
     qtbot.keyClick(dialog, Qt.Key.Key_Escape)
     assert not dialog.isVisible()
+
+
+def test_progress_fills_the_whole_window_including_the_gear_row(qtbot, app):
+    """The fill is the window's background, so no row sits outside it."""
+    app.resize(400, 500)
+    qtbot.waitExposed(app)
+    app._engine.start()
+    app._background.set_progress(0.5, theme.OK)
+
+    image = app._background.grab().toImage()
+    fill = app.ui_theme.progress_fill(theme.OK)
+    left = int(image.width() * 0.08)
+
+    gear_row_y = app._gear.geometry().center().y()
+    assert image.pixelColor(left, gear_row_y) == fill  # the row the ⚙ lives in
+    assert image.pixelColor(left, 2) == fill  # the very top edge
+    assert image.pixelColor(left, image.height() - 2) == fill  # and the very bottom
 
 
 def test_settings_shortcut_does_not_stack_duplicate_dialogs(qtbot, app):

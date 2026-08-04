@@ -16,7 +16,7 @@ A minimalist, keyboard-navigable cross-platform Pomodoro tracker for developers.
 
 - Python **3.11+**
 - [uv](https://docs.astral.sh/uv/)
-- git (with push access to a GitHub repo you create for the data)
+- git
 
 ## Setup
 
@@ -93,6 +93,10 @@ The **big time is also the work-length control**:
 
 Each press is worth one minute, in both cases.
 
+There's no progress bar: **the window background itself is the progress indicator**, filling
+left to right as the round elapses and tinted toward the current phase — green while you
+work, blue on a break, amber when paused.
+
 The **⚙ gear** opens Settings for **break length** and **round count** (work length lives on
 the timer), plus **Add past session** to backfill. Everything is saved back to
 `settings.toml` with your comments preserved, applied to your next session.
@@ -143,7 +147,7 @@ For trying the UI out without polluting your real record. In this mode Habito:
 | `habito.engine` | Pomodoro state machine + injectable Clock |
 | `habito.projections` | Fold events → daily summaries (verified vs backfilled) |
 | `habito.evidence` | git wrapper, background commit+push worker, Observer recorder |
-| `habito.ui` | PySide6/Qt timer, settings + backfill dialogs, window/controller, theme |
+| `habito.ui` | PySide6/Qt timer, settings + backfill dialogs, window/controller, theme, progress background |
 | `habito.backfill` | Synthesize events for a past session |
 
 Only `habito.ui` knows about Qt. The views are purely presentational and talk to a

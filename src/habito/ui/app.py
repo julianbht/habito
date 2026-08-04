@@ -12,7 +12,7 @@ from datetime import date
 from pydantic import ValidationError
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QMainWindow, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QMainWindow, QPushButton, QVBoxLayout
 
 from habito.config.models import Config, PomodoroConfig
 from habito.config.writer import save_pomodoro
@@ -22,8 +22,9 @@ from habito.projections.daily import summary_for
 from habito.storage.event_store import EventStore
 from habito.ui import theme
 from habito.ui.backfill_view import BackfillDialog
+from habito.ui.progress_background import ProgressBackground
 from habito.ui.settings_view import SettingsDialog
-from habito.ui.timer_view import TimerView
+from habito.ui.timer_view import TimerView, progress_for
 
 _TICK_MS = 250
 
@@ -44,6 +45,7 @@ class HabitoApp(QMainWindow):
         self._engine = engine
         self._store = store
         self._test_mode = test_mode
+        self._theme = theme.Theme.resolve(config.ui.theme, test_mode)
         self._worker: EvidenceWorker | None = None
         self._settings_dialog: SettingsDialog | None = None
 
@@ -66,8 +68,10 @@ class HabitoApp(QMainWindow):
 
     # --- layout ----------------------------------------------------------
     def _build(self) -> None:
-        central = QWidget()
-        root = QVBoxLayout(central)
+        # The progress fill is painted by the outermost content widget, so it reaches every
+        # corner — including the gear's row — instead of stopping at the timer's edge.
+        self._background = ProgressBackground(self._theme)
+        root = QVBoxLayout(self._background)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
@@ -92,7 +96,7 @@ class HabitoApp(QMainWindow):
             work_minutes=self._config.pomodoro.work_minutes,
         )
         root.addWidget(self._view)
-        self.setCentralWidget(central)
+        self.setCentralWidget(self._background)
 
         # Tab continues from the timer's last control into the gear, then wraps.
         self.setTabOrder(self._view.stop_button(), self._gear)
@@ -113,6 +117,11 @@ class HabitoApp(QMainWindow):
             QShortcut(QKeySequence(keys), self, activated=slot)
 
     # --- wiring from the composition root --------------------------------
+    @property
+    def ui_theme(self) -> theme.Theme:
+        """The resolved look for this run, so the composition root can style the app."""
+        return self._theme
+
     def attach_worker(self, worker: EvidenceWorker) -> None:
         self._worker = worker
 
@@ -228,6 +237,7 @@ class HabitoApp(QMainWindow):
         """
         snap = self._engine.snapshot()
         self._view.render_state(snap, self._today_baseline + snap.session_work_seconds)
+        self._background.set_progress(*progress_for(snap))
 
     def _render_status(self, status: EvidenceStatus) -> None:
         if status.unpushed_count > 0:
