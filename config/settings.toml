@@ -6,6 +6,14 @@ work_minutes = 25          # length of a work round
 break_minutes = 5          # length of a break between rounds
 rounds = 4                 # number of work rounds per session
 
+[time]
+# Which wall clock a "day" is measured against — for the calendar, the log and backfill.
+# "system" follows this computer; set an IANA name (e.g. "Europe/Berlin") when the
+# computer is deliberately set to a zone you aren't in.
+# Events already written keep the offset they were recorded with; changing this only
+# affects new ones.
+timezone = "system"
+
 [evidence]
 # The tamper-evident proof relies on GitHub's server-recorded push time.
 # After every event, the app commits + pushes to the data repo below.

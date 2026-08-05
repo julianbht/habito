@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from habito.config.models import GoalsConfig, PomodoroConfig
+from habito.config.models import SYSTEM_TZ, GoalsConfig, PomodoroConfig, TimeConfig
 from habito.ui import sounds, theme
 from habito.ui.widgets import button, label
 
@@ -42,6 +42,7 @@ class SettingsValues:
     daily_minutes: int
     buffer_minutes: int
     sound: str
+    timezone: str = SYSTEM_TZ
 
 
 class Controller(Protocol):
@@ -53,6 +54,8 @@ class Controller(Protocol):
 # holding whatever file was picked.
 _BROWSE = "__browse__"
 _CUSTOM_SLOT = "__custom__"
+
+_SYSTEM_LABEL = "System — this computer"
 
 
 def _rule() -> QFrame:
@@ -69,11 +72,14 @@ class SettingsDialog(QDialog):
         pomodoro: PomodoroConfig,
         goals: GoalsConfig | None = None,
         sound: str = sounds.DEFAULT,
+        time_config: TimeConfig | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._c = controller
         self._last_sound = sound
+        self._time = time_config or TimeConfig()
+        self._last_timezone = self._time.timezone
         self.setWindowTitle("Settings")
         self.setMinimumWidth(340)
         self._build(pomodoro, goals or GoalsConfig(), sound)
@@ -102,6 +108,10 @@ class SettingsDialog(QDialog):
         root.addLayout(self._build_sound_row(sound))
 
         root.addWidget(_rule())
+        root.addWidget(label("Timezone", "heading"))
+        root.addLayout(self._build_timezone_form())
+
+        root.addWidget(_rule())
         self._save_btn = button("Save")
         self._save_btn.setDefault(True)  # Enter saves
         self._save_btn.clicked.connect(self._save)
@@ -118,6 +128,7 @@ class SettingsDialog(QDialog):
             self._buffer_spin,
             self._sound_box,
             self._preview_btn,
+            self._tz_box,
             self._save_btn,
         ]
         for earlier, later in zip(chain, chain[1:], strict=False):
@@ -165,6 +176,29 @@ class SettingsDialog(QDialog):
         row.addWidget(self._preview_btn)
         return row
 
+    def _build_timezone_form(self) -> QFormLayout:
+        """Which wall clock a day is measured against — not always the computer's."""
+        form = QFormLayout()
+        form.setSpacing(8)
+
+        self._tz_box = QComboBox()
+        self._tz_box.addItem(_SYSTEM_LABEL, SYSTEM_TZ)
+        self._tz_box.insertSeparator(self._tz_box.count())
+        for name in self._time.choices():
+            self._tz_box.addItem(name, name)
+        self._tz_box.setCurrentIndex(max(0, self._tz_box.findData(self._last_timezone)))
+        self._tz_box.setToolTip(
+            "The wall clock your log and calendar use — set this if the computer's zone "
+            "isn't where you are"
+        )
+
+        form.addRow("Zone", self._tz_box)
+        return form
+
+    def selected_timezone(self) -> str:
+        """The picked zone. A separator carries no data, so fall back rather than save it."""
+        return self._tz_box.currentData() or self._last_timezone
+
     def _add_custom(self, path: str) -> None:
         """Show a chosen file as its own entry, replacing any previous one."""
         existing = self._sound_box.findData(_CUSTOM_SLOT, Qt.ItemDataRole.UserRole + 1)
@@ -210,6 +244,7 @@ class SettingsDialog(QDialog):
             daily_minutes=self._goal_spin.value(),
             buffer_minutes=self._buffer_spin.value(),
             sound=self.selected_sound(),
+            timezone=self.selected_timezone(),
         )
 
     def _preview(self) -> None:

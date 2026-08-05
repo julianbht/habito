@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import tomlkit
 
-from habito.config.models import Config, GoalsConfig, PomodoroConfig, UIConfig
+from habito.config.models import Config, GoalsConfig, PomodoroConfig, TimeConfig, UIConfig
 
 
 def _save_section(config: Config, section: str, values: dict[str, object]) -> None:
@@ -48,6 +48,10 @@ def save_pomodoro(config: Config, pomodoro: PomodoroConfig) -> None:
 def save_ui(config: Config, ui: UIConfig) -> None:
     """Only the parts of ``[ui]`` the Settings window can change."""
     _save_section(config, "ui", {"sound": ui.sound})
+
+
+def save_time(config: Config, time_config: TimeConfig) -> None:
+    _save_section(config, "time", {"timezone": time_config.timezone})
 
 
 def save_goals(config: Config, goals: GoalsConfig) -> None:

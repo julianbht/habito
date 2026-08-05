@@ -44,7 +44,8 @@ def _build_engine_and_store(
     config: Config, test_mode: bool = False
 ) -> tuple[PomodoroEngine, EventStore]:
     store = EventStore(_events_path(config, test_mode))
-    engine = PomodoroEngine(config.pomodoro, sink=store.append, clock=SystemClock())
+    clock = SystemClock(config.time.zone())
+    engine = PomodoroEngine(config.pomodoro, sink=store.append, clock=clock)
     return engine, store
 
 

@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from habito.backfill import build_backfill_events
+from habito.config.models import TimeConfig
 from habito.domain.events import Event
 from habito.ui import theme
 
@@ -40,10 +41,14 @@ class BackfillDialog(QDialog):
         default_work: int,
         default_break: int,
         default_rounds: int,
+        time_config: TimeConfig | None = None,
+        today: date | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._on_submit = on_submit
+        self._tz = time_config or TimeConfig()
+        self._today = today or date.today()
         self.setWindowTitle("Backfill")
         self.setMinimumWidth(320)
         self.setModal(True)
@@ -57,10 +62,13 @@ class BackfillDialog(QDialog):
         form = QFormLayout()
         form.setSpacing(8)
 
-        self._date = QDateEdit(QDate.currentDate())
+        # "Today" is the configured timezone's, which on a machine set to another zone
+        # is not the same day the computer thinks it is.
+        today = QDate(self._today.year, self._today.month, self._today.day)
+        self._date = QDateEdit(today)
         self._date.setCalendarPopup(True)
         self._date.setDisplayFormat("yyyy-MM-dd")
-        self._date.setMaximumDate(QDate.currentDate())  # you can't backfill the future
+        self._date.setMaximumDate(today)  # you can't backfill the future
         form.addRow("Date", self._date)
 
         self._time = QTimeEdit(QTime(6, 0))
@@ -115,5 +123,6 @@ class BackfillDialog(QDialog):
         naive = datetime.combine(
             date(qd.year(), qd.month(), qd.day()), time(qt.hour(), qt.minute())
         )
-        # Attach the system local timezone so the offset is recorded correctly.
-        return naive.astimezone()
+        # What was typed is a wall-clock time in the configured zone, so it's stamped
+        # with that zone's offset — not converted from the machine's.
+        return self._tz.localize(naive)

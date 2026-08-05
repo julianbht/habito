@@ -77,6 +77,11 @@ class PomodoroEngine:
         self._pending: tuple[State, int] | None = None
         self._accumulated_work = 0
 
+    @property
+    def clock(self) -> Clock:
+        """Shared with the UI so "today" and the timezone have one owner, not two."""
+        return self._clock
+
     # --- derived time ----------------------------------------------------
     def _phase_elapsed(self) -> float:
         if self._segment_start is None:

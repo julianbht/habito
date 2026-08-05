@@ -8,6 +8,7 @@ the log makes, carried into the view rather than quietly averaged away.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date
 
 from PySide6.QtCore import QDate, QRect, Qt
@@ -21,6 +22,10 @@ from habito.ui.widgets import format_duration, label
 _MET_FILL = 0.30  # how strongly a met day is tinted toward green
 _TODAY_RING = 0.55
 
+TodayFn = Callable[[], date]
+"""Asked on every paint rather than captured once, so the ring survives midnight —
+and so the configured timezone decides which cell is "today", not the machine's."""
+
 
 def _to_date(qdate: QDate) -> date:
     return date(qdate.year(), qdate.month(), qdate.day())
@@ -33,11 +38,13 @@ class StudyCalendar(QCalendarWidget):
         self,
         ui_theme: theme.Theme,
         threshold_seconds: int,
+        today: TodayFn = date.today,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._theme = ui_theme
         self._threshold = threshold_seconds
+        self._today = today
         self._summaries: dict[date, DailySummary] = {}
 
         self.setGridVisible(False)
@@ -73,7 +80,7 @@ class StudyCalendar(QCalendarWidget):
 
         if summary is not None and self.meets_goal(summary) and in_month:
             self._paint_met(painter, box, summary)
-        if day == date.today():
+        if day == self._today():
             painter.setPen(QPen(theme.mix(self._theme.palette.bg, theme.OK, _TODAY_RING), 1))
             painter.drawRoundedRect(box, 5, 5)
 
@@ -134,6 +141,7 @@ class CalendarView(QWidget):
         self,
         ui_theme: theme.Theme,
         threshold_seconds: int,
+        today: TodayFn = date.today,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -142,7 +150,7 @@ class CalendarView(QWidget):
         root.setContentsMargins(12, 6, 12, 10)
         root.setSpacing(6)
 
-        self.calendar = StudyCalendar(ui_theme, threshold_seconds)
+        self.calendar = StudyCalendar(ui_theme, threshold_seconds, today)
         self.calendar.currentPageChanged.connect(lambda *_: self._render_page())
         root.addWidget(self.calendar, 1)
 

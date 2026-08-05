@@ -7,8 +7,6 @@ the safe cross-thread pattern here, and the reason no explicit status queue is n
 
 from __future__ import annotations
 
-from datetime import date
-
 import qtawesome as qta
 from pydantic import ValidationError
 from PySide6.QtCore import QSize, Qt, QTimer, Signal
@@ -22,8 +20,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from habito.config.models import Config, GoalsConfig, PomodoroConfig, UIConfig
-from habito.config.writer import save_goals, save_pomodoro, save_ui
+from habito.config.models import Config, GoalsConfig, PomodoroConfig, TimeConfig, UIConfig
+from habito.config.writer import save_goals, save_pomodoro, save_time, save_ui
 from habito.engine.pomodoro import EngineState, PomodoroEngine, State
 from habito.evidence.worker import EvidenceStatus, EvidenceWorker
 from habito.projections.daily import summarize_by_day, summary_for
@@ -75,6 +73,9 @@ class HabitoApp(QMainWindow):
         self._config = config
         self._engine = engine
         self._store = store
+        # Borrowed rather than built: one clock means a timezone change from Settings
+        # reaches the events the engine stamps, not just the views.
+        self._clock = engine.clock
         self._test_mode = test_mode
         self._theme = theme.Theme.resolve(config.ui.theme, test_mode)
         self._worker: EvidenceWorker | None = None
@@ -138,7 +139,9 @@ class HabitoApp(QMainWindow):
             work_minutes=self._config.pomodoro.work_minutes,
             ui_theme=self._theme,
         )
-        self._calendar = CalendarView(self._theme, self._config.goals.threshold_seconds())
+        self._calendar = CalendarView(
+            self._theme, self._config.goals.threshold_seconds(), today=self._clock.today
+        )
         self._log = LogView(self._theme)
 
         self._pages = QStackedWidget()
@@ -251,6 +254,7 @@ class HabitoApp(QMainWindow):
             pomodoro=self._config.pomodoro,
             goals=self._config.goals,
             sound=self._config.ui.sound,
+            time_config=self._config.time,
             parent=self,
         )
         self._settings_dialog.show()
@@ -325,7 +329,28 @@ class HabitoApp(QMainWindow):
             self._apply_pomodoro(brk=values.break_minutes, rounds=values.rounds)
             or self._apply_goals(values.daily_minutes, values.buffer_minutes)
             or self._apply_sound(values.sound)
+            or self._apply_timezone(values.timezone)
         )
+
+    def _apply_timezone(self, timezone: str) -> str | None:
+        """Point the shared clock at a new zone; events from here on carry its offset."""
+        try:
+            updated = TimeConfig(timezone=timezone)
+        except ValidationError as exc:
+            return f"timezone: {exc.errors()[0]['msg']}"
+
+        self._config.time = updated
+        self._clock.set_zone(updated.zone())
+        # "Today" may well have moved, so anything counting from it is now stale.
+        self._today_baseline = self._compute_today_baseline()
+        self._refresh_calendar()
+        if self._test_mode:
+            return None  # a test run must not rewrite your real settings.toml
+        try:
+            save_time(self._config, updated)
+        except OSError as exc:
+            return f"Applied, but couldn't write settings.toml: {exc}"
+        return None
 
     def _apply_goals(self, daily_minutes: int, buffer_minutes: int) -> str | None:
         try:
@@ -377,6 +402,8 @@ class HabitoApp(QMainWindow):
             default_work=max(1, round(self._config.pomodoro.work_minutes)),
             default_break=self._config.pomodoro.break_minutes,
             default_rounds=self._config.pomodoro.rounds,
+            time_config=self._config.time,
+            today=self._clock.today(),
             parent=self._settings_dialog or self,
         ).exec()
 
@@ -388,7 +415,7 @@ class HabitoApp(QMainWindow):
         self._refresh_calendar()
 
     def _compute_today_baseline(self) -> int:
-        summary = summary_for(self._store.read_all(), date.today())
+        summary = summary_for(self._store.read_all(), self._clock.today())
         return summary.total_work_seconds
 
     def _tick(self) -> None:
