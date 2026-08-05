@@ -142,7 +142,11 @@ class HabitoApp(QMainWindow):
             work_minutes=self._config.pomodoro.work_minutes,
             ui_theme=self._theme,
         )
-        self._calendar = CalendarView(self._theme, self._config.goals.threshold_seconds())
+        self._calendar = CalendarView(
+            self._theme,
+            self._config.goals.threshold_seconds(),
+            self._config.goals.stretch_seconds(),
+        )
         self._log = LogView(self._theme, self._config.time.rollover_hour)
 
         self._pages = QStackedWidget()
@@ -330,7 +334,9 @@ class HabitoApp(QMainWindow):
         """Apply everything the Settings dialog can change, stopping at the first error."""
         return (
             self._apply_pomodoro(brk=values.break_minutes, rounds=values.rounds)
-            or self._apply_goals(values.daily_minutes, values.buffer_minutes)
+            or self._apply_goals(
+                values.daily_minutes, values.buffer_minutes, values.stretch_minutes
+            )
             or self._apply_sound(values.sound)
             or self._apply_time(values.timezone, values.rollover_hour)
         )
@@ -359,10 +365,15 @@ class HabitoApp(QMainWindow):
             return f"Applied, but couldn't write settings.toml: {exc}"
         return None
 
-    def _apply_goals(self, daily_minutes: int, buffer_minutes: int) -> str | None:
+    def _apply_goals(
+        self, daily_minutes: int, buffer_minutes: int, stretch_minutes: int = 0
+    ) -> str | None:
         try:
             updated = GoalsConfig(
-                daily_minutes=daily_minutes, buffer_minutes=buffer_minutes
+                daily_minutes=daily_minutes,
+                buffer_minutes=buffer_minutes,
+                # The spin's "Off" is 0; the config says "no stretch goal" with None.
+                stretch_minutes=stretch_minutes or None,
             )
         except ValidationError as exc:
             first = exc.errors()[0]
@@ -370,7 +381,7 @@ class HabitoApp(QMainWindow):
             return f"{field}: {first['msg']}"
 
         self._config.goals = updated
-        self._calendar.set_threshold(updated.threshold_seconds())
+        self._calendar.set_goals(updated.threshold_seconds(), updated.stretch_seconds())
         if self._test_mode:
             return None  # a test run must not rewrite your real settings.toml
         try:

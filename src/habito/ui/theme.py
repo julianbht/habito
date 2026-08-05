@@ -32,6 +32,12 @@ class Palette:
     border: str
     text: str
     text_disabled: str
+    # The stretch-goal star, drawn on top of the green "met" fill. Per-palette because one
+    # amber can't carry both: the light fill is bright enough that a mid amber nearly
+    # matches its luminance, so light gets a deeper one. Still a single colour per theme
+    # rather than a gradient — a two-ended ramp would need this tuning three times over,
+    # and shape survives colour blindness in a way hue doesn't.
+    star: str
 
 
 DARK = Palette(
@@ -41,6 +47,7 @@ DARK = Palette(
     border="#43464d",
     text="#e6e6e6",
     text_disabled="#6b6f76",
+    star="#e0a53f",
 )
 LIGHT = Palette(
     bg="#f4f5f7",
@@ -49,6 +56,7 @@ LIGHT = Palette(
     border="#c8ccd2",
     text="#1c1e21",
     text_disabled="#a0a4ab",
+    star="#9c6407",
 )
 
 

@@ -9,8 +9,9 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 
 import pytest
+from pydantic import ValidationError
 from PySide6.QtCore import QDate, QRect
-from PySide6.QtGui import QImage, QPainter
+from PySide6.QtGui import QColor, QImage, QPainter
 from PySide6.QtWidgets import QSpinBox, QToolButton, QWidget
 
 from habito.config.models import GoalsConfig
@@ -109,6 +110,83 @@ def test_a_day_that_met_the_goal_is_filled_green(view):
 def test_a_day_with_no_entry_at_all_is_plain(view):
     view.set_summaries({})
     assert FILL not in cell_pixels(view.calendar, ANCHOR)
+
+
+# --- the stretch goal -----------------------------------------------------
+STAR = QColor(theme.DARK.star).getRgb()[:3]
+
+
+@pytest.fixture
+def stretch_view(qtbot):
+    """A calendar with both goals set: green at 95m (buffered), star at 175m."""
+    widget = CalendarView(DARK, THRESHOLD, GoalsConfig(stretch_minutes=180).stretch_seconds())
+    qtbot.addWidget(widget)
+    widget.resize(360, 400)
+    widget.show()
+    qtbot.waitExposed(widget)
+    return widget
+
+
+def test_the_stretch_goal_is_buffered_like_the_daily_one():
+    goals = GoalsConfig(daily_minutes=100, buffer_minutes=5, stretch_minutes=180)
+    assert goals.threshold_seconds() == 95 * 60
+    assert goals.stretch_seconds() == 175 * 60
+
+
+def test_no_stretch_goal_by_default():
+    assert GoalsConfig().stretch_seconds() is None
+
+
+def test_zero_means_off_so_the_toml_can_round_trip():
+    """TOML has no null and the spin bottoms out at Off; both write 0."""
+    assert GoalsConfig(stretch_minutes=0).stretch_minutes is None
+
+
+def test_a_stretch_goal_below_the_daily_goal_is_refused():
+    with pytest.raises(ValidationError, match="stretch goal must be above"):
+        GoalsConfig(daily_minutes=100, stretch_minutes=60)
+
+
+@pytest.mark.parametrize(
+    ("minutes", "starred"),
+    [(100, False), (174, False), (175, True), (240, True)],
+)
+def test_only_great_days_are_starred(stretch_view, minutes, starred):
+    assert stretch_view.calendar.meets_stretch(summary(ANCHOR, verified=minutes * 60)) is starred
+
+
+def test_a_starred_day_is_painted_with_a_star(stretch_view):
+    stretch_view.set_summaries({ANCHOR: summary(ANCHOR, verified=200 * 60)})
+    assert STAR in cell_pixels(stretch_view.calendar, ANCHOR)
+
+
+def test_a_merely_green_day_gets_no_star(stretch_view):
+    stretch_view.set_summaries({ANCHOR: summary(ANCHOR, verified=100 * 60)})
+    assert FILL in cell_pixels(stretch_view.calendar, ANCHOR)  # still green...
+    assert STAR not in cell_pixels(stretch_view.calendar, ANCHOR)  # ...but no star
+
+
+def test_no_star_is_ever_drawn_without_a_stretch_goal(view):
+    """The default calendar has no second goal, so a huge day is still just green."""
+    view.set_summaries({ANCHOR: summary(ANCHOR, verified=600 * 60)})
+    assert STAR not in cell_pixels(view.calendar, ANCHOR)
+
+
+def test_both_goals_are_named_in_the_hint(stretch_view):
+    assert "1h 35m" in stretch_view._hint_lbl.text()
+    assert "2h 55m" in stretch_view._hint_lbl.text()  # 175 minutes
+
+
+def test_the_month_readout_counts_starred_days(stretch_view):
+    other = ANCHOR + timedelta(days=1)
+    stretch_view.set_summaries(
+        {
+            ANCHOR: summary(ANCHOR, verified=200 * 60),
+            other: summary(other, verified=100 * 60),
+        }
+    )
+    assert "2 days green" in stretch_view._total_lbl.text()
+    assert "1 ★" in stretch_view._total_lbl.text()
 
 
 def test_backfilled_time_is_painted_the_same_as_live(view):
@@ -368,3 +446,93 @@ def test_the_goal_is_written_back_to_settings_toml(qtbot, tmp_path):
     written = config.settings_file().read_text(encoding="utf-8")
     assert "daily_minutes = 150" in written
     assert "buffer_minutes = 15" in written
+
+
+def test_setting_a_stretch_goal_stars_days_without_a_restart(qtbot, tmp_path):
+    from habito.ui.settings_view import SettingsValues
+
+    app, _ = build_app(qtbot, tmp_path)
+    great = summary(ANCHOR, verified=200 * 60)
+    app._calendar.set_summaries({ANCHOR: great})
+    assert not app._calendar.calendar.meets_stretch(great)  # no stretch goal yet
+
+    app.on_save_settings(
+        SettingsValues(
+            break_minutes=5,
+            rounds=4,
+            daily_minutes=100,
+            buffer_minutes=5,
+            stretch_minutes=180,
+            sound="asterisk",
+        )
+    )
+
+    assert app._calendar.calendar.meets_stretch(great)
+    assert "★" in app._calendar._hint_lbl.text()
+
+
+def test_turning_the_stretch_goal_off_again_removes_the_star(qtbot, tmp_path):
+    from habito.ui.settings_view import SettingsValues
+
+    app, config = build_app(qtbot, tmp_path)
+
+    def save(stretch: int) -> str | None:
+        return app.on_save_settings(
+            SettingsValues(
+                break_minutes=5,
+                rounds=4,
+                daily_minutes=100,
+                buffer_minutes=5,
+                stretch_minutes=stretch,
+                sound="asterisk",
+            )
+        )
+
+    save(180)
+    assert app._calendar.calendar.stretch_seconds() is not None
+
+    save(0)  # the spin's "Off"
+    assert app._calendar.calendar.stretch_seconds() is None
+    assert "★" not in app._calendar._hint_lbl.text()
+    assert "stretch_minutes = 0" in config.settings_file().read_text(encoding="utf-8")
+
+
+def test_a_stretch_goal_under_the_daily_goal_is_reported_not_applied(qtbot, tmp_path):
+    from habito.ui.settings_view import SettingsValues
+
+    app, _ = build_app(qtbot, tmp_path)
+    error = app.on_save_settings(
+        SettingsValues(
+            break_minutes=5,
+            rounds=4,
+            daily_minutes=100,
+            buffer_minutes=5,
+            stretch_minutes=60,
+            sound="asterisk",
+        )
+    )
+
+    assert error is not None
+    assert "stretch goal must be above" in error
+    assert app._calendar.calendar.stretch_seconds() is None  # nothing was applied
+
+
+def test_the_stretch_goal_round_trips_through_settings_toml(qtbot, tmp_path):
+    from habito.config.loader import load_config
+    from habito.ui.settings_view import SettingsValues
+
+    app, config = build_app(qtbot, tmp_path)
+    app.on_save_settings(
+        SettingsValues(
+            break_minutes=5,
+            rounds=4,
+            daily_minutes=100,
+            buffer_minutes=5,
+            stretch_minutes=180,
+            sound="asterisk",
+        )
+    )
+
+    reloaded = load_config(project_root=tmp_path, config_path=config.settings_file())
+    assert reloaded.goals.stretch_minutes == 180
+    assert reloaded.goals.stretch_seconds() == 175 * 60

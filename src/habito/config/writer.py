@@ -62,8 +62,11 @@ def save_time(config: Config, time_config: TimeConfig) -> None:
 
 
 def save_goals(config: Config, goals: GoalsConfig) -> None:
-    _save_section(
-        config,
-        "goals",
-        {"daily_minutes": goals.daily_minutes, "buffer_minutes": goals.buffer_minutes},
-    )
+    values: dict[str, object] = {
+        "daily_minutes": goals.daily_minutes,
+        "buffer_minutes": goals.buffer_minutes,
+    }
+    # TOML has no null, so "no stretch goal" is written as 0 — which the model reads back
+    # as None, the same convention the Settings spin uses for its "Off".
+    values["stretch_minutes"] = goals.stretch_minutes or 0
+    _save_section(config, "goals", values)

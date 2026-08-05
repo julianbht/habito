@@ -99,6 +99,27 @@ read (raw dict → current shape, at the deserialization boundary in `read_all`)
 teaching every consumer about old shapes. If a change can't be upcast honestly, introduce a
 new event type instead of inventing data.
 
+## Goals and the calendar
+
+Two goals, deliberately different in kind. `daily_minutes` is the one you mean to hit every
+day and colours the cell green; `stretch_minutes` is the great-day mark and adds a star.
+`buffer_minutes` applies to **both** — if 95 counts as 100, then 145 has to count as 150.
+The stretch goal is off by default (`None`; the TOML and the Settings spin both spell that
+`0`, since TOML has no null).
+
+Two thresholds rather than a colour gradient on purpose: "met" and "well past it" are
+categories, and a ramp encodes a continuum nobody can read back off a 40px cell without a
+legend. Shape is also a channel that survives colour blindness, where a green→gold ramp is
+exactly the axis that collapses.
+
+The calendar keeps **one meaning per channel**: fill = met, star = stretch. That's why the
+today ring and the backfilled/verified outline were both removed — three encodings in one
+small cell cost more than they told you. Anything needing more nuance belongs in the log.
+
+`Palette.star` is per-theme because the light background's green fill is bright enough that
+a mid amber nearly matches its luminance; light gets a deeper one. Still one colour per
+theme, not a ramp.
+
 ## Evidence
 
 - Commit **and push** after every event — GitHub's server-recorded push time is the part

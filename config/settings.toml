@@ -40,6 +40,9 @@ always_on_top = false
 # A day shows green on the calendar once you reach this much study time.
 daily_minutes = 100        # 4 rounds x 25 minutes
 buffer_minutes = 5         # ...and anything within 5 minutes of it still counts
+# A second, higher goal for a great day — earns a ★ on top of the green. Must be above
+# daily_minutes. 0 turns it off.
+stretch_minutes = 0
 
 [paths]
 # Directory of the SEPARATE git repo that stores your evidence log.

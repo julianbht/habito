@@ -6,7 +6,7 @@ from datetime import datetime, tzinfo
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class PomodoroConfig(BaseModel):
@@ -123,15 +123,46 @@ class UIConfig(BaseModel):
 
 
 class GoalsConfig(BaseModel):
-    """What counts as a day's work done, for the calendar."""
+    """What counts as a day's work done, for the calendar.
+
+    Two goals, deliberately different in kind: ``daily_minutes`` is the one you mean to hit
+    every day and it colours the day green; ``stretch_minutes`` is the great-day mark and
+    earns a star on top. Two thresholds rather than a gradient — "met" and "well past it"
+    are categories, and a colour ramp would encode a continuum nobody can read back off a
+    calendar cell.
+    """
 
     daily_minutes: int = Field(default=100, gt=0)  # 4 rounds x 25 minutes
     # Missing the target by a couple of minutes still means you did the work, so the
     # calendar accepts anything within this of the goal.
     buffer_minutes: int = Field(default=5, ge=0)
+    # The great-day mark. None means there isn't one, and no star is ever drawn.
+    stretch_minutes: int | None = Field(default=None, gt=0)
+
+    @field_validator("stretch_minutes", mode="before")
+    @classmethod
+    def _zero_means_off(cls, value: object) -> object:
+        """TOML has no null and the Settings spin bottoms out at "Off", so both say 0."""
+        return None if value == 0 else value
+
+    @model_validator(mode="after")
+    def _stretch_sits_above_daily(self) -> GoalsConfig:
+        if self.stretch_minutes is not None and self.stretch_minutes <= self.daily_minutes:
+            raise ValueError("the stretch goal must be above the daily goal")
+        return self
 
     def threshold_seconds(self) -> int:
         return max(0, self.daily_minutes - self.buffer_minutes) * 60
+
+    def stretch_seconds(self) -> int | None:
+        """The buffered stretch threshold, or ``None`` when no stretch goal is set.
+
+        The buffer applies here too: if 95 minutes counts as a 100-minute goal, 145 has to
+        count as 150, or the two goals would behave inconsistently for no good reason.
+        """
+        if self.stretch_minutes is None:
+            return None
+        return max(0, self.stretch_minutes - self.buffer_minutes) * 60
 
 
 class PathsConfig(BaseModel):

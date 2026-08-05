@@ -8,10 +8,11 @@ and the timer already answer, and a second mark per cell costs more than it tell
 
 from __future__ import annotations
 
+import math
 from datetime import date
 
-from PySide6.QtCore import QDate, QRect, Qt
-from PySide6.QtGui import QColor, QFont, QPainter
+from PySide6.QtCore import QDate, QPointF, QRect, Qt
+from PySide6.QtGui import QColor, QFont, QPainter, QPolygonF
 from PySide6.QtWidgets import QCalendarWidget, QVBoxLayout, QWidget
 
 from habito.projections.daily import DailySummary
@@ -19,6 +20,22 @@ from habito.ui import theme
 from habito.ui.widgets import format_duration, label
 
 _MET_FILL = 0.30  # how strongly a met day is tinted toward green
+_STAR_RADIUS = 4.5  # small: it shares the cell with the day number and the duration
+_STAR_INSET = 6  # from the cell's top-right corner, the only free space there is
+
+
+def _star(center: QPointF, radius: float) -> QPolygonF:
+    """A five-pointed star, first point straight up."""
+    inner = radius * 0.45
+    return QPolygonF(
+        [
+            QPointF(
+                center.x() + (radius if i % 2 == 0 else inner) * math.cos(a),
+                center.y() + (radius if i % 2 == 0 else inner) * math.sin(a),
+            )
+            for i, a in enumerate(-math.pi / 2 + i * math.pi / 5 for i in range(10))
+        ]
+    )
 
 
 def _to_date(qdate: QDate) -> date:
@@ -32,11 +49,13 @@ class StudyCalendar(QCalendarWidget):
         self,
         ui_theme: theme.Theme,
         threshold_seconds: int,
+        stretch_seconds: int | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._theme = ui_theme
         self._threshold = threshold_seconds
+        self._stretch = stretch_seconds
         self._summaries: dict[date, DailySummary] = {}
 
         self.setGridVisible(False)
@@ -54,12 +73,20 @@ class StudyCalendar(QCalendarWidget):
     def threshold_seconds(self) -> int:
         return self._threshold
 
-    def set_threshold(self, seconds: int) -> None:
-        self._threshold = seconds
+    def stretch_seconds(self) -> int | None:
+        return self._stretch
+
+    def set_goals(self, threshold_seconds: int, stretch_seconds: int | None = None) -> None:
+        self._threshold = threshold_seconds
+        self._stretch = stretch_seconds
         self.updateCells()
 
     def meets_goal(self, summary: DailySummary) -> bool:
         return summary.total_work_seconds >= self._threshold
+
+    def meets_stretch(self, summary: DailySummary) -> bool:
+        """A great day. Always False when no stretch goal is set, so no star is drawn."""
+        return self._stretch is not None and summary.total_work_seconds >= self._stretch
 
     def paintCell(self, painter: QPainter, rect: QRect, qdate: QDate) -> None:  # noqa: N802
         day = _to_date(qdate)
@@ -70,11 +97,20 @@ class StudyCalendar(QCalendarWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         box = rect.adjusted(2, 2, -2, -2)
 
-        if summary is not None and self.meets_goal(summary) and in_month:
+        if summary is not None and in_month and self.meets_goal(summary):
             self._paint_met(painter, box)
+            if self.meets_stretch(summary):
+                self._paint_star(painter, box)
 
         self._paint_text(painter, box, day, summary, in_month)
         painter.restore()
+
+    def _paint_star(self, painter: QPainter, box: QRect) -> None:
+        """The great-day mark, tucked into the corner the text doesn't use."""
+        center = QPointF(box.right() - _STAR_INSET, box.top() + _STAR_INSET)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(self._theme.palette.star))
+        painter.drawPolygon(_star(center, _STAR_RADIUS))
 
     def _paint_met(self, painter: QPainter, box: QRect) -> None:
         """A met day is filled, however the time was recorded.
@@ -129,6 +165,7 @@ class CalendarView(QWidget):
         self,
         ui_theme: theme.Theme,
         threshold_seconds: int,
+        stretch_seconds: int | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -137,7 +174,7 @@ class CalendarView(QWidget):
         root.setContentsMargins(12, 6, 12, 10)
         root.setSpacing(6)
 
-        self.calendar = StudyCalendar(ui_theme, threshold_seconds)
+        self.calendar = StudyCalendar(ui_theme, threshold_seconds, stretch_seconds)
         self.calendar.currentPageChanged.connect(lambda *_: self._render_page())
         root.addWidget(self.calendar, 1)
 
@@ -145,12 +182,20 @@ class CalendarView(QWidget):
         self._total_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self._total_lbl)
 
-        goal = format_duration(threshold_seconds)
-        self._hint_lbl = label(f"Green once a day reaches {goal}", "muted")
+        self._hint_lbl = label("", "muted")
         self._hint_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self._hint_lbl)
 
+        self._render_hint()
         self._render_page()
+
+    def _render_hint(self) -> None:
+        """Name both goals, so the green and the star each say what earned them."""
+        text = f"Green once a day reaches {format_duration(self.calendar.threshold_seconds())}"
+        stretch = self.calendar.stretch_seconds()
+        if stretch is not None:
+            text += f" · ★ at {format_duration(stretch)}"
+        self._hint_lbl.setText(text)
 
     # --- navigation ------------------------------------------------------
     def shown_month(self) -> tuple[int, int]:
@@ -160,10 +205,10 @@ class CalendarView(QWidget):
         self.calendar.setCurrentPage(year, month)
 
     # --- contents --------------------------------------------------------
-    def set_threshold(self, seconds: int) -> None:
-        """Apply a goal changed in Settings without needing a restart."""
-        self.calendar.set_threshold(seconds)
-        self._hint_lbl.setText(f"Green once a day reaches {format_duration(seconds)}")
+    def set_goals(self, threshold_seconds: int, stretch_seconds: int | None = None) -> None:
+        """Apply goals changed in Settings without needing a restart."""
+        self.calendar.set_goals(threshold_seconds, stretch_seconds)
+        self._render_hint()
         self._render_page()
 
     def set_summaries(self, summaries: dict[date, DailySummary]) -> None:
@@ -181,4 +226,8 @@ class CalendarView(QWidget):
         days = self.month_summaries()
         studied = sum(s.total_work_seconds for s in days)
         met = sum(1 for s in days if self.calendar.meets_goal(s))
-        self._total_lbl.setText(f"{format_duration(studied)} this month · {met} days green")
+        text = f"{format_duration(studied)} this month · {met} days green"
+        starred = sum(1 for s in days if self.calendar.meets_stretch(s))
+        if starred:
+            text += f" · {starred} ★"
+        self._total_lbl.setText(text)
