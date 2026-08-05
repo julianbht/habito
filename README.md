@@ -4,9 +4,11 @@ A minimalist, keyboard-navigable cross-platform Pomodoro tracker for developers.
 
 ## Core Features
 
-- **A [tamper-evident log](#tamper-evident-log)** — every event is appended to an
-  immutable log and pushed to a separate GitHub repo the moment it happens, so GitHub's
-  server-recorded push times stand as third-party proof of when you actually studied.
+- **[All data on your Github repository](#tamper-evident-log)** — every event is appended
+  to an immutable, machine-readable log and pushed to a separate GitHub repo the moment it happens.
+  As a result, you have complete record of all study activity saved securely and completely under
+  your control. Server-recorded push times also stand as third-party proof of when you actually 
+  studied.
 - **[Fully keyboard-driven](#keyboard)** — Tab reaches every control, with shortcuts for
   start, stop and adjust.
 - **[A calendar of your streak](#calendar)** — a month at a glance, green on every day you
