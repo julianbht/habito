@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -31,19 +32,18 @@ from habito.evidence.worker import EvidenceWorker
 from habito.storage.event_store import EventStore
 
 
-def _events_path(config: Config, test_mode: bool) -> Path:
-    """Where the log is written — a throwaway file when running in test mode."""
+def _events_dir(config: Config, test_mode: bool) -> Path:
+    """Where the log is written — a throwaway directory when running in test mode."""
     if not test_mode:
-        return config.events_path()
+        return config.events_dir_path()
     scratch = Path(tempfile.gettempdir()) / "habito-test-mode"
-    scratch.mkdir(parents=True, exist_ok=True)
-    return scratch / config.paths.events_filename
+    return scratch / config.paths.events_dir
 
 
 def _build_engine_and_store(
     config: Config, test_mode: bool = False
 ) -> tuple[PomodoroEngine, EventStore]:
-    store = EventStore(_events_path(config, test_mode))
+    store = EventStore(_events_dir(config, test_mode), config.time.rollover_hour)
     clock = SystemClock(config.time.zone())
     engine = PomodoroEngine(config.pomodoro, sink=store.append, clock=clock)
     return engine, store
@@ -58,14 +58,17 @@ def run_gui(config: Config, test_mode: bool = False) -> int:
     qt_app = QApplication.instance() or QApplication(sys.argv[:1])
     theme.apply(qt_app, theme.Theme.resolve(config.ui.theme, test_mode))
 
+    if test_mode:
+        # Cleared before the store reads it, so "Today" reflects this run rather than
+        # last week's fiddling — the app opens on a genuinely empty log.
+        shutil.rmtree(_events_dir(config, test_mode), ignore_errors=True)
+
     engine, store = _build_engine_and_store(config, test_mode)
     app = HabitoApp(config, engine, store, test_mode=test_mode)
 
     if test_mode:
         # No GitRepo, no worker, no recorder: nothing can reach the data repo from here.
-        # Start clean each run, so "Today" reflects this run and not last week's fiddling.
-        _events_path(config, test_mode).write_text("", encoding="utf-8")
-        print(f"TEST MODE — events go to {_events_path(config, test_mode)}")
+        print(f"TEST MODE — events go to {_events_dir(config, test_mode)}")
         print("            the data repo is not touched and settings.toml is not written")
         app.set_status_mode("status: TEST MODE · not recorded", theme.ACCENT_TEST)
     else:
@@ -86,7 +89,7 @@ def _attach_evidence(app, config: Config, store: EventStore) -> None:
     worker = EvidenceWorker(
         repo,
         config.evidence,
-        config.paths.events_filename,
+        config.paths.events_dir,
         on_status=app.on_evidence_status,
     )
     worker.start()
@@ -103,7 +106,7 @@ def doctor(config: Config) -> int:
     print("Habito configuration check")
     print(f"  project root : {config.project_root}")
     print(f"  data repo    : {config.data_repo_path()}")
-    print(f"  events file  : {config.events_path()}")
+    print(f"  events dir   : {config.events_dir_path()}")
 
     repo = GitRepo(config.data_repo_path())
     ok = True
@@ -143,9 +146,13 @@ def init_data(config: Config) -> int:
     gitignore = path / ".gitignore"
     if not gitignore.exists():
         gitignore.write_text("# habito evidence repo — the events log IS tracked.\n")
-    events = config.events_path()
-    if not events.exists():
-        events.touch()
+    events = config.events_dir_path()
+    events.mkdir(parents=True, exist_ok=True)
+    # Git tracks files, not directories, so the log dir needs a placeholder to survive
+    # the initial commit — otherwise there's nothing to commit and `git init` fails.
+    keep = events / ".gitkeep"
+    if not keep.exists():
+        keep.touch()
     subprocess.run(["git", "add", "."], cwd=path, check=True)
     subprocess.run(["git", "commit", "-m", "init habito evidence repo"], cwd=path, check=True)
     print(f"Initialised data repo at {path}")

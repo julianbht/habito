@@ -51,7 +51,14 @@ def save_ui(config: Config, ui: UIConfig) -> None:
 
 
 def save_time(config: Config, time_config: TimeConfig) -> None:
-    _save_section(config, "time", {"timezone": time_config.timezone})
+    _save_section(
+        config,
+        "time",
+        {
+            "timezone": time_config.timezone,
+            "rollover_hour": time_config.rollover_hour,
+        },
+    )
 
 
 def save_goals(config: Config, goals: GoalsConfig) -> None:

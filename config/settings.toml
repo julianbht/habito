@@ -13,6 +13,9 @@ rounds = 4                 # number of work rounds per session
 # Events already written keep the offset they were recorded with; changing this only
 # affects new ones.
 timezone = "system"
+# Where a day ends, in local hours. Studying past midnight counts toward the evening it
+# started, so a late session isn't split across two days on the calendar. 0 = midnight.
+rollover_hour = 3
 
 [evidence]
 # The tamper-evident proof relies on GitHub's server-recorded push time.
@@ -43,4 +46,5 @@ buffer_minutes = 5         # ...and anything within 5 minutes of it still counts
 # Relative paths are resolved against this project's root.
 # Create it once:  git init ../habito-data && (add a GitHub remote) && git push -u origin main
 data_repo = "../habito-data"
-events_filename = "events.jsonl"
+# Log directory inside the data repo. One JSONL file per day, as logs/2026/2026-08-05.jsonl
+events_dir = "logs"

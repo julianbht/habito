@@ -9,14 +9,9 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date
 
-from habito.domain.events import Event, Origin, RoundEnded, SessionStarted
-
-
-def local_date(event: Event) -> date:
-    """The wall-clock date on which the event occurred, per its recorded tz offset."""
-    return (event.timestamp + timedelta(minutes=event.tz_offset_minutes)).date()
+from habito.domain.events import Event, Origin, RoundEnded, SessionStarted, logical_date
 
 
 @dataclass
@@ -32,7 +27,15 @@ class DailySummary:
         return self.verified_work_seconds + self.backfilled_work_seconds
 
 
-def summarize_by_day(events: Iterable[Event]) -> dict[date, DailySummary]:
+def summarize_by_day(
+    events: Iterable[Event], rollover_hour: int = 0
+) -> dict[date, DailySummary]:
+    """Fold events into per-day totals.
+
+    ``rollover_hour`` decides where a day ends — the app passes the configured value so a
+    session running past midnight counts toward the evening it started. The default of 0
+    is plain calendar midnight, for callers that have no opinion.
+    """
     summaries: dict[date, DailySummary] = {}
 
     def bucket(day: date) -> DailySummary:
@@ -41,7 +44,7 @@ def summarize_by_day(events: Iterable[Event]) -> dict[date, DailySummary]:
         return summaries[day]
 
     for event in events:
-        day = local_date(event)
+        day = logical_date(event, rollover_hour)
         if isinstance(event, RoundEnded):
             s = bucket(day)
             if event.origin is Origin.backfilled:
@@ -57,6 +60,8 @@ def summarize_by_day(events: Iterable[Event]) -> dict[date, DailySummary]:
     return summaries
 
 
-def summary_for(events: Iterable[Event], day: date) -> DailySummary:
+def summary_for(
+    events: Iterable[Event], day: date, rollover_hour: int = 0
+) -> DailySummary:
     """Convenience: the summary for a single day (empty if none)."""
-    return summarize_by_day(events).get(day, DailySummary(day=day))
+    return summarize_by_day(events, rollover_hour).get(day, DailySummary(day=day))

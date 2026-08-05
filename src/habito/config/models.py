@@ -53,6 +53,10 @@ class TimeConfig(BaseModel):
     """
 
     timezone: str = SYSTEM_TZ
+    # Where a day breaks. Studying past midnight is normal, and a 00:30 round belongs to
+    # the evening it continued, not to the morning after — so the boundary sits in the
+    # small hours instead of at 12am.
+    rollover_hour: int = Field(default=3, ge=0, le=23)
 
     @field_validator("timezone")
     @classmethod
@@ -132,7 +136,7 @@ class GoalsConfig(BaseModel):
 
 class PathsConfig(BaseModel):
     data_repo: str = "../habito-data"
-    events_filename: str = "events.jsonl"
+    events_dir: str = "logs"
 
 
 class Config(BaseModel):
@@ -159,6 +163,6 @@ class Config(BaseModel):
             p = (self.project_root / p).resolve()
         return p
 
-    def events_path(self) -> Path:
-        """Absolute path of the events.jsonl file inside the data repo."""
-        return self.data_repo_path() / self.paths.events_filename
+    def events_dir_path(self) -> Path:
+        """Absolute path of the log directory inside the data repo."""
+        return self.data_repo_path() / self.paths.events_dir

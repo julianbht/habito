@@ -43,6 +43,7 @@ class SettingsValues:
     buffer_minutes: int
     sound: str
     timezone: str = SYSTEM_TZ
+    rollover_hour: int = 3
 
 
 class Controller(Protocol):
@@ -55,7 +56,7 @@ class Controller(Protocol):
 _BROWSE = "__browse__"
 _CUSTOM_SLOT = "__custom__"
 
-_SYSTEM_LABEL = "System — this computer"
+_SYSTEM_LABEL = "System"
 
 
 def _rule() -> QFrame:
@@ -93,7 +94,9 @@ class SettingsDialog(QDialog):
 
         form = QFormLayout()
         form.setSpacing(8)
-        self._break_spin = self._spin(pomodoro.break_minutes, maximum=120, suffix=" min")
+        self._break_spin = self._spin(
+            pomodoro.break_minutes, maximum=120, suffix=" min"
+        )
         self._rounds_spin = self._spin(pomodoro.rounds, maximum=24)
         form.addRow("Break length", self._break_spin)
         form.addRow("Rounds", self._rounds_spin)
@@ -129,6 +132,7 @@ class SettingsDialog(QDialog):
             self._sound_box,
             self._preview_btn,
             self._tz_box,
+            self._rollover_spin,
             self._save_btn,
         ]
         for earlier, later in zip(chain, chain[1:], strict=False):
@@ -138,7 +142,9 @@ class SettingsDialog(QDialog):
         """How much study time earns a green day on the calendar."""
         form = QFormLayout()
         form.setSpacing(8)
-        self._goal_spin = self._spin(goals.daily_minutes, maximum=24 * 60, suffix=" min")
+        self._goal_spin = self._spin(
+            goals.daily_minutes, maximum=24 * 60, suffix=" min"
+        )
         self._goal_spin.setSingleStep(5)
         self._goal_spin.setToolTip("Study time that makes a day count")
 
@@ -177,9 +183,17 @@ class SettingsDialog(QDialog):
         return row
 
     def _build_timezone_form(self) -> QFormLayout:
-        """Which wall clock a day is measured against — not always the computer's."""
+        """Which wall clock a day is measured against, and where that day breaks."""
         form = QFormLayout()
         form.setSpacing(8)
+
+        self._rollover_spin = self._spin(
+            self._time.rollover_hour, minimum=0, maximum=23, suffix=":00"
+        )
+        self._rollover_spin.setToolTip(
+            "Studying past this hour still counts toward the day before — so a session "
+            "running past midnight isn't split in two"
+        )
 
         self._tz_box = QComboBox()
         self._tz_box.addItem(_SYSTEM_LABEL, SYSTEM_TZ)
@@ -193,6 +207,7 @@ class SettingsDialog(QDialog):
         )
 
         form.addRow("Zone", self._tz_box)
+        form.addRow("New day starts", self._rollover_spin)
         return form
 
     def selected_timezone(self) -> str:
@@ -222,10 +237,14 @@ class SettingsDialog(QDialog):
             self._preview()
         else:
             # Never leave "Choose a file…" showing as though it were the selection.
-            self._sound_box.setCurrentIndex(max(0, self._sound_box.findData(self._last_sound)))
+            self._sound_box.setCurrentIndex(
+                max(0, self._sound_box.findData(self._last_sound))
+            )
 
     @staticmethod
-    def _spin(value: int, *, maximum: int, minimum: int = 1, suffix: str = "") -> QSpinBox:
+    def _spin(
+        value: int, *, maximum: int, minimum: int = 1, suffix: str = ""
+    ) -> QSpinBox:
         spin = QSpinBox()
         spin.setRange(minimum, maximum)
         spin.setValue(value)
@@ -245,6 +264,7 @@ class SettingsDialog(QDialog):
             buffer_minutes=self._buffer_spin.value(),
             sound=self.selected_sound(),
             timezone=self.selected_timezone(),
+            rollover_hour=self._rollover_spin.value(),
         )
 
     def _preview(self) -> None:

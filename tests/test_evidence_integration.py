@@ -40,7 +40,8 @@ def _make_repos(tmp_path):
     _git(data, "init", "-b", "main")
     _git(data, "config", "user.email", "test@habito.local")
     _git(data, "config", "user.name", "Habito Test")
-    (data / "events.jsonl").touch()
+    (data / "logs").mkdir()
+    (data / "logs" / ".gitkeep").touch()
     _git(data, "add", ".")
     _git(data, "commit", "-m", "init")
     _git(data, "remote", "add", "origin", str(remote))
@@ -51,9 +52,9 @@ def _make_repos(tmp_path):
 def test_each_event_is_committed_and_pushed(tmp_path):
     remote, data = _make_repos(tmp_path)
 
-    store = EventStore(data / "events.jsonl")
+    store = EventStore(data / "logs")
     repo = GitRepo(data)
-    worker = EvidenceWorker(repo, EvidenceConfig(), "events.jsonl")
+    worker = EvidenceWorker(repo, EvidenceConfig(), "logs")
     worker.start()
     store.subscribe(EvidenceRecorder(worker))
 
@@ -81,7 +82,10 @@ def test_each_event_is_committed_and_pushed(tmp_path):
     assert all(" [live] @" in m for m in event_msgs)
 
     # The committed file (as pushed) holds all 4 appended events, session_ended included.
-    committed = _git(data, "show", "HEAD:events.jsonl")
+    # The path is asked of the store rather than hardcoded — it's the day partition that
+    # decides it, and this session is short enough to land in a single day file.
+    day_file = store.files()[0].relative_to(data).as_posix()
+    committed = _git(data, "show", f"HEAD:{day_file}")
     assert len([ln for ln in committed.splitlines() if ln.strip()]) == 4
     assert "session_ended" in committed
     assert len(store.read_all()) == 4
@@ -93,9 +97,9 @@ def test_push_deferred_when_remote_unreachable(tmp_path):
     _git(data, "remote", "set-url", "origin", str(tmp_path / "does-not-exist.git"))
 
     statuses = []
-    store = EventStore(data / "events.jsonl")
+    store = EventStore(data / "logs")
     repo = GitRepo(data)
-    worker = EvidenceWorker(repo, EvidenceConfig(), "events.jsonl", on_status=statuses.append)
+    worker = EvidenceWorker(repo, EvidenceConfig(), "logs", on_status=statuses.append)
     worker.start()
     store.subscribe(EvidenceRecorder(worker))
 
@@ -113,9 +117,9 @@ def test_push_deferred_when_remote_unreachable(tmp_path):
 def _accumulate_offline_backlog(tmp_path):
     """Set up repos, study while 'offline', and return (remote, data, store, repo, worker)."""
     remote, data = _make_repos(tmp_path)
-    store = EventStore(data / "events.jsonl")
+    store = EventStore(data / "logs")
     repo = GitRepo(data)
-    worker = EvidenceWorker(repo, EvidenceConfig(), "events.jsonl")
+    worker = EvidenceWorker(repo, EvidenceConfig(), "logs")
     worker.start()
     store.subscribe(EvidenceRecorder(worker))
 

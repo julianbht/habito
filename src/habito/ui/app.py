@@ -7,6 +7,8 @@ the safe cross-thread pattern here, and the reason no explicit status queue is n
 
 from __future__ import annotations
 
+from datetime import date
+
 import qtawesome as qta
 from pydantic import ValidationError
 from PySide6.QtCore import QSize, Qt, QTimer, Signal
@@ -22,6 +24,7 @@ from PySide6.QtWidgets import (
 
 from habito.config.models import Config, GoalsConfig, PomodoroConfig, TimeConfig, UIConfig
 from habito.config.writer import save_goals, save_pomodoro, save_time, save_ui
+from habito.domain.events import logical_day
 from habito.engine.pomodoro import EngineState, PomodoroEngine, State
 from habito.evidence.worker import EvidenceStatus, EvidenceWorker
 from habito.projections.daily import summarize_by_day, summary_for
@@ -140,9 +143,9 @@ class HabitoApp(QMainWindow):
             ui_theme=self._theme,
         )
         self._calendar = CalendarView(
-            self._theme, self._config.goals.threshold_seconds(), today=self._clock.today
+            self._theme, self._config.goals.threshold_seconds(), today=self._today
         )
-        self._log = LogView(self._theme)
+        self._log = LogView(self._theme, self._config.time.rollover_hour)
 
         self._pages = QStackedWidget()
         self._pages.addWidget(self._view)
@@ -211,7 +214,9 @@ class HabitoApp(QMainWindow):
             self.resize(self._page_sizes[index])
 
     def _refresh_calendar(self) -> None:
-        self._calendar.set_summaries(summarize_by_day(self._store.read_all()))
+        self._calendar.set_summaries(
+            summarize_by_day(self._store.read_all(), self._config.time.rollover_hour)
+        )
 
     def _install_shortcuts(self) -> None:
         """Keyboard equivalents for the transport controls.
@@ -329,18 +334,22 @@ class HabitoApp(QMainWindow):
             self._apply_pomodoro(brk=values.break_minutes, rounds=values.rounds)
             or self._apply_goals(values.daily_minutes, values.buffer_minutes)
             or self._apply_sound(values.sound)
-            or self._apply_timezone(values.timezone)
+            or self._apply_time(values.timezone, values.rollover_hour)
         )
 
-    def _apply_timezone(self, timezone: str) -> str | None:
+    def _apply_time(self, timezone: str, rollover_hour: int) -> str | None:
         """Point the shared clock at a new zone; events from here on carry its offset."""
         try:
-            updated = TimeConfig(timezone=timezone)
+            updated = TimeConfig(timezone=timezone, rollover_hour=rollover_hour)
         except ValidationError as exc:
-            return f"timezone: {exc.errors()[0]['msg']}"
+            first = exc.errors()[0]
+            field = first["loc"][0] if first["loc"] else "timezone"
+            return f"{field}: {first['msg']}"
 
         self._config.time = updated
         self._clock.set_zone(updated.zone())
+        self._log.set_rollover_hour(updated.rollover_hour)
+        self._store.set_rollover_hour(updated.rollover_hour)
         # "Today" may well have moved, so anything counting from it is now stale.
         self._today_baseline = self._compute_today_baseline()
         self._refresh_calendar()
@@ -403,7 +412,7 @@ class HabitoApp(QMainWindow):
             default_break=self._config.pomodoro.break_minutes,
             default_rounds=self._config.pomodoro.rounds,
             time_config=self._config.time,
-            today=self._clock.today(),
+            today=self._today(),
             parent=self._settings_dialog or self,
         ).exec()
 
@@ -414,8 +423,14 @@ class HabitoApp(QMainWindow):
         self._today_baseline = self._compute_today_baseline()
         self._refresh_calendar()
 
+    def _today(self) -> date:
+        """The habit-day in progress — which before the rollover hour is still yesterday."""
+        return logical_day(self._clock.local_now(), self._config.time.rollover_hour)
+
     def _compute_today_baseline(self) -> int:
-        summary = summary_for(self._store.read_all(), self._clock.today())
+        summary = summary_for(
+            self._store.read_all(), self._today(), self._config.time.rollover_hour
+        )
         return summary.total_work_seconds
 
     def _tick(self) -> None:

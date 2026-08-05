@@ -90,7 +90,7 @@ def test_tab_reaches_every_control(dialog, qtbot):
     widget._break_spin.setFocus()
 
     seen = []
-    for _ in range(7):
+    for _ in range(8):
         qtbot.keyClick(widget.focusWidget(), Qt.Key.Key_Tab)
         seen.append(widget.focusWidget())
 
@@ -101,6 +101,7 @@ def test_tab_reaches_every_control(dialog, qtbot):
         widget._sound_box,
         widget._preview_btn,
         widget._tz_box,
+        widget._rollover_spin,
         widget._save_btn,
     ]
 

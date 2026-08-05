@@ -41,12 +41,14 @@ class EvidenceWorker:
         self,
         repo: GitRepo,
         config: EvidenceConfig,
-        events_filename: str,
+        events_dir: str,
         on_status: StatusCallback | None = None,
     ) -> None:
         self._repo = repo
         self._config = config
-        self._filename = events_filename
+        # A directory, not a file — git add/commit/diff all take a pathspec, so staging
+        # the whole log tree picks up whichever day file the event just landed in.
+        self._pathspec = events_dir
         self._on_status = on_status
         self._queue: queue.Queue[object] = queue.Queue()
         self._thread = threading.Thread(target=self._loop, name="evidence-worker", daemon=True)
@@ -96,12 +98,12 @@ class EvidenceWorker:
         committed = pushed = False
         error: str | None = None
         try:
-            self._repo.add(self._filename)
+            self._repo.add(self._pathspec)
             # A prior commit may already contain this line (events that fired close
             # together bundle into one commit). That's fine — skip the empty commit,
             # but still push so any backlog is flushed.
-            if cfg.auto_commit and self._repo.has_staged_changes(self._filename):
-                self._repo.commit(self._filename, message)
+            if cfg.auto_commit and self._repo.has_staged_changes(self._pathspec):
+                self._repo.commit(self._pathspec, message)
                 committed = True
             if cfg.auto_push:
                 pushed = self._try_push()

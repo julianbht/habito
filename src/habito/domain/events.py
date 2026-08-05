@@ -7,7 +7,7 @@ live (committed-in-the-moment, evidentially strong) events from backfilled ones.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from enum import StrEnum
 from typing import Annotated, Literal
 from uuid import UUID, uuid4
@@ -99,3 +99,31 @@ EventAdapter: TypeAdapter = TypeAdapter(Event)
 
 def new_session_id() -> UUID:
     return uuid4()
+
+
+def local_datetime(event: Event) -> datetime:
+    """The wall clock the event happened on, per the offset recorded *with* the event.
+
+    Read off the event rather than from config, so changing the timezone setting never
+    retroactively moves history.
+    """
+    return event.timestamp + timedelta(minutes=event.tz_offset_minutes)
+
+
+def logical_day(local: datetime, rollover_hour: int = 0) -> date:
+    """Which habit-day a local wall-clock time falls in.
+
+    Days roll over at ``rollover_hour`` rather than midnight, so time spent past 12am
+    counts toward the day you'd say you studied on instead of splitting in two. ``0`` is
+    plain calendar midnight.
+    """
+    return (local - timedelta(hours=rollover_hour)).date()
+
+
+def logical_date(event: Event, rollover_hour: int = 0) -> date:
+    """Which habit-day an event belongs to.
+
+    A pure function of the event alone — no session lookup, no clock — which is what lets
+    the store use it to pick a file without keeping any state of its own.
+    """
+    return logical_day(local_datetime(event), rollover_hour)

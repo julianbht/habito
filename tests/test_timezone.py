@@ -15,8 +15,8 @@ from PySide6.QtCore import QTime
 
 from habito.config.models import SYSTEM_TZ, Config, TimeConfig
 from habito.config.writer import save_time
+from habito.domain.events import logical_date, logical_day
 from habito.engine.clock import FakeClock, SystemClock
-from habito.projections.daily import local_date
 
 BERLIN = ZoneInfo("Europe/Berlin")
 NEW_YORK = ZoneInfo("America/New_York")
@@ -95,8 +95,17 @@ def test_today_differs_between_zones_at_the_same_instant():
     new_york = FakeClock(start=instant)
     new_york.set_zone(NEW_YORK)
 
-    assert berlin.today() == date(2026, 8, 6)
-    assert new_york.today() == date(2026, 8, 5)
+    assert logical_day(berlin.local_now()) == date(2026, 8, 6)
+    assert logical_day(new_york.local_now()) == date(2026, 8, 5)
+
+
+def test_the_rollover_hour_keeps_the_small_hours_on_the_previous_day():
+    """At 01:00 with a 3am rollover, "today" is still yesterday."""
+    late = FakeClock(start=datetime(2026, 8, 5, 23, 0, tzinfo=UTC))  # 01:00 Aug 6 Berlin
+    late.set_zone(BERLIN)
+
+    assert logical_day(late.local_now(), rollover_hour=0) == date(2026, 8, 6)
+    assert logical_day(late.local_now(), rollover_hour=3) == date(2026, 8, 5)
 
 
 # --- what the log actually records ---------------------------------------
@@ -114,7 +123,7 @@ def test_events_land_on_the_configured_zones_day_not_the_machines():
     PomodoroEngine(PomodoroConfig(), sink=events.append, clock=clock).start()
 
     assert events[0].tz_offset_minutes == 120
-    assert local_date(events[0]) == date(2026, 8, 5)
+    assert logical_date(events[0]) == date(2026, 8, 5)
 
 
 def test_changing_the_zone_moves_which_day_new_events_belong_to():
@@ -131,8 +140,8 @@ def test_changing_the_zone_moves_which_day_new_events_belong_to():
     clock.set_zone(BERLIN)
     engine.stop()
 
-    assert local_date(events[0]) == date(2026, 8, 5)  # still Aug 5 in New York
-    assert local_date(events[-1]) == date(2026, 8, 6)  # already Aug 6 in Berlin
+    assert logical_date(events[0]) == date(2026, 8, 5)  # still Aug 5 in New York
+    assert logical_date(events[-1]) == date(2026, 8, 6)  # already Aug 6 in Berlin
 
 
 # --- the pickers ----------------------------------------------------------
@@ -183,7 +192,7 @@ def test_the_backfill_dialog_stamps_the_configured_zone(qtbot):
 
     started = captured[0][0]
     assert started.tz_offset_minutes == 120  # CEST, not the machine's offset
-    assert local_date(started) == date(2026, 8, 5)  # 23:50 is still the 5th in Berlin
+    assert logical_date(started) == date(2026, 8, 5)  # 23:50 is still the 5th in Berlin
 
 
 # --- persistence ----------------------------------------------------------

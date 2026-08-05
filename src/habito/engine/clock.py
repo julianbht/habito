@@ -11,15 +11,15 @@ because Settings can change that zone mid-run.
 from __future__ import annotations
 
 import time
-from datetime import UTC, date, datetime, timedelta, tzinfo
+from datetime import UTC, datetime, timedelta, tzinfo
 from typing import Protocol
 
 
 class Clock(Protocol):
     def monotonic(self) -> float: ...
     def now(self) -> datetime: ...  # timezone-aware, UTC
+    def local_now(self) -> datetime: ...  # the same instant on the configured wall clock
     def utc_offset_minutes(self) -> int: ...  # local wall-clock offset from UTC
-    def today(self) -> date: ...  # local wall-clock date
     def set_zone(self, zone: tzinfo | None) -> None: ...  # None follows the machine
 
 
@@ -44,9 +44,6 @@ class SystemClock:
         # Resolved at the current instant, so DST is handled rather than assumed.
         offset = self.local_now().utcoffset() or timedelta(0)
         return int(offset.total_seconds() // 60)
-
-    def today(self) -> date:
-        return self.local_now().date()
 
 
 class FakeClock:
@@ -78,5 +75,7 @@ class FakeClock:
         offset = self._now.astimezone(self._zone).utcoffset() or timedelta(0)
         return int(offset.total_seconds() // 60)
 
-    def today(self) -> date:
-        return (self._now + timedelta(minutes=self.utc_offset_minutes())).date()
+    def local_now(self) -> datetime:
+        # Shifted rather than converted, so a bare offset works as well as a real zone —
+        # the same trick `local_datetime` uses to read an event's wall clock.
+        return self._now + timedelta(minutes=self.utc_offset_minutes())

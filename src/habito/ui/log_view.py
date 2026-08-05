@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QFont
@@ -30,8 +30,9 @@ from habito.domain.events import (
     SessionResumed,
     SessionStarted,
     TimeAdjusted,
+    local_datetime,
+    logical_date,
 )
-from habito.projections.daily import local_date
 from habito.ui import theme
 from habito.ui.widgets import format_duration, label
 
@@ -52,7 +53,7 @@ class Line:
 
 def _local_time(event: Event) -> str:
     """Wall-clock time as it was where you were, per the recorded offset."""
-    return (event.timestamp + timedelta(minutes=event.tz_offset_minutes)).strftime("%H:%M:%S")
+    return local_datetime(event).strftime("%H:%M:%S")
 
 
 def _minutes(value: float) -> str:
@@ -98,11 +99,15 @@ def describe(event: Event) -> Line:
     )
 
 
-def group_by_day(events: Iterable[Event]) -> dict[date, list[Event]]:
-    """Events bucketed by the local date they happened on, newest day first."""
+def group_by_day(events: Iterable[Event], rollover_hour: int = 0) -> dict[date, list[Event]]:
+    """Events bucketed by the habit-day they belong to, newest day first.
+
+    Uses the same rollover as the calendar, so a session running past midnight reads as
+    one evening in both places rather than being split in one and not the other.
+    """
     days: dict[date, list[Event]] = {}
     for event in events:
-        days.setdefault(local_date(event), []).append(event)
+        days.setdefault(logical_date(event, rollover_hour), []).append(event)
     for entries in days.values():
         entries.sort(key=lambda e: e.timestamp)
     return dict(sorted(days.items(), key=lambda item: item[0], reverse=True))
@@ -119,9 +124,16 @@ def day_heading(day: date, events: list[Event]) -> str:
 
 
 class LogView(QWidget):
-    def __init__(self, ui_theme: theme.Theme, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        ui_theme: theme.Theme,
+        rollover_hour: int = 0,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self._theme = ui_theme
+        self._rollover_hour = rollover_hour
+        self._events: list[Event] = []
         root = QVBoxLayout(self)
         root.setContentsMargins(12, 6, 12, 10)
         root.setSpacing(6)
@@ -152,9 +164,15 @@ class LogView(QWidget):
         self._hint_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self._hint_lbl)
 
+    def set_rollover_hour(self, hour: int) -> None:
+        """Apply a rollover changed in Settings, regrouping without needing a restart."""
+        self._rollover_hour = hour
+        self.set_events(self._events)
+
     def set_events(self, events: Iterable[Event]) -> None:
         entries = list(events)
-        days = group_by_day(entries)
+        self._events = entries
+        days = group_by_day(entries, self._rollover_hour)
 
         self.tree.clear()
         for day, day_events in days.items():

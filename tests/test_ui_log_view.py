@@ -232,15 +232,15 @@ def test_the_store_is_never_written_to(qtbot, tmp_path):
             planned_rounds=4,
         )
     )
-    log_file = config.events_path()
-    before = log_file.read_bytes()
+    before = {p: p.read_bytes() for p in store.files()}
+    assert before, "expected the append to have written a day file"
 
     app = HabitoApp(config, engine, store, test_mode=True)
     qtbot.addWidget(app)
     app.show_page(_LOG_PAGE)
 
     assert app._log.tree.topLevelItemCount() == 1
-    assert log_file.read_bytes() == before
+    assert {p: p.read_bytes() for p in store.files()} == before
 
 
 def test_day_rows_span_the_columns_and_children_do_not_indent(view):
