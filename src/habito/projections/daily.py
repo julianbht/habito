@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 
 from habito.domain.events import Event, Origin, RoundEnded, SessionStarted, logical_date
 
@@ -58,6 +58,22 @@ def summarize_by_day(
                 s.sessions += 1
 
     return summaries
+
+
+def longest_run(days: Iterable[date]) -> int:
+    """The longest stretch of consecutive dates in ``days`` (0 when there are none).
+
+    Kept here rather than in the view because it's a fold over days like everything else in
+    this module, and it's worth testing without standing up Qt.
+    """
+    ordered = sorted(set(days))
+    if not ordered:
+        return 0
+    best = run = 1
+    for previous, day in zip(ordered, ordered[1:], strict=False):
+        run = run + 1 if day - previous == timedelta(days=1) else 1
+        best = max(best, run)
+    return best
 
 
 def summary_for(

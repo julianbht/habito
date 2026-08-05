@@ -15,7 +15,7 @@ from PySide6.QtCore import QDate, QPointF, QRect, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPolygonF
 from PySide6.QtWidgets import QCalendarWidget, QVBoxLayout, QWidget
 
-from habito.projections.daily import DailySummary
+from habito.projections.daily import DailySummary, longest_run
 from habito.ui import theme
 from habito.ui.widgets import format_duration, label
 
@@ -223,10 +223,20 @@ class CalendarView(QWidget):
         ]
 
     def _render_page(self) -> None:
+        """The month in one line: time put in, and the longest unbroken run of green.
+
+        A run rather than a count of green days — the count is just the grid read back to
+        you, whereas tracing the longest consecutive stretch across a month is the one
+        thing the picture doesn't hand you. Scoped to the month shown, like the total
+        beside it, so paging back doesn't mix a month figure with an all-time one.
+        """
         days = self.month_summaries()
         studied = sum(s.total_work_seconds for s in days)
-        met = sum(1 for s in days if self.calendar.meets_goal(s))
-        text = f"{format_duration(studied)} this month · {met} days green"
+        text = f"{format_duration(studied)} this month"
+
+        run = longest_run(s.day for s in days if self.calendar.meets_goal(s))
+        if run:
+            text += f" · best run {run} day{'s' if run != 1 else ''}"
         starred = sum(1 for s in days if self.calendar.meets_stretch(s))
         if starred:
             text += f" · {starred} ★"

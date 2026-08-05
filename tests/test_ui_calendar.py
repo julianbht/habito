@@ -15,7 +15,7 @@ from PySide6.QtGui import QColor, QImage, QPainter
 from PySide6.QtWidgets import QSpinBox, QToolButton, QWidget
 
 from habito.config.models import GoalsConfig
-from habito.projections.daily import DailySummary
+from habito.projections.daily import DailySummary, longest_run
 from habito.ui import theme
 from habito.ui.calendar_view import CalendarView, StudyCalendar
 
@@ -185,7 +185,6 @@ def test_the_month_readout_counts_starred_days(stretch_view):
             other: summary(other, verified=100 * 60),
         }
     )
-    assert "2 days green" in stretch_view._total_lbl.text()
     assert "1 ★" in stretch_view._total_lbl.text()
 
 
@@ -201,6 +200,74 @@ def test_backfilled_time_is_painted_the_same_as_live(view):
     assert mixed == live_only
 
 
+# --- the longest run ------------------------------------------------------
+def test_no_days_is_no_run():
+    assert longest_run([]) == 0
+
+
+def test_a_single_day_is_a_run_of_one():
+    assert longest_run([date(2026, 8, 4)]) == 1
+
+
+def test_consecutive_days_accumulate():
+    days = [date(2026, 8, d) for d in (4, 5, 6, 7)]
+    assert longest_run(days) == 4
+
+
+def test_a_gap_breaks_the_run():
+    days = [date(2026, 8, d) for d in (1, 2, 5, 6, 7, 9)]
+    assert longest_run(days) == 3  # the 5th-7th, not the 6 days total
+
+
+def test_order_and_duplicates_do_not_matter():
+    days = [date(2026, 8, d) for d in (7, 5, 6, 5, 7)]
+    assert longest_run(days) == 3
+
+
+def test_a_run_can_cross_a_month_boundary():
+    days = [date(2026, 7, 30), date(2026, 7, 31), date(2026, 8, 1)]
+    assert longest_run(days) == 3
+
+
+def test_the_readout_reports_the_longest_run_not_the_count(view):
+    """Six green days, but the longest unbroken stretch is three."""
+    first = ANCHOR.replace(day=1)
+    green = [1, 2, 5, 6, 7, 9]
+    view.set_summaries(
+        {
+            first + timedelta(days=d - 1): summary(
+                first + timedelta(days=d - 1), verified=100 * 60
+            )
+            for d in green
+        }
+    )
+    assert "best run 3 days" in view._total_lbl.text()
+
+
+def test_a_lone_green_day_reads_as_one_day(view):
+    view.set_summaries({ANCHOR: summary(ANCHOR, verified=100 * 60)})
+    assert "best run 1 day" in view._total_lbl.text()
+    assert "1 days" not in view._total_lbl.text()  # singular, not "1 days"
+
+
+def test_a_month_with_nothing_green_says_nothing_about_runs(view):
+    view.set_summaries({ANCHOR: summary(ANCHOR, verified=10 * 60)})
+    assert "best run" not in view._total_lbl.text()
+    assert "10m this month" in view._total_lbl.text()
+
+
+def test_days_short_of_the_goal_do_not_extend_a_run(view):
+    first = ANCHOR.replace(day=1)
+    view.set_summaries(
+        {
+            first: summary(first, verified=100 * 60),
+            first + timedelta(days=1): summary(first + timedelta(days=1), verified=20 * 60),
+            first + timedelta(days=2): summary(first + timedelta(days=2), verified=100 * 60),
+        }
+    )
+    assert "best run 1 day" in view._total_lbl.text()
+
+
 # --- the month readout ----------------------------------------------------
 def test_the_month_total_counts_only_the_month_shown(view):
     last_month = (ANCHOR.replace(day=1) - timedelta(days=1)).replace(day=10)
@@ -214,7 +281,6 @@ def test_the_month_total_counts_only_the_month_shown(view):
 
     assert {s.day for s in view.month_summaries()} == {ANCHOR, ANCHOR + timedelta(days=1)}
     assert "2h 10m" in view._total_lbl.text()
-    assert "1 days green" in view._total_lbl.text()
 
 
 def test_the_readout_names_the_goal(view):
