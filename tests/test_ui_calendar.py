@@ -111,16 +111,16 @@ def test_a_day_with_no_entry_at_all_is_plain(view):
     assert FILL not in cell_pixels(view.calendar, ANCHOR)
 
 
-def test_a_backfilled_day_is_outlined_rather_than_filled(view):
-    """The log keeps backfilled time separate; so should the calendar."""
+def test_backfilled_time_is_painted_the_same_as_live(view):
+    """A met day is a met day. The verified/backfilled split lives in the log, not here."""
     view.set_summaries({ANCHOR: summary(ANCHOR, verified=50 * 60, backfilled=50 * 60)})
-    outlined = green_pixels(view.calendar, ANCHOR)
+    mixed = green_pixels(view.calendar, ANCHOR)
 
     view.set_summaries({ANCHOR: summary(ANCHOR, verified=100 * 60)})
-    filled = green_pixels(view.calendar, ANCHOR)
+    live_only = green_pixels(view.calendar, ANCHOR)
 
-    assert outlined > 0  # it is marked as met...
-    assert outlined < filled / 2  # ...but as an outline, not a solid block
+    assert mixed > 0
+    assert mixed == live_only
 
 
 # --- the month readout ----------------------------------------------------

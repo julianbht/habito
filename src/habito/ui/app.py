@@ -142,9 +142,7 @@ class HabitoApp(QMainWindow):
             work_minutes=self._config.pomodoro.work_minutes,
             ui_theme=self._theme,
         )
-        self._calendar = CalendarView(
-            self._theme, self._config.goals.threshold_seconds(), today=self._today
-        )
+        self._calendar = CalendarView(self._theme, self._config.goals.threshold_seconds())
         self._log = LogView(self._theme, self._config.time.rollover_hour)
 
         self._pages = QStackedWidget()

@@ -1,18 +1,17 @@
 """A month at a glance: how long you studied each day, and whether it was enough.
 
 Days that reach the goal are filled green; days that didn't are left as they are, so the
-run of green reads as the streak and nothing competes with it. Time that came from a
-backfilled session is drawn as an outline rather than a solid fill — the same distinction
-the log makes, carried into the view rather than quietly averaged away.
+run of green reads as the streak and nothing competes with it. Nothing else is encoded
+here on purpose — how the time was recorded, and which day is today, are questions the log
+and the timer already answer, and a second mark per cell costs more than it tells you.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from datetime import date
 
 from PySide6.QtCore import QDate, QRect, Qt
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QPainter
 from PySide6.QtWidgets import QCalendarWidget, QVBoxLayout, QWidget
 
 from habito.projections.daily import DailySummary
@@ -20,11 +19,6 @@ from habito.ui import theme
 from habito.ui.widgets import format_duration, label
 
 _MET_FILL = 0.30  # how strongly a met day is tinted toward green
-_TODAY_RING = 0.55
-
-TodayFn = Callable[[], date]
-"""Asked on every paint rather than captured once, so the ring survives midnight —
-and so the configured timezone decides which cell is "today", not the machine's."""
 
 
 def _to_date(qdate: QDate) -> date:
@@ -38,13 +32,11 @@ class StudyCalendar(QCalendarWidget):
         self,
         ui_theme: theme.Theme,
         threshold_seconds: int,
-        today: TodayFn = date.today,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._theme = ui_theme
         self._threshold = threshold_seconds
-        self._today = today
         self._summaries: dict[date, DailySummary] = {}
 
         self.setGridVisible(False)
@@ -79,22 +71,18 @@ class StudyCalendar(QCalendarWidget):
         box = rect.adjusted(2, 2, -2, -2)
 
         if summary is not None and self.meets_goal(summary) and in_month:
-            self._paint_met(painter, box, summary)
-        if day == self._today():
-            painter.setPen(QPen(theme.mix(self._theme.palette.bg, theme.OK, _TODAY_RING), 1))
-            painter.drawRoundedRect(box, 5, 5)
+            self._paint_met(painter, box)
 
         self._paint_text(painter, box, day, summary, in_month)
         painter.restore()
 
-    def _paint_met(self, painter: QPainter, box: QRect, summary: DailySummary) -> None:
-        green = QColor(theme.OK)
-        if summary.backfilled_work_seconds:
-            # Added after the fact: outlined, not filled, so it never reads as verified.
-            painter.setPen(QPen(green, 1))
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawRoundedRect(box, 5, 5)
-            return
+    def _paint_met(self, painter: QPainter, box: QRect) -> None:
+        """A met day is filled, however the time was recorded.
+
+        The verified/backfilled split is kept by the log and the projection, which is where
+        it can be read properly — at one cell per day the calendar only has room to answer
+        "did this day count", and a second encoding there was more noise than signal.
+        """
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(theme.mix(self._theme.palette.bg, theme.OK, _MET_FILL))
         painter.drawRoundedRect(box, 5, 5)
@@ -141,7 +129,6 @@ class CalendarView(QWidget):
         self,
         ui_theme: theme.Theme,
         threshold_seconds: int,
-        today: TodayFn = date.today,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -150,7 +137,7 @@ class CalendarView(QWidget):
         root.setContentsMargins(12, 6, 12, 10)
         root.setSpacing(6)
 
-        self.calendar = StudyCalendar(ui_theme, threshold_seconds, today)
+        self.calendar = StudyCalendar(ui_theme, threshold_seconds)
         self.calendar.currentPageChanged.connect(lambda *_: self._render_page())
         root.addWidget(self.calendar, 1)
 

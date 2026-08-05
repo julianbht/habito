@@ -105,8 +105,9 @@ new event type instead of inventing data.
   that's hard to forge; local commit times are not.
 - `GitRepo.add/commit/has_staged_changes` take a pathspec, so the worker stages the whole
   `logs/` tree and picks up whichever day file the event landed in.
-- Backfilled events carry `origin = "backfilled"` and are reported separately everywhere —
-  they must never be able to read as live evidence.
+- Backfilled events carry `origin = "backfilled"`, and the log view and `DailySummary` keep
+  them separate from live evidence. The calendar deliberately does *not* — one cell per day
+  has room for one question ("did this day count"), and a second encoding there was noise.
 - The log view is read-only by construction, not just by omission.
 
 ## Testing
