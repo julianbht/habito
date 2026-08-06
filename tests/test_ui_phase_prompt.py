@@ -7,7 +7,8 @@ that nothing moved until the button was pressed.
 from __future__ import annotations
 
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtWidgets import QApplication
 
 from habito.app import _build_engine_and_store
 from habito.config.models import Config
@@ -53,6 +54,19 @@ def test_the_button_reports_and_closes(qtbot):
     qtbot.mouseClick(dialog.action_button, Qt.MouseButton.LeftButton)
     assert pressed == [1]
     assert not dialog.isVisible()
+
+
+def test_it_arrives_on_top_but_drops_back_when_focus_leaves(qtbot):
+    """Topmost is for arriving in front, not for staying there."""
+    dialog = make_dialog([])
+    qtbot.addWidget(dialog)
+    dialog.present()
+    assert dialog.is_always_on_top()
+
+    QApplication.sendEvent(dialog, QEvent(QEvent.Type.WindowDeactivate))
+
+    assert not dialog.is_always_on_top()
+    assert dialog.isVisible()  # dropping the hint must not take the window down
 
 
 def test_escape_does_not_dismiss_it(qtbot):

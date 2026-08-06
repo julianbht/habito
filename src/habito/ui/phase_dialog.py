@@ -4,13 +4,17 @@ A Pomodoro that rolls straight from work into a break gives you a break you spen
 a sentence. So the engine stops at the boundary and this dialog is what restarts it: it
 comes up on top of whatever you're doing, and the next phase begins only when you press the
 button — at which point the main window is brought back to the front.
+
+Topmost is for *arriving* in front, not for staying there: the hint is set in
+:meth:`present` and dropped again as soon as you move to another window.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtGui import QWindow
 from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QVBoxLayout, QWidget
 
 from habito.ui.widgets import button, label
@@ -33,7 +37,6 @@ class PhaseDialog(QDialog):
         self.gates_phase = gates_phase
         self.setWindowTitle(title)
         self.setMinimumWidth(320)
-        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
         # No close button: the point is that you answer it. Esc is swallowed below.
         self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, False)
         # Deliberately *not* modal: the timer window stays usable, so you can still stop
@@ -67,6 +70,7 @@ class PhaseDialog(QDialog):
 
     def present(self) -> None:
         """Put it in front of whatever the user is looking at."""
+        self.set_always_on_top(True)  # before show(), so it opens above the foreground app
         self.show()
         self.raise_()
         self.activateWindow()
@@ -74,6 +78,31 @@ class PhaseDialog(QDialog):
         app = QApplication.instance()
         if isinstance(app, QApplication):
             app.alert(self, 0)  # flash the taskbar until it's noticed
+
+    def set_always_on_top(self, on: bool) -> None:
+        """Set or clear the topmost hint.
+
+        Once the window exists the change goes through :class:`QWindow`, which reorders the
+        native window in place. The ``QWidget`` setter would hide it and demand a second
+        ``show()`` — which re-raises and re-steals focus, the opposite of dropping topmost.
+        """
+        # Annotated because the stub types this non-optional; it is None until show().
+        handle: QWindow | None = self.windowHandle()
+        if handle is None:
+            self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, on)
+        else:
+            handle.setFlag(Qt.WindowType.WindowStaysOnTopHint, on)
+
+    def is_always_on_top(self) -> bool:
+        handle: QWindow | None = self.windowHandle()
+        flags = self.windowFlags() if handle is None else handle.flags()
+        return bool(flags & Qt.WindowType.WindowStaysOnTopHint)
+
+    def event(self, event: QEvent) -> bool:
+        """Drop topmost as soon as focus moves elsewhere."""
+        if event.type() == QEvent.Type.WindowDeactivate:
+            self.set_always_on_top(False)
+        return super().event(event)
 
     def _accept(self) -> None:
         self.accept()
