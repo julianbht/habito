@@ -24,12 +24,13 @@ composition root and the only place that wires them together.
 
 ## The log
 
-Append-only JSONL, partitioned one file per day:
+Append-only JSONL, partitioned by habit, then year, then month, one file per day:
 
 ```
-logs/2026/2026-08-04.jsonl
-logs/2026/2026-08-05.jsonl
-logs/2027/2027-01-01.jsonl
+study/2026/08/2026-08-04.jsonl
+study/2026/08/2026-08-05.jsonl
+study/2027/01/2027-01-01.jsonl
+reading/2027/01/2027-01-01.jsonl
 ```
 
 **Why per-day and not one file.** Every event is committed *and pushed* the moment it
@@ -40,21 +41,58 @@ stops growing when the day ends, so commit cost is O(1) in log age rather than O
 also keeps every file under GitHub's 1 MB render limit, and means an old day's file is
 never touched again — so a change to one stands out in the history.
 
+**Why the month level.** Browsing only. A year directory reaches 365 entries, which no
+file listing shows usefully. The file keeps its full ISO name rather than shrinking to
+`05.jsonl`, so it still identifies itself once opened or downloaded away from its
+directory. Both levels are zero-padded, so `08` still sorts before `10`.
+
+**Why habit at the top and not `logs/`.** Everything in the data repo is a log, so `logs/`
+named nothing; the repo root now browses as a list of habits. Each habit's tree is also its
+own git pathspec, so a commit stages exactly one habit.
+
 **Rules that must hold:**
 
-- **A filename is a partition key, never a fact.** Nothing may derive a date by parsing a
-  path. Truth is `timestamp` + `tz_offset_minutes` on the event itself. This is what makes
-  timezone changes, DST and rollover changes unable to corrupt anything.
-- **The partition is a pure function of the event** — `logical_date(event, rollover_hour)`,
-  no clock, no session lookup. Routing by session *start* would need state that a crash or
-  restart mid-session loses, producing exactly the split it was trying to avoid.
+- **A path segment is a partition key, never a fact.** Nothing may derive a date or a habit
+  by parsing a path. Truth is `timestamp` + `tz_offset_minutes` + `habit` on the event
+  itself. This is what makes timezone changes, DST and rollover changes unable to corrupt
+  anything.
+- **The partition is a pure function of the event** — `event.habit` and
+  `logical_date(event, rollover_hour)`, no clock, no session lookup, and no reference to
+  how the store happens to be configured. Routing by session *start* would need state that
+  a crash or restart mid-session loses, producing exactly the split it was trying to avoid.
 - **Nothing is ever rewritten.** No migrations, no compaction, no edits. A session crossing
   the rollover simply spans two files; `read_all()` concatenates them back into one ordered
   stream and session identity travels in `session_id`.
 - ISO names mean sorting paths as text *is* sorting by date, including across a year end.
 
-`init_data` writes `logs/.gitkeep`, because git tracks files and not directories and the
+`init_data` writes `<habit>/.gitkeep`, because git tracks files and not directories and the
 initial commit would otherwise be empty.
+
+## Habits
+
+`habit` is a **required** field on every event, with no default — deliberately, even though
+there is exactly one habit today and it puts a constant on every line for now. The parallel
+to `schema_version` (§ Schema evolution) doesn't hold: absence-is-v1 stays unambiguous
+forever, but a study-only log *will* eventually sit beside a reading one, and then "no field
+means study" is a rule a human reading the file has to be told. That's a fact asserted by
+omission — the thing the `timestamp`/`tz_offset_minutes` design exists to prevent. It was
+added while the data repo was still disposable, which is the only free window for it.
+
+Required all the way up, too: `PomodoroEngine` and `build_backfill_events` take `habit` as a
+required keyword. A default at either would put the hole straight back into the layer that
+actually builds the events.
+
+One value, one meaning: config's top-level `habit` is stamped on the events *and* is the
+directory they land in, rather than a config path and an event field that could drift.
+`HABIT_PATTERN` (`^[a-z0-9][a-z0-9_-]*$`) is a path-safety rule as much as a style one — a
+name with `/` or `..` would quietly nest or escape the tree. Lowercase specifically because
+Windows filesystems are case-insensitive: `Study` and `study` would be two distinct strings
+on the events but one single directory on disk.
+
+An `EventStore` is *scoped* to one habit for reading — it writes wherever the event says,
+but `read_all()` only replays its own subtree, so a second habit can't leak into this one's
+calendar. The app is still single-habit end to end: one config value, one store, one engine.
+Running a second habit today means a second config.
 
 ## Time
 
@@ -89,6 +127,9 @@ Events are immutable and frozen. Evolve **additively only**:
 
 - adding an event type — fine
 - adding a field **with a default** — fine
+- adding a field **without** one — breaks every existing line, so only while the data repo
+  is still disposable. `habit` was added exactly there (§ Habits); assume that window is
+  closed now.
 - removing, renaming, or repurposing an existing field — forbidden
 
 There is deliberately **no `schema_version` field**. The absence of one *is* version 1, so
@@ -125,7 +166,8 @@ theme, not a ramp.
 - Commit **and push** after every event — GitHub's server-recorded push time is the part
   that's hard to forge; local commit times are not.
 - `GitRepo.add/commit/has_staged_changes` take a pathspec, so the worker stages the whole
-  `logs/` tree and picks up whichever day file the event landed in.
+  `<habit>/` tree and picks up whichever day file the event landed in — scoped to one habit,
+  so a commit never sweeps up another's events.
 - Backfilled events carry `origin = "backfilled"`, and the log view and `DailySummary` keep
   them separate from live evidence. The calendar deliberately does *not* — one cell per day
   has room for one question ("did this day count"), and a second encoding there was noise.

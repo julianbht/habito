@@ -62,10 +62,15 @@ class PomodoroEngine:
         config: PomodoroConfig,
         sink: EventSink,
         clock: Clock | None = None,
+        *,
+        habit: str,
     ) -> None:
         self._config = config
         self._sink = sink
         self._clock = clock or SystemClock()
+        # Required, and deliberately not defaulted to "study" — a default here would put
+        # the hole straight back into the layer that actually builds the events.
+        self._habit = habit
 
         self._state = State.idle
         self._session_id = None
@@ -98,6 +103,7 @@ class PomodoroEngine:
                 timestamp=self._clock.now(),
                 tz_offset_minutes=self._clock.utc_offset_minutes(),
                 origin=Origin.live,
+                habit=self._habit,
                 session_id=self._session_id,
                 **fields,
             )

@@ -1,6 +1,11 @@
 # Habito settings — edit these to change app behaviour.
 # All values are validated on startup (see src/habito/config/models.py).
 
+# Which habit this instance tracks. Stamped on every event, and the name of the directory
+# they're filed under in the data repo (study/2026/08/2026-08-05.jsonl).
+# Lowercase letters, digits, - and _ only, since it becomes a directory name.
+habit = "study"
+
 [pomodoro]
 work_minutes = 25          # length of a work round
 break_minutes = 5          # length of a break between rounds
@@ -49,5 +54,3 @@ stretch_minutes = 200
 # Relative paths are resolved against this project's root.
 # Create it once:  git init ../habito-data && (add a GitHub remote) && git push -u origin main
 data_repo = "../habito-data"
-# Log directory inside the data repo. One JSONL file per day, as logs/2026/2026-08-05.jsonl
-events_dir = "logs"

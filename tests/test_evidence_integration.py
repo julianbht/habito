@@ -40,8 +40,8 @@ def _make_repos(tmp_path):
     _git(data, "init", "-b", "main")
     _git(data, "config", "user.email", "test@habito.local")
     _git(data, "config", "user.name", "Habito Test")
-    (data / "logs").mkdir()
-    (data / "logs" / ".gitkeep").touch()
+    (data / "study").mkdir()
+    (data / "study" / ".gitkeep").touch()
     _git(data, "add", ".")
     _git(data, "commit", "-m", "init")
     _git(data, "remote", "add", "origin", str(remote))
@@ -52,14 +52,16 @@ def _make_repos(tmp_path):
 def test_each_event_is_committed_and_pushed(tmp_path):
     remote, data = _make_repos(tmp_path)
 
-    store = EventStore(data / "logs")
+    store = EventStore(data, "study")
     repo = GitRepo(data)
-    worker = EvidenceWorker(repo, EvidenceConfig(), "logs")
+    worker = EvidenceWorker(repo, EvidenceConfig(), "study")
     worker.start()
     store.subscribe(EvidenceRecorder(worker))
 
     # Generate a real 1-round session through the engine (4 events total).
-    engine = PomodoroEngine(make_config(rounds=1), sink=store.append, clock=FakeClock())
+    engine = PomodoroEngine(
+        make_config(rounds=1), sink=store.append, clock=FakeClock(), habit="study"
+    )
     engine.start()          # SessionStarted, RoundStarted
     worker.wait_idle()      # let those two commit+push before the next pair
     engine.stop()           # RoundEnded, SessionEnded
@@ -97,13 +99,15 @@ def test_push_deferred_when_remote_unreachable(tmp_path):
     _git(data, "remote", "set-url", "origin", str(tmp_path / "does-not-exist.git"))
 
     statuses = []
-    store = EventStore(data / "logs")
+    store = EventStore(data, "study")
     repo = GitRepo(data)
-    worker = EvidenceWorker(repo, EvidenceConfig(), "logs", on_status=statuses.append)
+    worker = EvidenceWorker(repo, EvidenceConfig(), "study", on_status=statuses.append)
     worker.start()
     store.subscribe(EvidenceRecorder(worker))
 
-    engine = PomodoroEngine(make_config(rounds=1), sink=store.append, clock=FakeClock())
+    engine = PomodoroEngine(
+        make_config(rounds=1), sink=store.append, clock=FakeClock(), habit="study"
+    )
     engine.start()
     worker.wait_idle()
     worker.stop()
@@ -117,14 +121,16 @@ def test_push_deferred_when_remote_unreachable(tmp_path):
 def _accumulate_offline_backlog(tmp_path):
     """Set up repos, study while 'offline', and return (remote, data, store, repo, worker)."""
     remote, data = _make_repos(tmp_path)
-    store = EventStore(data / "logs")
+    store = EventStore(data, "study")
     repo = GitRepo(data)
-    worker = EvidenceWorker(repo, EvidenceConfig(), "logs")
+    worker = EvidenceWorker(repo, EvidenceConfig(), "study")
     worker.start()
     store.subscribe(EvidenceRecorder(worker))
 
     _git(data, "remote", "set-url", "origin", str(tmp_path / "offline.git"))
-    engine = PomodoroEngine(make_config(rounds=1), sink=store.append, clock=FakeClock())
+    engine = PomodoroEngine(
+        make_config(rounds=1), sink=store.append, clock=FakeClock(), habit="study"
+    )
     engine.start()
     engine.stop()
     worker.wait_idle()

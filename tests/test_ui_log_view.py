@@ -36,6 +36,7 @@ def at(hour: int, minute: int = 0, *, offset: int = 0, origin: Origin = Origin.l
     return cls(
         timestamp=datetime(2026, 8, 4, hour, minute, tzinfo=UTC),
         tz_offset_minutes=offset,
+        habit="study",
         origin=origin,
         session_id=SESSION,
         **fields,
@@ -113,6 +114,7 @@ def make_day(day_offset: int, hour: int) -> RoundEnded:
     return RoundEnded(
         timestamp=NOON + timedelta(days=day_offset, hours=hour),
         tz_offset_minutes=0,
+        habit="study",
         session_id=SESSION,
         round_index=1,
         work_seconds=1500,
@@ -192,6 +194,7 @@ def test_backfilled_rows_are_marked_in_the_tree(view):
     added = RoundEnded(
         timestamp=NOON,
         tz_offset_minutes=0,
+        habit="study",
         origin=Origin.backfilled,
         session_id=SESSION,
         round_index=1,
@@ -226,6 +229,7 @@ def test_the_store_is_never_written_to(qtbot, tmp_path):
         SessionStarted(
             timestamp=NOON,
             tz_offset_minutes=0,
+            habit="study",
             session_id=SESSION,
             work_minutes=25,
             break_minutes=5,

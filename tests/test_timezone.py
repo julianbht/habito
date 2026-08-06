@@ -120,7 +120,7 @@ def test_events_land_on_the_configured_zones_day_not_the_machines():
     events = []
     clock = FakeClock(start=instant)
     clock.set_zone(BERLIN)
-    PomodoroEngine(PomodoroConfig(), sink=events.append, clock=clock).start()
+    PomodoroEngine(PomodoroConfig(), sink=events.append, clock=clock, habit="study").start()
 
     assert events[0].tz_offset_minutes == 120
     assert logical_date(events[0]) == date(2026, 8, 5)
@@ -133,7 +133,7 @@ def test_changing_the_zone_moves_which_day_new_events_belong_to():
     instant = datetime(2026, 8, 5, 23, 30, tzinfo=UTC)  # 01:30 Aug 6 Berlin
     events = []
     clock = FakeClock(start=instant)
-    engine = PomodoroEngine(PomodoroConfig(), sink=events.append, clock=clock)
+    engine = PomodoroEngine(PomodoroConfig(), sink=events.append, clock=clock, habit="study")
 
     clock.set_zone(NEW_YORK)
     engine.start()
@@ -181,6 +181,7 @@ def test_the_backfill_dialog_stamps_the_configured_zone(qtbot):
         default_work=25,
         default_break=5,
         default_rounds=1,
+        habit="study",
         time_config=TimeConfig(timezone="Europe/Berlin"),
         today=date(2026, 8, 5),
     )

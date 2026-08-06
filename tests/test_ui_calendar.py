@@ -330,7 +330,10 @@ def test_opening_the_calendar_reads_the_log(qtbot, tmp_path):
     qtbot.addWidget(app)
 
     when = datetime.combine(ANCHOR, time(9, 0)).astimezone()
-    for event in build_backfill_events(when, work_minutes=25, break_minutes=5, rounds=4):
+    backfilled = build_backfill_events(
+        when, work_minutes=25, break_minutes=5, rounds=4, habit="study"
+    )
+    for event in backfilled:
         store.append(event)
 
     app.show_page(_CALENDAR_PAGE)

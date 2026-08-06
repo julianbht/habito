@@ -32,20 +32,23 @@ from habito.evidence.worker import EvidenceWorker
 from habito.storage.event_store import EventStore
 
 
-def _events_dir(config: Config, test_mode: bool) -> Path:
-    """Where the log is written — a throwaway directory when running in test mode."""
+def _log_root(config: Config, test_mode: bool) -> Path:
+    """The repo the log lives in — a throwaway directory when running in test mode.
+
+    Habits are directories directly beneath this, so the store is handed the root rather
+    than one habit's subtree.
+    """
     if not test_mode:
-        return config.events_dir_path()
-    scratch = Path(tempfile.gettempdir()) / "habito-test-mode"
-    return scratch / config.paths.events_dir
+        return config.data_repo_path()
+    return Path(tempfile.gettempdir()) / "habito-test-mode"
 
 
 def _build_engine_and_store(
     config: Config, test_mode: bool = False
 ) -> tuple[PomodoroEngine, EventStore]:
-    store = EventStore(_events_dir(config, test_mode), config.time.rollover_hour)
+    store = EventStore(_log_root(config, test_mode), config.habit, config.time.rollover_hour)
     clock = SystemClock(config.time.zone())
-    engine = PomodoroEngine(config.pomodoro, sink=store.append, clock=clock)
+    engine = PomodoroEngine(config.pomodoro, sink=store.append, clock=clock, habit=config.habit)
     return engine, store
 
 
@@ -60,15 +63,16 @@ def run_gui(config: Config, test_mode: bool = False) -> int:
 
     if test_mode:
         # Cleared before the store reads it, so "Today" reflects this run rather than
-        # last week's fiddling — the app opens on a genuinely empty log.
-        shutil.rmtree(_events_dir(config, test_mode), ignore_errors=True)
+        # last week's fiddling — the app opens on a genuinely empty log. Guarded by
+        # test_mode, and _log_root only ever returns the scratch dir under it.
+        shutil.rmtree(_log_root(config, test_mode=True), ignore_errors=True)
 
     engine, store = _build_engine_and_store(config, test_mode)
     app = HabitoApp(config, engine, store, test_mode=test_mode)
 
     if test_mode:
         # No GitRepo, no worker, no recorder: nothing can reach the data repo from here.
-        print(f"TEST MODE — events go to {_events_dir(config, test_mode)}")
+        print(f"TEST MODE — events go to {_log_root(config, test_mode) / config.habit}")
         print("            the data repo is not touched and settings.toml is not written")
         app.set_status_mode("status: TEST MODE · not recorded", theme.ACCENT_TEST)
     else:
@@ -89,7 +93,7 @@ def _attach_evidence(app, config: Config, store: EventStore) -> None:
     worker = EvidenceWorker(
         repo,
         config.evidence,
-        config.paths.events_dir,
+        config.habit,  # pathspec: stage this habit's whole tree, whichever day file it hit
         on_status=app.on_evidence_status,
     )
     worker.start()
@@ -106,7 +110,8 @@ def doctor(config: Config) -> int:
     print("Habito configuration check")
     print(f"  project root : {config.project_root}")
     print(f"  data repo    : {config.data_repo_path()}")
-    print(f"  events dir   : {config.events_dir_path()}")
+    print(f"  habit        : {config.habit}")
+    print(f"  log tree     : {config.habit_dir_path()}")
 
     repo = GitRepo(config.data_repo_path())
     ok = True
@@ -146,11 +151,11 @@ def init_data(config: Config) -> int:
     gitignore = path / ".gitignore"
     if not gitignore.exists():
         gitignore.write_text("# habito evidence repo — the events log IS tracked.\n")
-    events = config.events_dir_path()
-    events.mkdir(parents=True, exist_ok=True)
+    habit_dir = config.habit_dir_path()
+    habit_dir.mkdir(parents=True, exist_ok=True)
     # Git tracks files, not directories, so the log dir needs a placeholder to survive
     # the initial commit — otherwise there's nothing to commit and `git init` fails.
-    keep = events / ".gitkeep"
+    keep = habit_dir / ".gitkeep"
     if not keep.exists():
         keep.touch()
     subprocess.run(["git", "add", "."], cwd=path, check=True)

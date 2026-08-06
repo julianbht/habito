@@ -27,11 +27,14 @@ def build_backfill_events(
     work_minutes: int,
     break_minutes: int,
     rounds: int,
+    *,
+    habit: str,
 ) -> list[Event]:
     """Walk forward from ``start`` (a timezone-aware local datetime) building events.
 
     Mirrors the live flow: work → break → work … with no trailing break after the
-    final round.
+    final round. ``habit`` is required for the same reason it is on the engine: a
+    default would let a caller write events under the wrong habit without saying so.
     """
     if start.tzinfo is None:
         raise ValueError("start must be timezone-aware")
@@ -50,6 +53,7 @@ def build_backfill_events(
                 timestamp=cursor.astimezone(UTC),
                 tz_offset_minutes=tz_offset_minutes,
                 origin=Origin.backfilled,
+                habit=habit,
                 session_id=session_id,
                 **fields,
             )

@@ -16,7 +16,9 @@ from habito.engine.pomodoro import PomodoroEngine, State
 def build(work=25, brk=5, rounds=2):
     events = []
     clock = FakeClock()
-    engine = PomodoroEngine(make_config(work, brk, rounds), sink=events.append, clock=clock)
+    engine = PomodoroEngine(
+        make_config(work, brk, rounds), sink=events.append, clock=clock, habit="study"
+    )
     return engine, clock, events
 
 

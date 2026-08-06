@@ -41,12 +41,14 @@ class BackfillDialog(QDialog):
         default_work: int,
         default_break: int,
         default_rounds: int,
+        habit: str,
         time_config: TimeConfig | None = None,
         today: date | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._on_submit = on_submit
+        self._habit = habit
         self._tz = time_config or TimeConfig()
         self._today = today or date.today()
         self.setWindowTitle("Backfill")
@@ -111,6 +113,7 @@ class BackfillDialog(QDialog):
                 self._work.value(),
                 self._break.value(),
                 self._rounds.value(),
+                habit=self._habit,
             )
         except ValueError as exc:
             self._error.setText(str(exc))

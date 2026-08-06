@@ -434,6 +434,7 @@ class HabitoApp(QMainWindow):
             default_work=max(1, round(self._config.pomodoro.work_minutes)),
             default_break=self._config.pomodoro.break_minutes,
             default_rounds=self._config.pomodoro.rounds,
+            habit=self._config.habit,
             time_config=self._config.time,
             today=self._today(),
             parent=self._settings_dialog or self,

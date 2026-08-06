@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from PySide6.QtWidgets import QLabel
 
-from habito.app import _build_engine_and_store, _events_dir
+from habito.app import _build_engine_and_store, _log_root
 from habito.config.models import Config
 from habito.ui import theme
 from habito.ui.app import HabitoApp
@@ -62,10 +62,10 @@ def build_app(qtbot, config: Config, *, test_mode: bool) -> HabitoApp:
 
 # --- inert ----------------------------------------------------------------
 def test_events_go_to_a_throwaway_dir_outside_the_data_repo(config):
-    live = _events_dir(config, test_mode=False)
-    test = _events_dir(config, test_mode=True)
+    live = _log_root(config, test_mode=False)
+    test = _log_root(config, test_mode=True)
 
-    assert live == config.events_dir_path()
+    assert live == config.data_repo_path()
     assert test != live
     assert config.data_repo_path() not in test.parents
 

@@ -2,7 +2,8 @@
 
 Every event is timestamped in UTC and carries the local ``tz_offset_minutes`` so the
 exact wall-clock time can be reconstructed unambiguously. ``origin`` distinguishes
-live (committed-in-the-moment, evidentially strong) events from backfilled ones.
+live (committed-in-the-moment, evidentially strong) events from backfilled ones, and
+``habit`` says which habit the event is evidence of.
 """
 
 from __future__ import annotations
@@ -13,6 +14,15 @@ from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, TypeAdapter
+
+HABIT_PATTERN = r"^[a-z0-9][a-z0-9_-]*$"
+"""What a habit name may be: lowercase, no separators, no leading punctuation.
+
+A habit name becomes a directory in the data repo, so this is a path-safety rule as much
+as a style one — a value containing ``/`` or ``..`` would quietly nest or escape the tree.
+Lowercase specifically because Windows filesystems are case-insensitive: ``Study`` and
+``study`` would be two distinct strings on the events but one single directory on disk.
+"""
 
 
 class Origin(StrEnum):
@@ -27,6 +37,11 @@ class BaseEvent(BaseModel):
     timestamp: datetime  # timezone-aware, UTC
     tz_offset_minutes: int  # local wall-clock offset from UTC, in minutes
     origin: Origin = Origin.live
+    # Which habit this is evidence of. Deliberately required rather than defaulted to
+    # "study": a default would make every line written by a caller that forgot to pass one
+    # silently claim to be study, and "absence means study" is exactly the kind of fact
+    # asserted by omission that the timestamp/tz_offset design exists to avoid.
+    habit: str = Field(pattern=HABIT_PATTERN)
     session_id: UUID
 
 

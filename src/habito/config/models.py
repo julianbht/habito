@@ -8,6 +8,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from habito.domain.events import HABIT_PATTERN
+
 
 class PomodoroConfig(BaseModel):
     work_minutes: float = Field(default=25, gt=0)  # fractional for sub-minute rounds
@@ -167,11 +169,15 @@ class GoalsConfig(BaseModel):
 
 class PathsConfig(BaseModel):
     data_repo: str = "../habito-data"
-    events_dir: str = "logs"
 
 
 class Config(BaseModel):
     """Root config. ``project_root`` is injected by the loader, not read from TOML."""
+
+    # Which habit this app instance tracks. Stamped onto every event it writes, and
+    # therefore also the name of the directory those events are filed under — one value,
+    # one meaning, rather than a config path and an event field that could drift apart.
+    habit: str = Field(default="study", pattern=HABIT_PATTERN)
 
     pomodoro: PomodoroConfig = Field(default_factory=PomodoroConfig)
     time: TimeConfig = Field(default_factory=TimeConfig)
@@ -194,6 +200,6 @@ class Config(BaseModel):
             p = (self.project_root / p).resolve()
         return p
 
-    def events_dir_path(self) -> Path:
-        """Absolute path of the log directory inside the data repo."""
-        return self.data_repo_path() / self.paths.events_dir
+    def habit_dir_path(self) -> Path:
+        """Absolute path of this habit's log tree inside the data repo."""
+        return self.data_repo_path() / self.habit
