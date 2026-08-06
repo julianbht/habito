@@ -175,6 +175,32 @@ def build_stylesheet(accent: str, palette: Palette = DARK) -> str:
     QPushButton#nudge {{ padding: 0px; font-size: 13px; border-radius: 5px; }}
     QPushButton#gear {{ font-size: 15px; padding: 2px 7px; }}
 
+    /* The QWidget rule above matches QMenu too, which puts it on the stylesheet paint
+       path — so the highlight, border and separator the native style would have drawn
+       have to be restated here or they aren't drawn at all. */
+    QMenu {{
+        background-color: {p.surface};
+        border: 1px solid {p.border};
+        border-radius: 6px;
+        padding: 4px;
+    }}
+    QMenu::item {{
+        background: transparent;
+        padding: 7px 24px 7px 12px;
+        border-radius: 4px;
+    }}
+    QMenu::item:selected {{ background-color: {accent}; color: #ffffff; }}
+    QMenu::item:disabled {{ color: {p.text_disabled}; }}
+    /* The page actions are an exclusive checkable group, so "checked" is the page you're
+       on. Restated for :selected, where accent-on-accent would vanish. */
+    QMenu::item:checked {{ font-weight: bold; color: {accent}; }}
+    QMenu::item:checked:selected {{ color: #ffffff; }}
+    QMenu::separator {{
+        height: 1px;
+        background-color: {p.border};
+        margin: 5px 8px;
+    }}
+
     QSpinBox, QDateEdit, QTimeEdit, QLineEdit {{
         background-color: {p.surface};
         border: 1px solid {p.border};
