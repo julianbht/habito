@@ -22,7 +22,13 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from habito.config.models import Config, GoalsConfig, PomodoroConfig, TimeConfig, UIConfig
+from habito.config.models import (
+    Config,
+    GoalsConfig,
+    PomodoroConfig,
+    TimeConfig,
+    UIConfig,
+)
 from habito.config.writer import save_goals, save_pomodoro, save_time, save_ui
 from habito.domain.events import logical_day
 from habito.engine.pomodoro import EngineState, PomodoroEngine, State
@@ -183,9 +189,13 @@ class HabitoApp(QMainWindow):
 
         menu.addSeparator()
         menu.addAction(
-            qta.icon("mdi6.calendar-plus", color=tint), "Backfill…", self.on_open_backfill
+            qta.icon("mdi6.calendar-plus", color=tint),
+            "Backfill…",
+            self.on_open_backfill,
         )
-        menu.addAction(qta.icon("mdi6.cog-outline", color=tint), "Settings…", self._open_settings)
+        menu.addAction(
+            qta.icon("mdi6.cog-outline", color=tint), "Settings…", self._open_settings
+        )
         return menu
 
     def show_page(self, index: int) -> None:
@@ -301,7 +311,11 @@ class HabitoApp(QMainWindow):
         self._repaint()
 
     def _apply_pomodoro(
-        self, *, work: int | None = None, brk: int | None = None, rounds: int | None = None
+        self,
+        *,
+        work: int | None = None,
+        brk: int | None = None,
+        rounds: int | None = None,
     ) -> str | None:
         """Merge overrides into the Pomodoro config, validate, apply, and persist."""
         cur = self._config.pomodoro
@@ -503,7 +517,11 @@ class HabitoApp(QMainWindow):
     def _dismiss_stale_prompt(self, snap: EngineState) -> None:
         """Take the prompt down if the session moved on without it being answered."""
         dialog = self._phase_dialog
-        if dialog is not None and dialog.gates_phase and snap.state is not State.awaiting:
+        if (
+            dialog is not None
+            and dialog.gates_phase
+            and snap.state is not State.awaiting
+        ):
             self._close_prompt()
 
     def _close_prompt(self) -> None:
@@ -518,7 +536,7 @@ class HabitoApp(QMainWindow):
                 f"status: offline · {status.unpushed_count} to sync", theme.WARN
             )
         elif status.pushed:
-            self._view.set_status("status: synced ✓", theme.OK)
+            self._view.set_status("status: synced", theme.OK)
         elif status.committed:
             self._view.set_status("status: saved locally", "gray")
 
