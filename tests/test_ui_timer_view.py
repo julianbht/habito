@@ -84,9 +84,7 @@ def test_parse_seconds(text, expected):
     assert parse_seconds(text) == expected
 
 
-@pytest.mark.parametrize(
-    ("seconds", "shown"), [(1500, "25:00"), (10, "00:10"), (90, "01:30")]
-)
+@pytest.mark.parametrize(("seconds", "shown"), [(1500, "25:00"), (10, "00:10"), (90, "01:30")])
 def test_spin_box_displays_mm_ss(qtbot, seconds, shown):
     spin = DurationSpinBox()
     qtbot.addWidget(spin)
@@ -190,9 +188,7 @@ def tab_chain(widget, qtbot, steps: int) -> list:
     ]
 
 
-@pytest.mark.parametrize(
-    "state", [State.idle, State.work], ids=["idle", "running"]
-)
+@pytest.mark.parametrize("state", [State.idle, State.work], ids=["idle", "running"])
 def test_tab_walks_the_controls_in_order(view, qtbot, state):
     """The chain is the same in both modes — the ▲/▼ pair is never hidden."""
     widget, _ = view

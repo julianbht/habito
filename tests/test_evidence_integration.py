@@ -62,9 +62,9 @@ def test_each_event_is_committed_and_pushed(tmp_path):
     engine = PomodoroEngine(
         make_config(rounds=1), sink=store.append, clock=FakeClock(), habit="study"
     )
-    engine.start()          # SessionStarted, RoundStarted
-    worker.wait_idle()      # let those two commit+push before the next pair
-    engine.stop()           # RoundEnded, SessionEnded
+    engine.start()  # SessionStarted, RoundStarted
+    worker.wait_idle()  # let those two commit+push before the next pair
+    engine.stop()  # RoundEnded, SessionEnded
     worker.wait_idle()
     worker.stop()
 

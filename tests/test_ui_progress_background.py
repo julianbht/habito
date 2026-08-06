@@ -111,9 +111,7 @@ def test_fill_is_tinted_by_the_phase(background):
 
 def test_fill_is_subtle_enough_to_read_text_over():
     base, fill = DARK.background(), DARK.progress_fill(theme.OK)
-    delta = sum(
-        abs(getattr(fill, c)() - getattr(base, c)()) for c in ("red", "green", "blue")
-    )
+    delta = sum(abs(getattr(fill, c)() - getattr(base, c)()) for c in ("red", "green", "blue"))
     assert 8 < delta < 90  # a visible shift, nowhere near the phase colour itself
 
 

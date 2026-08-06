@@ -132,7 +132,7 @@ def test_events_are_grouped_by_local_day_newest_first():
 def test_events_within_a_day_stay_in_order():
     later, earlier = make_day(0, 3), make_day(0, 1)
     grouped = group_by_day([later, earlier])
-    (_, entries), = grouped.items()
+    ((_, entries),) = grouped.items()
 
     assert entries == [earlier, later]
 

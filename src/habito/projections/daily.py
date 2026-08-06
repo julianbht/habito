@@ -27,9 +27,7 @@ class DailySummary:
         return self.verified_work_seconds + self.backfilled_work_seconds
 
 
-def summarize_by_day(
-    events: Iterable[Event], rollover_hour: int = 0
-) -> dict[date, DailySummary]:
+def summarize_by_day(events: Iterable[Event], rollover_hour: int = 0) -> dict[date, DailySummary]:
     """Fold events into per-day totals.
 
     ``rollover_hour`` decides where a day ends — the app passes the configured value so a
@@ -76,8 +74,6 @@ def longest_run(days: Iterable[date]) -> int:
     return best
 
 
-def summary_for(
-    events: Iterable[Event], day: date, rollover_hour: int = 0
-) -> DailySummary:
+def summary_for(events: Iterable[Event], day: date, rollover_hour: int = 0) -> DailySummary:
     """Convenience: the summary for a single day (empty if none)."""
     return summarize_by_day(events, rollover_hour).get(day, DailySummary(day=day))

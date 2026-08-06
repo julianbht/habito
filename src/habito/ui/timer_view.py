@@ -276,9 +276,7 @@ class TimerView(QWidget):
 
         self._round_lbl.setText(f"Round {snap.round_index} / {snap.total_rounds}")
         self._state_lbl.setText(_STATE_LABEL[snap.state])
-        self._state_lbl.setStyleSheet(
-            f"color: {_STATE_COLOR.get(snap.state, theme.MUTED)};"
-        )
+        self._state_lbl.setStyleSheet(f"color: {_STATE_COLOR.get(snap.state, theme.MUTED)};")
         self._render_time(snap)
 
         running = snap.state in (State.work, State.break_)

@@ -39,9 +39,7 @@ def finish_the_round(app):
 
 
 def make_dialog(pressed: list) -> PhaseDialog:
-    return PhaseDialog(
-        "Round complete", "Take a break.", "Start break", lambda: pressed.append(1)
-    )
+    return PhaseDialog("Round complete", "Take a break.", "Start break", lambda: pressed.append(1))
 
 
 # --- the dialog on its own ------------------------------------------------

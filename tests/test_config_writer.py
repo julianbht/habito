@@ -35,7 +35,7 @@ def test_save_pomodoro_updates_values_and_preserves_comments(tmp_path):
 
 def test_save_pomodoro_creates_section_when_missing(tmp_path):
     cfg_file = tmp_path / "settings.toml"
-    cfg_file.write_text("[ui]\ntheme = \"dark\"\n", encoding="utf-8")
+    cfg_file.write_text('[ui]\ntheme = "dark"\n', encoding="utf-8")
 
     config = load_config(project_root=tmp_path, config_path=cfg_file)
     save_pomodoro(config, PomodoroConfig(work_minutes=30, break_minutes=6, rounds=3))

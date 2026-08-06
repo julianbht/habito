@@ -95,9 +95,7 @@ class SettingsDialog(QDialog):
 
         form = QFormLayout()
         form.setSpacing(8)
-        self._break_spin = self._spin(
-            pomodoro.break_minutes, maximum=120, suffix=" min"
-        )
+        self._break_spin = self._spin(pomodoro.break_minutes, maximum=120, suffix=" min")
         self._rounds_spin = self._spin(pomodoro.rounds, maximum=24)
         form.addRow("Break length", self._break_spin)
         form.addRow("Rounds", self._rounds_spin)
@@ -144,15 +142,11 @@ class SettingsDialog(QDialog):
         """How much study time earns a green day on the calendar."""
         form = QFormLayout()
         form.setSpacing(8)
-        self._goal_spin = self._spin(
-            goals.daily_minutes, maximum=24 * 60, suffix=" min"
-        )
+        self._goal_spin = self._spin(goals.daily_minutes, maximum=24 * 60, suffix=" min")
         self._goal_spin.setSingleStep(5)
         self._goal_spin.setToolTip("Study time that makes a day count")
 
-        self._buffer_spin = self._spin(
-            goals.buffer_minutes, minimum=0, maximum=60, suffix=" min"
-        )
+        self._buffer_spin = self._spin(goals.buffer_minutes, minimum=0, maximum=60, suffix=" min")
         self._buffer_spin.setToolTip("Falling this far short still counts")
 
         # 0 is "no stretch goal" rather than a real value, so the spin shows Off there
@@ -249,14 +243,10 @@ class SettingsDialog(QDialog):
             self._preview()
         else:
             # Never leave "Choose a file…" showing as though it were the selection.
-            self._sound_box.setCurrentIndex(
-                max(0, self._sound_box.findData(self._last_sound))
-            )
+            self._sound_box.setCurrentIndex(max(0, self._sound_box.findData(self._last_sound)))
 
     @staticmethod
-    def _spin(
-        value: int, *, maximum: int, minimum: int = 1, suffix: str = ""
-    ) -> QSpinBox:
+    def _spin(value: int, *, maximum: int, minimum: int = 1, suffix: str = "") -> QSpinBox:
         spin = QSpinBox()
         spin.setRange(minimum, maximum)
         spin.setValue(value)

@@ -193,9 +193,7 @@ class HabitoApp(QMainWindow):
             "Backfill…",
             self.on_open_backfill,
         )
-        menu.addAction(
-            qta.icon("mdi6.cog-outline", color=tint), "Settings…", self._open_settings
-        )
+        menu.addAction(qta.icon("mdi6.cog-outline", color=tint), "Settings…", self._open_settings)
         return menu
 
     def show_page(self, index: int) -> None:
@@ -518,11 +516,7 @@ class HabitoApp(QMainWindow):
     def _dismiss_stale_prompt(self, snap: EngineState) -> None:
         """Take the prompt down if the session moved on without it being answered."""
         dialog = self._phase_dialog
-        if (
-            dialog is not None
-            and dialog.gates_phase
-            and snap.state is not State.awaiting
-        ):
+        if dialog is not None and dialog.gates_phase and snap.state is not State.awaiting:
             self._close_prompt()
 
     def _close_prompt(self) -> None:
@@ -533,9 +527,7 @@ class HabitoApp(QMainWindow):
     def _render_status(self, status: EvidenceStatus) -> None:
         if status.unpushed_count > 0:
             # Saved locally; only the push to GitHub (the third-party proof) is behind.
-            self._view.set_status(
-                f"status: offline · {status.unpushed_count} to sync", theme.WARN
-            )
+            self._view.set_status(f"status: offline · {status.unpushed_count} to sync", theme.WARN)
         elif status.pushed:
             self._view.set_status("status: synced", theme.OK)
         elif status.committed:

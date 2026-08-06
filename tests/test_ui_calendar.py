@@ -29,9 +29,7 @@ ANCHOR = TODAY.replace(day=15)
 
 
 def summary(day: date, verified: int = 0, backfilled: int = 0) -> DailySummary:
-    return DailySummary(
-        day=day, verified_work_seconds=verified, backfilled_work_seconds=backfilled
-    )
+    return DailySummary(day=day, verified_work_seconds=verified, backfilled_work_seconds=backfilled)
 
 
 @pytest.fixture
@@ -235,9 +233,7 @@ def test_the_readout_reports_the_longest_run_not_the_count(view):
     green = [1, 2, 5, 6, 7, 9]
     view.set_summaries(
         {
-            first + timedelta(days=d - 1): summary(
-                first + timedelta(days=d - 1), verified=100 * 60
-            )
+            first + timedelta(days=d - 1): summary(first + timedelta(days=d - 1), verified=100 * 60)
             for d in green
         }
     )
@@ -279,7 +275,10 @@ def test_the_month_total_counts_only_the_month_shown(view):
         }
     )
 
-    assert {s.day for s in view.month_summaries()} == {ANCHOR, ANCHOR + timedelta(days=1)}
+    assert {s.day for s in view.month_summaries()} == {
+        ANCHOR,
+        ANCHOR + timedelta(days=1),
+    }
     assert "2h 10m" in view._total_lbl.text()
 
 
@@ -494,7 +493,11 @@ def test_changing_the_goal_recolours_the_calendar_without_a_restart(qtbot, tmp_p
 
     app.on_save_settings(
         SettingsValues(
-            break_minutes=5, rounds=4, daily_minutes=60, buffer_minutes=5, sound="asterisk"
+            break_minutes=5,
+            rounds=4,
+            daily_minutes=60,
+            buffer_minutes=5,
+            sound="asterisk",
         )
     )
 
@@ -508,7 +511,11 @@ def test_the_goal_is_written_back_to_settings_toml(qtbot, tmp_path):
     app, config = build_app(qtbot, tmp_path)
     app.on_save_settings(
         SettingsValues(
-            break_minutes=5, rounds=4, daily_minutes=150, buffer_minutes=15, sound="asterisk"
+            break_minutes=5,
+            rounds=4,
+            daily_minutes=150,
+            buffer_minutes=15,
+            sound="asterisk",
         )
     )
 

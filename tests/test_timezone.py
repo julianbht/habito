@@ -200,7 +200,7 @@ def test_the_backfill_dialog_stamps_the_configured_zone(qtbot):
 def test_saving_the_zone_leaves_the_rest_of_the_file_alone(tmp_path):
     settings = tmp_path / "settings.toml"
     settings.write_text(
-        '# keep me\n[pomodoro]\nwork_minutes = 25  # trailing note\n',
+        "# keep me\n[pomodoro]\nwork_minutes = 25  # trailing note\n",
         encoding="utf-8",
     )
     config = Config(project_root=tmp_path, config_path=settings)
@@ -208,7 +208,7 @@ def test_saving_the_zone_leaves_the_rest_of_the_file_alone(tmp_path):
     save_time(config, TimeConfig(timezone="Europe/Berlin"))
 
     written = settings.read_text(encoding="utf-8")
-    assert '[time]' in written
+    assert "[time]" in written
     assert 'timezone = "Europe/Berlin"' in written
     assert "# keep me" in written
     assert "# trailing note" in written

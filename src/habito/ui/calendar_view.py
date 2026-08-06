@@ -59,12 +59,8 @@ class StudyCalendar(QCalendarWidget):
         self._summaries: dict[date, DailySummary] = {}
 
         self.setGridVisible(False)
-        self.setVerticalHeaderFormat(
-            QCalendarWidget.VerticalHeaderFormat.NoVerticalHeader
-        )
-        self.setHorizontalHeaderFormat(
-            QCalendarWidget.HorizontalHeaderFormat.SingleLetterDayNames
-        )
+        self.setVerticalHeaderFormat(QCalendarWidget.VerticalHeaderFormat.NoVerticalHeader)
+        self.setHorizontalHeaderFormat(QCalendarWidget.HorizontalHeaderFormat.SingleLetterDayNames)
         self.setSelectionMode(QCalendarWidget.SelectionMode.NoSelection)
         self.setNavigationBarVisible(True)
 
@@ -78,9 +74,7 @@ class StudyCalendar(QCalendarWidget):
     def stretch_seconds(self) -> int | None:
         return self._stretch
 
-    def set_goals(
-        self, threshold_seconds: int, stretch_seconds: int | None = None
-    ) -> None:
+    def set_goals(self, threshold_seconds: int, stretch_seconds: int | None = None) -> None:
         self._threshold = threshold_seconds
         self._stretch = stretch_seconds
         self.updateCells()
@@ -92,14 +86,10 @@ class StudyCalendar(QCalendarWidget):
         """A great day. Always False when no stretch goal is set, so no star is drawn."""
         return self._stretch is not None and summary.total_work_seconds >= self._stretch
 
-    def paintCell(
-        self, painter: QPainter, rect: QRect, qdate: QDate
-    ) -> None:  # noqa: N802
+    def paintCell(self, painter: QPainter, rect: QRect, qdate: QDate) -> None:  # noqa: N802
         day = _to_date(qdate)
         summary = self._summaries.get(day)
-        in_month = (
-            qdate.month() == self.monthShown() and qdate.year() == self.yearShown()
-        )
+        in_month = qdate.month() == self.monthShown() and qdate.year() == self.yearShown()
 
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
@@ -213,9 +203,7 @@ class CalendarView(QWidget):
         self.calendar.setCurrentPage(year, month)
 
     # --- contents --------------------------------------------------------
-    def set_goals(
-        self, threshold_seconds: int, stretch_seconds: int | None = None
-    ) -> None:
+    def set_goals(self, threshold_seconds: int, stretch_seconds: int | None = None) -> None:
         """Apply goals changed in Settings without needing a restart."""
         self.calendar.set_goals(threshold_seconds, stretch_seconds)
         self._render_hint()
@@ -228,11 +216,7 @@ class CalendarView(QWidget):
 
     def month_summaries(self) -> list[DailySummary]:
         year, month = self.calendar.yearShown(), self.calendar.monthShown()
-        return [
-            s
-            for day, s in self._summaries.items()
-            if day.year == year and day.month == month
-        ]
+        return [s for day, s in self._summaries.items() if day.year == year and day.month == month]
 
     def _render_page(self) -> None:
         """The month in one line: time put in, and the longest unbroken run of green.

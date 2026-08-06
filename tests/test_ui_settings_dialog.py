@@ -142,6 +142,4 @@ def test_backfill_is_not_offered_here(qtbot, dialog):
     widget, _ = dialog
     labels = [b.text() for b in widget.findChildren(type(widget._save_btn))]
 
-    assert not any(
-        word in text.lower() for text in labels for word in ("past session", "backfill")
-    )
+    assert not any(word in text.lower() for text in labels for word in ("past session", "backfill"))
