@@ -1,0 +1,23 @@
+# Fast checks only — these run on every commit. The test suite and the type check are
+# left to CI, where taking a minute is fine.
+#
+# Activate once per clone:  uv run pre-commit install
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.1
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-toml
+      - id: check-yaml
+      # A day file is append-only evidence; a conflict marker committed into one would be
+      # corruption rather than a merge to resolve.
+      - id: check-merge-conflict
+      - id: check-added-large-files

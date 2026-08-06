@@ -20,6 +20,8 @@ habito = "habito.app:main"
 
 [dependency-groups]
 dev = [
+    "pre-commit>=3.7",
+    "pyright>=1.1.400",
     "pytest>=8.0",
     "pytest-qt>=4.5.0",
     "ruff>=0.4",
@@ -38,6 +40,19 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+# Committed so the checker's strictness is a property of the project rather than of
+# whichever editor opens it.
+[tool.pyright]
+include = ["src", "tests"]
+extraPaths = ["src"]
+venvPath = "."
+venv = ".venv"
+typeCheckingMode = "standard"
+# Only the library is held to strict. Strict demands a known type for every name, and a
+# pytest fixture arrives as a bare parameter (`def test_x(qtbot, tmp_path)`) — which alone
+# accounts for ~1700 findings that say nothing about whether the code works.
+strict = ["src"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
