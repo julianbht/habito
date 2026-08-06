@@ -8,9 +8,18 @@ user-facing page — keep setup/usage there and keep it short; detail belongs he
 ```bash
 uv run pytest          # full suite (unit + Qt UI + hermetic git evidence test)
 uv run ruff check      # lint
+uv run ruff format     # format (--check to only report)
+uv run pyright         # types: strict on src/, standard on tests/
 uv run habito          # launch the UI
 uv run habito doctor   # config + data-repo readiness
 ```
+
+Type-check strictness lives in `pyproject.toml`, not per-editor. Tests sit at `standard`
+because strict wants an annotation on every parameter and a pytest fixture arrives as a
+bare one — that alone was ~1700 findings that said nothing about whether the code works.
+
+`uv run pre-commit install` once per clone wires ruff and the whitespace/TOML/YAML checks
+into commits. CI runs all four checks on a clean machine.
 
 ## Layers
 
