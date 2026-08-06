@@ -1,9 +1,8 @@
 # Habito settings — edit these to change app behaviour.
 # All values are validated on startup (see src/habito/config/models.py).
 
-# Which habit this instance tracks. Stamped on every event, and the name of the directory
-# they're filed under in the data repo (study/2026/08/2026-08-05.jsonl).
-# Lowercase letters, digits, - and _ only, since it becomes a directory name.
+# Stamped on every event, and the directory they're filed under in the data repo
+# (study/2026/08/2026-08-05.jsonl). Lowercase letters, digits, - and _ only.
 habit = "study"
 
 [pomodoro]

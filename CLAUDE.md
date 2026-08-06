@@ -41,14 +41,11 @@ stops growing when the day ends, so commit cost is O(1) in log age rather than O
 also keeps every file under GitHub's 1 MB render limit, and means an old day's file is
 never touched again — so a change to one stands out in the history.
 
-**Why the month level.** Browsing only. A year directory reaches 365 entries, which no
-file listing shows usefully. The file keeps its full ISO name rather than shrinking to
-`05.jsonl`, so it still identifies itself once opened or downloaded away from its
-directory. Both levels are zero-padded, so `08` still sorts before `10`.
+**Month directories are for browsing** — a year holds 365 entries. Both levels are
+zero-padded so `08` sorts before `10`, and the file keeps its full ISO name so it
+identifies itself when opened away from its directory.
 
-**Why habit at the top and not `logs/`.** Everything in the data repo is a log, so `logs/`
-named nothing; the repo root now browses as a list of habits. Each habit's tree is also its
-own git pathspec, so a commit stages exactly one habit.
+**Habit at the top** gives each habit its own git pathspec, so a commit stages exactly one.
 
 **Rules that must hold:**
 
@@ -57,9 +54,9 @@ own git pathspec, so a commit stages exactly one habit.
   itself. This is what makes timezone changes, DST and rollover changes unable to corrupt
   anything.
 - **The partition is a pure function of the event** — `event.habit` and
-  `logical_date(event, rollover_hour)`, no clock, no session lookup, and no reference to
-  how the store happens to be configured. Routing by session *start* would need state that
-  a crash or restart mid-session loses, producing exactly the split it was trying to avoid.
+  `logical_date(event, rollover_hour)`, no clock, no session lookup, no store config.
+  Routing by session *start* would need state that a crash or restart mid-session loses,
+  producing exactly the split it was trying to avoid.
 - **Nothing is ever rewritten.** No migrations, no compaction, no edits. A session crossing
   the rollover simply spans two files; `read_all()` concatenates them back into one ordered
   stream and session identity travels in `session_id`.
@@ -70,29 +67,18 @@ initial commit would otherwise be empty.
 
 ## Habits
 
-`habit` is a **required** field on every event, with no default — deliberately, even though
-there is exactly one habit today and it puts a constant on every line for now. The parallel
-to `schema_version` (§ Schema evolution) doesn't hold: absence-is-v1 stays unambiguous
-forever, but a study-only log *will* eventually sit beside a reading one, and then "no field
-means study" is a rule a human reading the file has to be told. That's a fact asserted by
-omission — the thing the `timestamp`/`tz_offset_minutes` design exists to prevent. It was
-added while the data repo was still disposable, which is the only free window for it.
+`habit` is required on every event, with no default. A default would make "absence means
+study" a rule you'd have to know to read the log — a fact asserted by omission. Required on
+`PomodoroEngine` and `build_backfill_events` too, the layers that build events.
 
-Required all the way up, too: `PomodoroEngine` and `build_backfill_events` take `habit` as a
-required keyword. A default at either would put the hole straight back into the layer that
-actually builds the events.
+Config's top-level `habit` is both stamped on the events and the directory they land in, so
+the two can't drift. `HABIT_PATTERN` (`^[a-z0-9][a-z0-9_-]*$`) keeps a name usable as a path
+segment; lowercase because Windows filesystems are case-insensitive, so `Study` and `study`
+would be two strings but one directory.
 
-One value, one meaning: config's top-level `habit` is stamped on the events *and* is the
-directory they land in, rather than a config path and an event field that could drift.
-`HABIT_PATTERN` (`^[a-z0-9][a-z0-9_-]*$`) is a path-safety rule as much as a style one — a
-name with `/` or `..` would quietly nest or escape the tree. Lowercase specifically because
-Windows filesystems are case-insensitive: `Study` and `study` would be two distinct strings
-on the events but one single directory on disk.
-
-An `EventStore` is *scoped* to one habit for reading — it writes wherever the event says,
-but `read_all()` only replays its own subtree, so a second habit can't leak into this one's
-calendar. The app is still single-habit end to end: one config value, one store, one engine.
-Running a second habit today means a second config.
+An `EventStore` is scoped to one habit for reading: it writes wherever the event says, but
+`read_all()` replays only its own subtree. The app is single-habit end to end — a second
+habit means a second config.
 
 ## Time
 
@@ -127,9 +113,8 @@ Events are immutable and frozen. Evolve **additively only**:
 
 - adding an event type — fine
 - adding a field **with a default** — fine
-- adding a field **without** one — breaks every existing line, so only while the data repo
-  is still disposable. `habit` was added exactly there (§ Habits); assume that window is
-  closed now.
+- adding a field **without** one — breaks every existing line; only while the data repo is
+  still disposable
 - removing, renaming, or repurposing an existing field — forbidden
 
 There is deliberately **no `schema_version` field**. The absence of one *is* version 1, so
@@ -166,8 +151,7 @@ theme, not a ramp.
 - Commit **and push** after every event — GitHub's server-recorded push time is the part
   that's hard to forge; local commit times are not.
 - `GitRepo.add/commit/has_staged_changes` take a pathspec, so the worker stages the whole
-  `<habit>/` tree and picks up whichever day file the event landed in — scoped to one habit,
-  so a commit never sweeps up another's events.
+  `<habit>/` tree and picks up whichever day file the event landed in.
 - Backfilled events carry `origin = "backfilled"`, and the log view and `DailySummary` keep
   them separate from live evidence. The calendar deliberately does *not* — one cell per day
   has room for one question ("did this day count"), and a second encoding there was noise.

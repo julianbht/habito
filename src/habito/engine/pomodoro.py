@@ -68,8 +68,6 @@ class PomodoroEngine:
         self._config = config
         self._sink = sink
         self._clock = clock or SystemClock()
-        # Required, and deliberately not defaulted to "study" — a default here would put
-        # the hole straight back into the layer that actually builds the events.
         self._habit = habit
 
         self._state = State.idle

@@ -48,7 +48,6 @@ class EvidenceWorker:
         self._config = config
         # A directory, not a file — git add/commit/diff all take a pathspec, so staging
         # the whole habit tree picks up whichever day file the event just landed in.
-        # Scoped to one habit so a commit never sweeps up another habit's events.
         self._pathspec = habit_dir
         self._on_status = on_status
         self._queue: queue.Queue[object] = queue.Queue()

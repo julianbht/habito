@@ -33,8 +33,7 @@ def build_backfill_events(
     """Walk forward from ``start`` (a timezone-aware local datetime) building events.
 
     Mirrors the live flow: work → break → work … with no trailing break after the
-    final round. ``habit`` is required for the same reason it is on the engine: a
-    default would let a caller write events under the wrong habit without saying so.
+    final round.
     """
     if start.tzinfo is None:
         raise ValueError("start must be timezone-aware")

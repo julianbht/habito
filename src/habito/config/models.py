@@ -174,9 +174,7 @@ class PathsConfig(BaseModel):
 class Config(BaseModel):
     """Root config. ``project_root`` is injected by the loader, not read from TOML."""
 
-    # Which habit this app instance tracks. Stamped onto every event it writes, and
-    # therefore also the name of the directory those events are filed under — one value,
-    # one meaning, rather than a config path and an event field that could drift apart.
+    # Stamped onto every event, and the directory those events are filed under.
     habit: str = Field(default="study", pattern=HABIT_PATTERN)
 
     pomodoro: PomodoroConfig = Field(default_factory=PomodoroConfig)

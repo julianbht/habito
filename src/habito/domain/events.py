@@ -16,13 +16,8 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, Field, TypeAdapter
 
 HABIT_PATTERN = r"^[a-z0-9][a-z0-9_-]*$"
-"""What a habit name may be: lowercase, no separators, no leading punctuation.
-
-A habit name becomes a directory in the data repo, so this is a path-safety rule as much
-as a style one — a value containing ``/`` or ``..`` would quietly nest or escape the tree.
-Lowercase specifically because Windows filesystems are case-insensitive: ``Study`` and
-``study`` would be two distinct strings on the events but one single directory on disk.
-"""
+"""A habit name becomes a directory, so it must be a safe path segment. Lowercase because
+Windows filesystems are case-insensitive: ``Study`` and ``study`` would be one directory."""
 
 
 class Origin(StrEnum):
@@ -37,10 +32,7 @@ class BaseEvent(BaseModel):
     timestamp: datetime  # timezone-aware, UTC
     tz_offset_minutes: int  # local wall-clock offset from UTC, in minutes
     origin: Origin = Origin.live
-    # Which habit this is evidence of. Deliberately required rather than defaulted to
-    # "study": a default would make every line written by a caller that forgot to pass one
-    # silently claim to be study, and "absence means study" is exactly the kind of fact
-    # asserted by omission that the timestamp/tz_offset design exists to avoid.
+    # Required, never defaulted — see CLAUDE.md § Habits.
     habit: str = Field(pattern=HABIT_PATTERN)
     session_id: UUID
 

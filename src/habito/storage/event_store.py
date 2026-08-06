@@ -11,21 +11,18 @@ commit cost more than the last one, forever. A day file stops growing when the d
 which keeps that cost flat no matter how many years accumulate. It also means an old day's
 file is never touched again, so a change to one stands out in the history.
 
-The month level exists purely so the tree stays browsable — a bare year directory reaches
-365 entries, which no file listing shows usefully. The file keeps its full ISO name rather
-than shrinking to ``05.jsonl``, so it still identifies itself once opened or downloaded
-away from its directory.
+The month level keeps the tree browsable; the file keeps its full ISO name so it identifies
+itself when opened away from its directory.
 
-**Every segment of that path is derived from the event itself** — the habit from
-``event.habit``, the day from :func:`logical_date`. So the store needs no memory of the
-session in progress, and no path can disagree with the line inside it. A session running
-past the rollover hour is simply split across two files; nothing downstream can tell,
-because :meth:`read_all` concatenates them back into one ordered stream and session
-identity travels in ``session_id``, not in the file name.
+Every segment of that path is derived from the event — the habit from ``event.habit``, the
+day from :func:`logical_date` — so the store needs no memory of the session in progress and
+no path can disagree with the line inside it. A session running past the rollover hour is
+simply split across two files; nothing downstream can tell, because :meth:`read_all`
+concatenates them back into one ordered stream and session identity travels in
+``session_id``, not in the file name.
 
-A store is *scoped* to one habit for reading: it writes wherever the event says, but
-:meth:`read_all` only replays its own habit's subtree, so a second habit's log can sit
-beside this one without leaking into its calendar.
+A store is scoped to one habit for reading: it writes wherever the event says, but
+:meth:`read_all` replays only its own habit's subtree.
 """
 
 from __future__ import annotations
@@ -66,11 +63,7 @@ class EventStore:
         self._rollover_hour = hour
 
     def path_for(self, event: Event) -> Path:
-        """The file an event belongs in.
-
-        Derived wholly from the event — its habit and its own recorded time — never from
-        the clock or from how this store happens to be configured.
-        """
+        """The file an event belongs in. Derived wholly from the event, never the clock."""
         day = logical_date(event, self._rollover_hour)
         return self._root / event.habit / f"{day:%Y}" / f"{day:%m}" / f"{day:%Y-%m-%d}.jsonl"
 
@@ -93,8 +86,7 @@ class EventStore:
         """Every day file for this store's habit, oldest first.
 
         Zero-padded year/month directories and ISO file names mean sorting the paths as
-        text *is* sorting them by date, so no parsing is needed here — and nothing
-        downstream ever reads a date out of a file name.
+        text *is* sorting them by date, so nothing here parses one.
         """
         if not self._habit_root.exists():
             return []

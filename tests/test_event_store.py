@@ -84,7 +84,6 @@ def test_events_are_filed_under_habit_year_month_and_iso_date(tmp_path):
 
 
 def test_the_month_directory_is_zero_padded_so_it_sorts_as_text(tmp_path):
-    """A bare '8' would sort after '10', breaking the no-parsing rule files() relies on."""
     store = _store(tmp_path)
     for month in (8, 10):
         store.append(_session_started(uuid4(), datetime(2026, month, 4, 8, 0, tzinfo=UTC)))
@@ -159,8 +158,7 @@ def test_a_split_session_still_replays_as_one_ordered_stream(tmp_path):
 
 # --- the habit partition --------------------------------------------------
 def test_the_path_follows_the_event_not_the_store(tmp_path):
-    """The directory is derived from event.habit, the same way the day file is derived
-    from the event's own timestamp — so a path can never disagree with its contents."""
+    """A path can never disagree with the line inside it."""
     store = _store(tmp_path)
     written = store.path_for(_session_started(uuid4(), habit="reading"))
 
@@ -179,7 +177,6 @@ def test_a_second_habit_does_not_leak_into_this_ones_replay(tmp_path):
 
 
 def test_a_habit_name_cannot_escape_the_data_repo(tmp_path):
-    """The name becomes a directory, so a separator in it would nest or escape the tree."""
     for bad in ("../escape", "two words", "Study", "sub/dir", ""):
         with pytest.raises(ValidationError):
             _session_started(uuid4(), habit=bad)

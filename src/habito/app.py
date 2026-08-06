@@ -33,11 +33,7 @@ from habito.storage.event_store import EventStore
 
 
 def _log_root(config: Config, test_mode: bool) -> Path:
-    """The repo the log lives in — a throwaway directory when running in test mode.
-
-    Habits are directories directly beneath this, so the store is handed the root rather
-    than one habit's subtree.
-    """
+    """The repo the log lives in — a throwaway directory when running in test mode."""
     if not test_mode:
         return config.data_repo_path()
     return Path(tempfile.gettempdir()) / "habito-test-mode"
@@ -63,8 +59,8 @@ def run_gui(config: Config, test_mode: bool = False) -> int:
 
     if test_mode:
         # Cleared before the store reads it, so "Today" reflects this run rather than
-        # last week's fiddling — the app opens on a genuinely empty log. Guarded by
-        # test_mode, and _log_root only ever returns the scratch dir under it.
+        # last week's fiddling — the app opens on a genuinely empty log. Only ever the
+        # scratch dir: test_mode=True is passed literally.
         shutil.rmtree(_log_root(config, test_mode=True), ignore_errors=True)
 
     engine, store = _build_engine_and_store(config, test_mode)
@@ -93,7 +89,7 @@ def _attach_evidence(app, config: Config, store: EventStore) -> None:
     worker = EvidenceWorker(
         repo,
         config.evidence,
-        config.habit,  # pathspec: stage this habit's whole tree, whichever day file it hit
+        config.habit,  # pathspec for the habit's tree
         on_status=app.on_evidence_status,
     )
     worker.start()
