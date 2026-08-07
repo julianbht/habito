@@ -125,7 +125,7 @@ Event = Annotated[
 ]
 """Discriminated union over the ``type`` field — validates each line into its subtype."""
 
-EventAdapter: TypeAdapter = TypeAdapter(Event)
+EventAdapter: TypeAdapter[Event] = TypeAdapter(Event)
 
 
 def new_session_id() -> UUID:

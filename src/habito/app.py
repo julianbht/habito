@@ -21,6 +21,11 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Type-only, so the CLI paths that never open a window still don't import Qt.
+    from habito.ui.app import HabitoApp
 
 from habito.config.loader import load_config
 from habito.config.models import Config
@@ -78,7 +83,7 @@ def run_gui(config: Config, test_mode: bool = False) -> int:
     return qt_app.exec()
 
 
-def _attach_evidence(app, config: Config, store: EventStore) -> None:
+def _attach_evidence(app: HabitoApp, config: Config, store: EventStore) -> None:
     from habito.ui import theme
 
     repo = GitRepo(config.data_repo_path())

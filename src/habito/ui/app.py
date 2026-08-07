@@ -13,7 +13,7 @@ from datetime import date
 import qtawesome as qta
 from pydantic import ValidationError
 from PySide6.QtCore import QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QActionGroup, QKeySequence, QShortcut
+from PySide6.QtGui import QActionGroup, QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -560,7 +560,7 @@ class HabitoApp(QMainWindow):
         elif status.committed:
             self._view.set_status("status: saved locally", "gray")
 
-    def closeEvent(self, event) -> None:  # noqa: N802 (Qt override)
+    def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 (Qt override)
         self._timer.stop()
         self._close_prompt()
         if isinstance(self._notifier, DesktopNotifier):

@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from uuid import UUID
 
 from habito.domain.events import Event, Origin, RoundEnded, SessionStarted, partition_date
 
@@ -22,7 +23,7 @@ class DailySummary:
     verified_work_seconds: int = 0
     backfilled_work_seconds: int = 0
     sessions: int = 0
-    session_ids: set = field(default_factory=set)
+    session_ids: set[UUID] = field(default_factory=set)
 
     @property
     def total_work_seconds(self) -> int:
