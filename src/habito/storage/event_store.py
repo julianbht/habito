@@ -8,16 +8,16 @@ Files are laid out as ``<root>/study/2026/08/2026-08-05.jsonl``. One file per da
 than one growing log, because every event is committed and pushed the moment it happens:
 git rewrites the whole file as a new blob each time, so a single log would make every
 commit cost more than the last one, forever. A day file stops growing when the day ends,
-which keeps that cost flat no matter how many years accumulate. It also means an old day's
-file is never touched again, so a change to one stands out in the history.
+which keeps that cost flat no matter how many years accumulate. A finished day is only ever
+appended to by a correction, so a touched old file stands out in the history.
 
 The month level keeps the tree browsable; the file keeps its full ISO name so it identifies
 itself when opened away from its directory.
 
 Every segment of that path is derived from the event — the habit from ``event.habit``, the
-day from :func:`logical_date` — so the store needs no memory of the session in progress and
-no path can disagree with the line inside it. A session running past the rollover hour is
-simply split across two files; nothing downstream can tell, because :meth:`read_all`
+day from :func:`partition_date` — so the store needs no memory of the session in progress
+and no path can disagree with the line inside it. A session running past the rollover hour
+is simply split across two files; nothing downstream can tell, because :meth:`read_all`
 concatenates them back into one ordered stream and session identity travels in
 ``session_id``, not in the file name.
 
@@ -31,7 +31,7 @@ import os
 from collections.abc import Callable
 from pathlib import Path
 
-from habito.domain.events import Event, EventAdapter, logical_date
+from habito.domain.events import Event, EventAdapter, drop_retracted, partition_date
 
 Listener = Callable[[Event], None]
 
@@ -64,7 +64,7 @@ class EventStore:
 
     def path_for(self, event: Event) -> Path:
         """The file an event belongs in. Derived wholly from the event, never the clock."""
-        day = logical_date(event, self._rollover_hour)
+        day = partition_date(event, self._rollover_hour)
         return self._root / event.habit / f"{day:%Y}" / f"{day:%m}" / f"{day:%Y-%m-%d}.jsonl"
 
     def subscribe(self, listener: Listener) -> None:
@@ -92,8 +92,16 @@ class EventStore:
             return []
         return sorted(self._habit_root.glob("*/*/*.jsonl"))
 
-    def read_all(self) -> list[Event]:
-        """Replay the full log, parsing each line into its concrete event type."""
+    def read_all(self, *, include_retracted: bool = False) -> list[Event]:
+        """Replay the full log, parsing each line into its concrete event type.
+
+        Retracted sessions are dropped here, at the deserialization boundary, so a caller
+        gets what the log currently asserts and the rule lives in one place.
+
+        ``include_retracted=True`` returns the raw stream, for callers that want what was
+        written: the log view, which shows the correction, and the retract dialog, which
+        lists sessions to pick from.
+        """
         events: list[Event] = []
         for path in self.files():
             with path.open("r", encoding="utf-8") as f:
@@ -102,4 +110,4 @@ class EventStore:
                     if not raw:
                         continue
                     events.append(EventAdapter.validate_json(raw))
-        return events
+        return events if include_retracted else drop_retracted(events)

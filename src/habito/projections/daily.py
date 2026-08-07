@@ -3,6 +3,8 @@
 Current state is always derived from events (event sourcing), never stored separately.
 Verified (live) and backfilled study time are reported separately so retroactively-added
 sessions never masquerade as in-the-moment evidence.
+
+Fed the store's default stream, which has already dropped retracted sessions.
 """
 
 from __future__ import annotations
@@ -11,7 +13,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from habito.domain.events import Event, Origin, RoundEnded, SessionStarted, logical_date
+from habito.domain.events import Event, Origin, RoundEnded, SessionStarted, partition_date
 
 
 @dataclass
@@ -42,7 +44,7 @@ def summarize_by_day(events: Iterable[Event], rollover_hour: int = 0) -> dict[da
         return summaries[day]
 
     for event in events:
-        day = logical_date(event, rollover_hour)
+        day = partition_date(event, rollover_hour)
         if isinstance(event, RoundEnded):
             s = bucket(day)
             if event.origin is Origin.backfilled:

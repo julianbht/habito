@@ -127,13 +127,27 @@ def entries(app) -> list[str]:
 
 
 def test_settings_is_the_last_menu_entry(qtbot, app):
-    """Backfill sits above it, so Settings is where you'd expect: at the bottom."""
-    assert entries(app) == ["Timer", "Calendar", "Log", "", "Backfill…", "Settings…"]
+    """The corrections sit above it, so Settings is where you'd expect: at the bottom."""
+    assert entries(app) == [
+        "Timer",
+        "Calendar",
+        "Log",
+        "",
+        "Backfill…",
+        "Retract session…",
+        "Settings…",
+    ]
 
 
 def test_backfill_comes_before_settings(qtbot, app):
     listed = entries(app)
     assert listed.index("Backfill…") < listed.index("Settings…")
+
+
+def test_the_two_corrections_are_grouped(qtbot, app):
+    """Backfill and Retract are the pair of by-hand corrections, so they sit together."""
+    listed = entries(app)
+    assert listed.index("Retract session…") == listed.index("Backfill…") + 1
 
 
 def test_the_current_view_is_ticked_in_the_menu(qtbot, app):

@@ -4,10 +4,14 @@ Every event is timestamped in UTC and carries the local ``tz_offset_minutes`` so
 exact wall-clock time can be reconstructed unambiguously. ``origin`` distinguishes
 live (committed-in-the-moment, evidentially strong) events from backfilled ones, and
 ``habit`` says which habit the event is evidence of.
+
+A mistake is corrected by appending :class:`SessionRetracted`, so the record shows both
+what was claimed and that it was withdrawn.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date, datetime, timedelta
 from enum import StrEnum
 from typing import Annotated, Literal
@@ -87,6 +91,25 @@ class SessionEnded(BaseEvent):
     total_work_seconds: int
 
 
+class SessionRetracted(BaseEvent):
+    """Voids an earlier session, by appending rather than editing.
+
+    The target is the inherited ``session_id``: one retraction voids that whole session,
+    live or backfilled, and every event carrying the id stops counting.
+
+    ``target_date`` is the habit-day the voided events were filed under, copied in at write
+    time. It files this event beside what it corrects (see :func:`partition_date`), and
+    being stored rather than derived keeps it there across a ``rollover_hour`` change. A
+    session spanning the rollover takes one retraction per day it touched.
+
+    To reinstate a retracted session, backfill it again.
+    """
+
+    type: Literal["session_retracted"] = "session_retracted"
+    target_date: date
+    reason: str = ""
+
+
 Event = Annotated[
     SessionStarted
     | RoundStarted
@@ -96,7 +119,8 @@ Event = Annotated[
     | SessionPaused
     | SessionResumed
     | TimeAdjusted
-    | SessionEnded,
+    | SessionEnded
+    | SessionRetracted,
     Field(discriminator="type"),
 ]
 """Discriminated union over the ``type`` field — validates each line into its subtype."""
@@ -134,3 +158,38 @@ def logical_date(event: Event, rollover_hour: int = 0) -> date:
     the store use it to pick a file without keeping any state of its own.
     """
     return logical_day(local_datetime(event), rollover_hour)
+
+
+def partition_date(event: Event, rollover_hour: int = 0) -> date:
+    """Which habit-day an event is *filed under* — its day file, and the day it reads in.
+
+    For anything that happened, that is the day it happened on. A retraction is a statement
+    about another day, so it files under ``target_date``: the day it corrects. Opening that
+    day then shows the correction alongside what it corrects.
+
+    Still a pure function of the event, reading ``target_date`` off it as the rest reads
+    ``habit``. The store, the calendar and the log all go through here, so a file holds
+    exactly the events those views attribute to its day.
+    """
+    if isinstance(event, SessionRetracted):
+        return event.target_date
+    return logical_date(event, rollover_hour)
+
+
+def retracted_session_ids(events: Iterable[Event]) -> set[UUID]:
+    """The sessions voided by a retraction somewhere in ``events``."""
+    return {e.session_id for e in events if isinstance(e, SessionRetracted)}
+
+
+def drop_retracted(events: Iterable[Event]) -> list[Event]:
+    """``events`` with every retracted session removed, retraction lines included.
+
+    Collects the set in a first pass so the result holds whatever the stream order is: a
+    retraction files under the target's day, so retracting a session that spanned a
+    rollover puts the line in the earlier day's file, ahead of events it voids in the later.
+    """
+    entries = list(events)
+    retracted = retracted_session_ids(entries)
+    if not retracted:
+        return entries
+    return [e for e in entries if e.session_id not in retracted]

@@ -4,15 +4,20 @@ Deliberately read-only. The log's whole value is that it's append-only, so this 
 what's in it and nothing more — no edit, no delete. Backfilled entries are marked, so what
 you see here matches the distinction the log itself makes.
 
+This is the one view fed the raw stream, retractions included: a retracted session stays
+on screen struck through, under the day it was filed on, with the retraction line beneath
+it. Day totals count only what still stands, so they agree with the calendar.
+
 Turning an event into a line of text is a pure function (:func:`describe`), kept apart from
 the widget so it can be read and tested on its own.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Container, Iterable
 from dataclasses import dataclass
 from datetime import date
+from uuid import UUID
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QFont
@@ -28,10 +33,12 @@ from habito.domain.events import (
     SessionEnded,
     SessionPaused,
     SessionResumed,
+    SessionRetracted,
     SessionStarted,
     TimeAdjusted,
     local_datetime,
-    logical_date,
+    partition_date,
+    retracted_session_ids,
 )
 from habito.ui import theme
 from habito.ui.widgets import format_duration, label
@@ -49,6 +56,10 @@ class Line:
     what: str
     detail: str
     backfilled: bool
+    voided: bool = False
+    """Part of a session a later retraction voided — struck through, and left out of the
+    day's total. Set by the view, which knows the whole stream; :func:`describe` sees one
+    event and can't."""
 
 
 def _local_time(event: Event) -> str:
@@ -90,6 +101,12 @@ def describe(event: Event) -> Line:
     elif isinstance(event, SessionEnded):
         what = "Session ended"
         detail = f"{format_duration(event.total_work_seconds)} total"
+    elif isinstance(event, SessionRetracted):
+        what = "Session retracted"
+        # Says when the correction was made, since the row sits under the day it corrects
+        # and its time column would otherwise read as that day's.
+        made = local_datetime(event).strftime("%Y-%m-%d")
+        detail = f"{event.reason} · retracted {made}" if event.reason else f"retracted {made}"
 
     return Line(
         time=_local_time(event),
@@ -107,15 +124,18 @@ def group_by_day(events: Iterable[Event], rollover_hour: int = 0) -> dict[date, 
     """
     days: dict[date, list[Event]] = {}
     for event in events:
-        days.setdefault(logical_date(event, rollover_hour), []).append(event)
+        days.setdefault(partition_date(event, rollover_hour), []).append(event)
     for entries in days.values():
         entries.sort(key=lambda e: e.timestamp)
     return dict(sorted(days.items(), key=lambda item: item[0], reverse=True))
 
 
-def day_heading(day: date, events: list[Event]) -> str:
-    """``Mon 4 Aug · 1h 40m over 4 rounds`` — what the day amounted to."""
-    rounds = [e for e in events if isinstance(e, RoundEnded)]
+def day_heading(day: date, events: list[Event], voided: Container[UUID] = frozenset()) -> str:
+    """``Mon 4 Aug · 1h 40m over 4 rounds`` — what the day amounted to.
+
+    Counts only rounds that still stand, so the heading matches the calendar cell.
+    """
+    rounds = [e for e in events if isinstance(e, RoundEnded) and e.session_id not in voided]
     worked = sum(e.work_seconds for e in rounds)
     parts = [day.strftime("%a %d %b %Y"), format_duration(worked)]
     if rounds:
@@ -172,18 +192,21 @@ class LogView(QWidget):
     def set_events(self, events: Iterable[Event]) -> None:
         entries = list(events)
         self._events = entries
+        voided = retracted_session_ids(entries)
         days = group_by_day(entries, self._rollover_hour)
 
         self.tree.clear()
         for day, day_events in days.items():
             parent = QTreeWidgetItem(self.tree, [""])
-            parent.setData(0, _HEADING_ROLE, day_heading(day, day_events))
+            parent.setData(0, _HEADING_ROLE, day_heading(day, day_events, voided))
             parent.setFirstColumnSpanned(True)
             bold = QFont(parent.font(0))
             bold.setBold(True)
             parent.setFont(0, bold)
             for event in day_events:
-                self._add_line(parent, describe(event))
+                # The retraction itself is the standing statement, so it isn't struck out.
+                struck = event.session_id in voided and not isinstance(event, SessionRetracted)
+                self._add_line(parent, describe(event), voided=struck)
             self._mark_expanded(parent)
 
         # Today is the one you'd look at first; everything older stays folded away.
@@ -204,7 +227,7 @@ class LogView(QWidget):
         arrow = "▾" if item.isExpanded() else "▸"
         item.setText(0, f"{arrow}  {item.data(0, _HEADING_ROLE)}")
 
-    def _add_line(self, parent: QTreeWidgetItem, line: Line) -> None:
+    def _add_line(self, parent: QTreeWidgetItem, line: Line, voided: bool = False) -> None:
         detail = f"{line.detail} (backfilled)" if line.backfilled else line.detail
         item = QTreeWidgetItem(parent, [line.time, line.what, detail])
         item.setForeground(0, QBrush(QColor(theme.MUTED)))
@@ -212,3 +235,11 @@ class LogView(QWidget):
         if line.backfilled:
             # Same signal the calendar uses: added later, not in-the-moment evidence.
             item.setForeground(1, QBrush(QColor(theme.WARN)))
+        if voided:
+            # Struck through and muted across every column: still on the record, no longer
+            # counting. Strike-through as well as colour, so it survives colour blindness.
+            struck = QFont(item.font(1))
+            struck.setStrikeOut(True)
+            for column in range(3):
+                item.setFont(column, struck)
+                item.setForeground(column, QBrush(QColor(theme.MUTED)))

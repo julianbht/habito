@@ -34,6 +34,7 @@ from habito.domain.events import logical_day
 from habito.engine.pomodoro import EngineState, PomodoroEngine, State
 from habito.evidence.worker import EvidenceStatus, EvidenceWorker
 from habito.projections.daily import summarize_by_day, summary_for
+from habito.projections.sessions import summarize_sessions
 from habito.storage.event_store import EventStore
 from habito.ui import theme
 from habito.ui.backfill_view import BackfillDialog
@@ -42,6 +43,7 @@ from habito.ui.log_view import LogView
 from habito.ui.notifier import DesktopNotifier, Notification, Sink, notification_for
 from habito.ui.phase_dialog import PhaseDialog
 from habito.ui.progress_background import ProgressBackground
+from habito.ui.retract_view import RetractDialog
 from habito.ui.settings_view import SettingsDialog, SettingsValues
 from habito.ui.sounds import SoundPlayer
 from habito.ui.timer_view import TimerView, progress_for
@@ -193,6 +195,11 @@ class HabitoApp(QMainWindow):
             "Backfill…",
             self.on_open_backfill,
         )
+        menu.addAction(
+            qta.icon("mdi6.undo-variant", color=tint),
+            "Retract session…",
+            self.on_open_retract,
+        )
         menu.addAction(qta.icon("mdi6.cog-outline", color=tint), "Settings…", self._open_settings)
         return menu
 
@@ -202,7 +209,8 @@ class HabitoApp(QMainWindow):
         if index == _CALENDAR_PAGE:
             self._refresh_calendar()
         elif index == _LOG_PAGE:
-            self._log.set_events(self._store.read_all())
+            # The one view showing retractions, so it reads the stream unfiltered.
+            self._log.set_events(self._store.read_all(include_retracted=True))
 
         self._resize_for(index)
         self._pages.setCurrentIndex(index)
@@ -426,7 +434,7 @@ class HabitoApp(QMainWindow):
 
     def on_open_backfill(self) -> None:
         BackfillDialog(
-            on_submit=self._apply_backfill,
+            on_submit=self._append_all,
             # Backfilled sessions are described in whole minutes; a sub-minute test round
             # isn't a sensible default for one.
             default_work=max(1, round(self._config.pomodoro.work_minutes)),
@@ -438,8 +446,26 @@ class HabitoApp(QMainWindow):
             parent=self._settings_dialog or self,
         ).exec()
 
+    def on_open_retract(self) -> None:
+        RetractDialog(
+            # The raw stream, so a session already retracted can be recognised as such
+            # and left off the list.
+            sessions=summarize_sessions(
+                self._store.read_all(include_retracted=True),
+                self._config.time.rollover_hour,
+            ),
+            on_submit=self._append_all,
+            habit=self._config.habit,
+            now=self._clock.local_now(),
+            parent=self._settings_dialog or self,
+        ).exec()
+
     # --- internals -------------------------------------------------------
-    def _apply_backfill(self, events) -> None:
+    def _append_all(self, events) -> None:
+        """Land a hand-made correction — backfill or retraction — and re-derive from it.
+
+        Both change what today and the calendar amount to, so both refresh the same two.
+        """
         for event in events:
             self._store.append(event)
         self._today_baseline = self._compute_today_baseline()

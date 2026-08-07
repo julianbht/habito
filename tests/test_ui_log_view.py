@@ -7,7 +7,7 @@ the log.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -19,6 +19,7 @@ from habito.domain.events import (
     RoundEnded,
     SessionEnded,
     SessionPaused,
+    SessionRetracted,
     SessionStarted,
     TimeAdjusted,
 )
@@ -278,3 +279,65 @@ def test_the_day_heading_survives_being_folded_and_unfolded(view):
     row.setExpanded(False)
     row.setExpanded(True)
     assert row.text(0).lstrip("▾▸ ") == heading  # not re-parsed out of its own label
+
+
+# --- retractions ----------------------------------------------------------
+def _retraction(target=date(2026, 8, 4), reason="", session=SESSION):
+    """A retraction written on the 7th, voiding a session filed on ``target``."""
+    return SessionRetracted(
+        timestamp=datetime(2026, 8, 7, 12, 23, tzinfo=UTC),
+        tz_offset_minutes=0,
+        habit="study",
+        session_id=session,
+        target_date=target,
+        reason=reason,
+    )
+
+
+def test_a_retraction_says_when_it_was_made():
+    """Its row sits under the day it corrects, so the time column alone would mislead."""
+    line = describe(_retraction(reason="wrong date"))
+    assert line.what == "Session retracted"
+    assert "2026-08-07" in line.detail
+    assert "wrong date" in line.detail
+
+
+def test_a_retraction_without_a_reason_still_reads():
+    assert describe(_retraction()).detail == "retracted 2026-08-07"
+
+
+def test_a_retraction_groups_under_the_day_it_corrects():
+    """Written on the 7th, it belongs with the 4th — where the events it voids are."""
+    days = group_by_day([at(9, cls=SessionPaused), _retraction()])
+    assert list(days) == [date(2026, 8, 4)]
+    assert len(days[date(2026, 8, 4)]) == 2
+
+
+def test_a_retracted_day_heading_stops_counting_the_work():
+    events = [at(9, 25, cls=RoundEnded, round_index=1, work_seconds=1500), _retraction()]
+    heading = day_heading(date(2026, 8, 4), events, {SESSION})
+    assert "25m" not in heading
+    assert "round" not in heading
+
+
+def test_a_heading_still_counts_a_session_that_was_not_retracted():
+    other = uuid4()
+    events = [at(9, 25, cls=RoundEnded, round_index=1, work_seconds=1500)]
+    assert "25m" in day_heading(date(2026, 8, 4), events, {other})
+
+
+def test_retracted_rows_are_struck_through(view):
+    view.set_events([at(9, cls=SessionPaused), _retraction()])
+    day = view.tree.topLevelItem(0)
+    voided, retraction = day.child(0), day.child(1)
+
+    assert voided.font(1).strikeOut()
+    # The retraction is the statement that still stands, so it isn't struck out itself.
+    assert not retraction.font(1).strikeOut()
+
+
+def test_rows_of_other_sessions_are_not_struck_through(view):
+    other = uuid4()
+    view.set_events([at(9, cls=SessionPaused), _retraction(session=other)])
+    day = view.tree.topLevelItem(0)
+    assert not day.child(0).font(1).strikeOut()

@@ -47,8 +47,8 @@ happens. Git stores a whole new blob of the changed file per commit, so a single
 log would make each commit cost more than the last one, forever — at ~40 events/day, a
 year-three file would churn GBs of loose objects between garbage collections. A day file
 stops growing when the day ends, so commit cost is O(1) in log age rather than O(n). It
-also keeps every file under GitHub's 1 MB render limit, and means an old day's file is
-never touched again — so a change to one stands out in the history.
+also keeps every file under GitHub's 1 MB render limit, and means a finished day's file is
+only ever appended to by a correction — so a touched old file stands out in the history.
 
 **Month directories are for browsing** — a year holds 365 entries. Both levels are
 zero-padded so `08` sorts before `10`, and the file keeps its full ISO name so it
@@ -62,10 +62,10 @@ identifies itself when opened away from its directory.
   by parsing a path. Truth is `timestamp` + `tz_offset_minutes` + `habit` on the event
   itself. This is what makes timezone changes, DST and rollover changes unable to corrupt
   anything.
-- **The partition is a pure function of the event** — `event.habit` and
-  `logical_date(event, rollover_hour)`, no clock, no session lookup, no store config.
-  Routing by session *start* would need state that a crash or restart mid-session loses,
-  producing exactly the split it was trying to avoid.
+- **The partition is a pure function of the event** — `partition_date(event, rollover_hour)`
+  and `event.habit`, no clock, no session lookup, no store config. Routing by session
+  *start* would need state that a crash or restart mid-session loses, producing exactly the
+  split it was trying to avoid.
 - **Nothing is ever rewritten.** No migrations, no compaction, no edits. A session crossing
   the rollover simply spans two files; `read_all()` concatenates them back into one ordered
   stream and session identity travels in `session_id`.
@@ -73,6 +73,37 @@ identifies itself when opened away from its directory.
 
 `init_data` writes `<habit>/.gitkeep`, because git tracks files and not directories and the
 initial commit would otherwise be empty.
+
+## Corrections
+
+A mistake is corrected by appending `SessionRetracted`, so the record shows both what was
+claimed and that it was withdrawn.
+
+**One event type, targeting a session.** There is no inverse per event type. A mistake is
+made in whole sessions ("that hour went in under the wrong date"), so the retraction names
+a `session_id` and every event carrying it stops counting. It applies to live sessions as
+well as backfilled ones. To reinstate a retracted session, backfill it again.
+
+**It files under the day it corrects**, not the day it was written: `target_date` is copied
+onto the event, and `partition_date` returns it in place of `logical_date`. So the partition
+stays a pure function of the event, opening the day the mistake landed on shows the
+correction beside it, and a later `rollover_hour` change can't move a retraction away from
+its file. A session spanning the rollover takes one retraction per day it touched, so no day
+file is left asserting time the log as a whole no longer claims.
+
+**`read_all()` drops retracted sessions**, at the deserialization boundary — the same place
+schema upcasting belongs — so projections and views need no knowledge of any of this. The
+two callers that want the raw stream pass `include_retracted=True`: the log view, which
+shows retracted rows struck through with the retraction beneath them, and the retract
+dialog, which lists sessions to pick from.
+
+The cost is one extra pass over a stream every consumer already replays in full, and the
+set is collected before filtering so the result doesn't depend on stream order (a retraction
+of a rollover-spanning session sits in the earlier day's file, ahead of events it voids in
+the later one).
+
+`RetractDialog` sits in the ☰ menu beside Backfill, the other correction made by hand. The
+log view stays read-only: retracting appends to the log like everything else.
 
 ## Habits
 
