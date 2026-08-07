@@ -9,7 +9,7 @@ stopping at the timer's edge.
 from __future__ import annotations
 
 from PySide6.QtCore import QRect
-from PySide6.QtGui import QPainter
+from PySide6.QtGui import QPainter, QPaintEvent
 from PySide6.QtWidgets import QWidget
 
 from habito.ui import theme
@@ -39,7 +39,7 @@ class ProgressBackground(QWidget):
     def fraction(self) -> float:
         return self._fraction
 
-    def paintEvent(self, event) -> None:  # noqa: N802 (Qt override)
+    def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802 (Qt override)
         painter = QPainter(self)
         full = self.rect()
         painter.fillRect(full, self._theme.background())

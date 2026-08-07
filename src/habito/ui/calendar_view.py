@@ -173,7 +173,7 @@ class CalendarView(QWidget):
         root.setSpacing(6)
 
         self.calendar = StudyCalendar(ui_theme, threshold_seconds, stretch_seconds)
-        self.calendar.currentPageChanged.connect(lambda *_: self._render_page())
+        self.calendar.currentPageChanged.connect(self._on_page_changed)
         root.addWidget(self.calendar, 1)
 
         self._total_lbl = label("", "today")
@@ -217,6 +217,11 @@ class CalendarView(QWidget):
     def month_summaries(self) -> list[DailySummary]:
         year, month = self.calendar.yearShown(), self.calendar.monthShown()
         return [s for day, s in self._summaries.items() if day.year == year and day.month == month]
+
+    def _on_page_changed(self, *_: int) -> None:
+        """``currentPageChanged`` passes (year, month); the render reads both off the
+        widget itself, so they're accepted and discarded."""
+        self._render_page()
 
     def _render_page(self) -> None:
         """The month in one line: time put in, and the longest unbroken run of green.

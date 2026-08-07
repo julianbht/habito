@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PySide6.QtCore import QEvent, Qt
-from PySide6.QtGui import QWindow
+from PySide6.QtGui import QKeyEvent, QWindow
 from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QVBoxLayout, QWidget
 
 from habito.ui.widgets import button, label
@@ -108,7 +108,7 @@ class PhaseDialog(QDialog):
         self.accept()
         self._on_accept()
 
-    def keyPressEvent(self, event) -> None:  # noqa: N802 (Qt override)
+    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802 (Qt override)
         """Swallow Esc — dismissing this without answering would strand the session."""
         if event.key() == Qt.Key.Key_Escape:
             event.ignore()

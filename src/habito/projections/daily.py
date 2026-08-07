@@ -23,7 +23,7 @@ class DailySummary:
     verified_work_seconds: int = 0
     backfilled_work_seconds: int = 0
     sessions: int = 0
-    session_ids: set[UUID] = field(default_factory=set)
+    session_ids: set[UUID] = field(default_factory=set[UUID])
 
     @property
     def total_work_seconds(self) -> int:
