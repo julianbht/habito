@@ -57,18 +57,6 @@ Launch the timer UI:
 uv run habito
 ```
 
-Check config + evidence readiness:
-
-```bash
-uv run habito doctor
-```
-
-(Re)create the data repo:
-
-```bash
-uv run habito init-data
-```
-
 Run against a throwaway log, without touching the data repo — see [Test mode](#test-mode):
 
 ```bash
