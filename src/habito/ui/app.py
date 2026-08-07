@@ -7,6 +7,7 @@ the safe cross-thread pattern here, and the reason no explicit status queue is n
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date
 
 import qtawesome as qta
@@ -30,7 +31,7 @@ from habito.config.models import (
     UIConfig,
 )
 from habito.config.writer import save_goals, save_pomodoro, save_time, save_ui
-from habito.domain.events import logical_day
+from habito.domain.events import Event, logical_day
 from habito.engine.pomodoro import EngineState, PomodoroEngine, State
 from habito.evidence.worker import EvidenceStatus, EvidenceWorker
 from habito.projections.daily import summarize_by_day, summary_for
@@ -461,7 +462,7 @@ class HabitoApp(QMainWindow):
         ).exec()
 
     # --- internals -------------------------------------------------------
-    def _append_all(self, events) -> None:
+    def _append_all(self, events: Iterable[Event]) -> None:
         """Land a hand-made correction — backfill or retraction — and re-derive from it.
 
         Both change what today and the calendar amount to, so both refresh the same two.

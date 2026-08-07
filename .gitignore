@@ -16,8 +16,10 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Local editor
-.vscode/
+# Local editor. settings.json describes the project rather than the machine, so it is
+# shared; everything else here (launch.json, local paths) is not.
+.vscode/*
+!.vscode/settings.json
 .idea/
 
 # NOTE: the tamper-evident event log lives in a SEPARATE data repo

@@ -1,0 +1,16 @@
+{
+  // Names ruff as the Python formatter, overriding whatever is set globally. Only the
+  // choice of tool and when it runs live here — every setting it runs with comes from
+  // pyproject.toml, so there is one place to change and nothing to keep in step.
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      // The same fixes the ruff-check hook applies at commit time, so a commit never
+      // rewrites a file you just saved. Import sorting is ruff's "I" lint rules rather
+      // than the formatter, so it takes a second action.
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    }
+  }
+}
