@@ -174,6 +174,9 @@ def build_stylesheet(accent: str, palette: Palette = DARK) -> str:
     QPushButton#transport {{ font-size: 19px; }}
     QPushButton#nudge {{ padding: 0px; font-size: 13px; border-radius: 5px; }}
     QPushButton#gear {{ font-size: 15px; padding: 2px 7px; }}
+    /* Widgets.Stepper's −/+. The size is fixed in code (it's a hit target, not a look);
+       here it only loses the text padding that would squeeze the glyph off-centre. */
+    QPushButton#stepper {{ padding: 0px; font-size: 17px; font-weight: bold; }}
 
     /* The QWidget rule above matches QMenu too, which puts it on the stylesheet paint
        path — so the highlight, border and separator the native style would have drawn

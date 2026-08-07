@@ -12,6 +12,7 @@ from PySide6.QtCore import Qt
 
 from habito.config.models import GoalsConfig, PomodoroConfig
 from habito.ui.settings_view import SettingsDialog, SettingsValues
+from habito.ui.widgets import Stepper
 
 
 class FakeController:
@@ -135,6 +136,85 @@ def test_goal_edits_reach_the_controller(dialog, qtbot):
 
     assert controller.saved[0].daily_minutes == 150
     assert controller.saved[0].buffer_minutes == 15
+
+
+# --- stepping ------------------------------------------------------------
+def _stepper(spin) -> Stepper:
+    """The :class:`Stepper` wrapping a spin box — its parent, by construction."""
+    parent = spin.parent()
+    assert isinstance(parent, Stepper)
+    return parent
+
+
+def test_the_step_buttons_are_worth_aiming_at_and_side_by_side(dialog):
+    """The original bug: Qt's two 14x13px arrows are stacked and touching, so a miss on one
+    lands on the other and looks like a dead button. Side by side, the pointer travels along
+    the axis they're separated on, and they don't overlap on it at all.
+    """
+    widget, _ = dialog
+    stepper = _stepper(widget._goal_spin)
+
+    assert stepper._up.width() >= 24 and stepper._up.height() >= 24
+    assert stepper._up.x() >= stepper._down.x() + stepper._down.width()
+    assert stepper._up.y() == stepper._down.y()
+
+
+def test_up_still_works_after_down(dialog, qtbot):
+    widget, _ = dialog
+    stepper = _stepper(widget._goal_spin)
+    widget._goal_spin.setValue(60)
+
+    qtbot.mouseClick(stepper._down, Qt.MouseButton.LeftButton)
+    assert widget._goal_spin.value() == 55
+    qtbot.mouseClick(stepper._up, Qt.MouseButton.LeftButton)
+    assert widget._goal_spin.value() == 60
+
+
+def test_stepping_snaps_an_off_grid_value_onto_the_grid(dialog, qtbot):
+    """47 + 5 would be 52, and nothing you press afterwards ever reaches a round number."""
+    widget, _ = dialog
+    stepper = _stepper(widget._goal_spin)
+    widget._goal_spin.setValue(47)
+
+    qtbot.mouseClick(stepper._up, Qt.MouseButton.LeftButton)
+    assert widget._goal_spin.value() == 50
+
+    widget._goal_spin.setValue(47)
+    qtbot.mouseClick(stepper._down, Qt.MouseButton.LeftButton)
+    assert widget._goal_spin.value() == 45
+
+
+def test_the_break_steps_by_one(dialog, qtbot):
+    """A break is tuned a minute at a time; only the goal is coarse enough to want 5."""
+    widget, _ = dialog
+    stepper = _stepper(widget._break_spin)
+    widget._break_spin.setValue(5)
+
+    qtbot.mouseClick(stepper._up, Qt.MouseButton.LeftButton)
+
+    assert widget._break_spin.value() == 6
+
+
+def test_a_direction_greys_out_at_its_limit(dialog):
+    widget, _ = dialog
+    stepper = _stepper(widget._buffer_spin)
+
+    widget._buffer_spin.setValue(0)  # the minimum
+    assert not stepper._down.isEnabled()
+    assert stepper._up.isEnabled()
+
+    widget._buffer_spin.setValue(60)  # the maximum
+    assert stepper._down.isEnabled()
+    assert not stepper._up.isEnabled()
+
+
+def test_the_step_buttons_stay_out_of_the_tab_order(dialog):
+    """Tab still walks field to field; the buttons are for the mouse."""
+    widget, _ = dialog
+    stepper = _stepper(widget._goal_spin)
+
+    assert stepper._up.focusPolicy() == Qt.FocusPolicy.NoFocus
+    assert stepper._down.focusPolicy() == Qt.FocusPolicy.NoFocus
 
 
 def test_backfill_is_not_offered_here(qtbot, dialog):

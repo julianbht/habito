@@ -19,14 +19,13 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QFrame,
     QHBoxLayout,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from habito.config.models import SYSTEM_TZ, GoalsConfig, PomodoroConfig, TimeConfig
 from habito.ui import sounds, theme
-from habito.ui.widgets import button, label
+from habito.ui.widgets import Stepper, StepSpinBox, button, label
 
 
 @dataclass(frozen=True)
@@ -97,8 +96,8 @@ class SettingsDialog(QDialog):
         form.setSpacing(8)
         self._break_spin = self._spin(pomodoro.break_minutes, maximum=120, suffix=" min")
         self._rounds_spin = self._spin(pomodoro.rounds, maximum=24)
-        form.addRow("Break length", self._break_spin)
-        form.addRow("Rounds", self._rounds_spin)
+        form.addRow("Break length", Stepper(self._break_spin))
+        form.addRow("Rounds", Stepper(self._rounds_spin))
         root.addLayout(form)
 
         root.addWidget(_rule())
@@ -142,8 +141,7 @@ class SettingsDialog(QDialog):
         """How much study time earns a green day on the calendar."""
         form = QFormLayout()
         form.setSpacing(8)
-        self._goal_spin = self._spin(goals.daily_minutes, maximum=24 * 60, suffix=" min")
-        self._goal_spin.setSingleStep(5)
+        self._goal_spin = self._spin(goals.daily_minutes, maximum=24 * 60, suffix=" min", step=5)
         self._goal_spin.setToolTip("Study time that makes a day count")
 
         self._buffer_spin = self._spin(goals.buffer_minutes, minimum=0, maximum=60, suffix=" min")
@@ -152,15 +150,18 @@ class SettingsDialog(QDialog):
         # 0 is "no stretch goal" rather than a real value, so the spin shows Off there
         # instead of an absurd "0 min" the validator would then have to reject.
         self._stretch_spin = self._spin(
-            goals.stretch_minutes or 0, minimum=0, maximum=24 * 60, suffix=" min"
+            goals.stretch_minutes or 0,
+            minimum=0,
+            maximum=24 * 60,
+            suffix=" min",
+            step=5,
         )
-        self._stretch_spin.setSingleStep(5)
         self._stretch_spin.setSpecialValueText("Off")
         self._stretch_spin.setToolTip("A great day — earns a ★ on the calendar")
 
-        form.addRow("Goal", self._goal_spin)
-        form.addRow("Allowance", self._buffer_spin)
-        form.addRow("Great day", self._stretch_spin)
+        form.addRow("Goal", Stepper(self._goal_spin))
+        form.addRow("Allowance", Stepper(self._buffer_spin))
+        form.addRow("Great day", Stepper(self._stretch_spin))
         return form
 
     def _build_sound_row(self, sound: str) -> QHBoxLayout:
@@ -213,7 +214,7 @@ class SettingsDialog(QDialog):
         )
 
         form.addRow("Zone", self._tz_box)
-        form.addRow("New day starts", self._rollover_spin)
+        form.addRow("New day starts", Stepper(self._rollover_spin))
         return form
 
     def selected_timezone(self) -> str:
@@ -246,9 +247,12 @@ class SettingsDialog(QDialog):
             self._sound_box.setCurrentIndex(max(0, self._sound_box.findData(self._last_sound)))
 
     @staticmethod
-    def _spin(value: int, *, maximum: int, minimum: int = 1, suffix: str = "") -> QSpinBox:
-        spin = QSpinBox()
+    def _spin(
+        value: int, *, maximum: int, minimum: int = 1, suffix: str = "", step: int = 1
+    ) -> StepSpinBox:
+        spin = StepSpinBox()
         spin.setRange(minimum, maximum)
+        spin.setSingleStep(step)
         spin.setValue(value)
         spin.setSuffix(suffix)
         spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -280,5 +284,5 @@ class SettingsDialog(QDialog):
             self._status.setText(error)
             self._status.setStyleSheet(f"color: {theme.ERROR};")
         else:
-            self._status.setText("Saved ✓ — applies to your next session")
+            self._status.setText("Saved — applies to your next session")
             self._status.setStyleSheet(f"color: {theme.OK};")

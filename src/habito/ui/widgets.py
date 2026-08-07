@@ -6,7 +6,14 @@ import re
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeyEvent, QValidator
-from PySide6.QtWidgets import QLabel, QPushButton, QSpinBox, QWidget
+from PySide6.QtWidgets import (
+    QAbstractSpinBox,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSpinBox,
+    QWidget,
+)
 
 _DURATION_RE = re.compile(r"\d{0,3}(:\d{0,2})?")
 
@@ -83,6 +90,84 @@ def button(text: str = "", object_name: str = "") -> Button:
     widget = Button(text)
     widget.setObjectName(object_name)
     return widget
+
+
+class StepSpinBox(QSpinBox):
+    """A spin box whose stepping snaps onto multiples of the step size.
+
+    ``QSpinBox`` adds the step to whatever is already there, so a value that is off the
+    grid stays off it forever — 47 minutes with a 5-minute step goes 47, 52, 57, and you
+    can never reach a round number by pressing a button. Snapping spends the first press
+    rounding onto the grid, in the direction you were already heading so a press never
+    moves the value backwards, and every press after that lands on a number you'd have
+    picked deliberately.
+    """
+
+    def stepBy(self, steps: int) -> None:  # noqa: N802 (Qt override)
+        step = self.singleStep()
+        remainder = self.value() % step
+        if steps and step > 1 and remainder:
+            self.setValue(self.value() + (step - remainder if steps > 0 else -remainder))
+            steps -= 1 if steps > 0 else -1
+        if steps:
+            super().stepBy(steps)
+
+
+# Big enough to hit without aiming. Qt's own spin arrows are 14x13px each; these are ~4x
+# the area, and side by side rather than stacked.
+STEP_BUTTON_SIZE = (30, 28)
+
+
+class Stepper(QWidget):
+    """A spin box with press-and-hold ``−`` / ``+`` buttons at its right-hand end.
+
+    Qt stacks its two spin arrows in one corner, touching, at 14x13px each. The pointer
+    that just pressed one is therefore sitting *inside* it, and a small nudge toward the
+    other still lands on the first — so the control reads as "the up button stopped
+    working" when it is only being missed. These sit side by side instead: the pointer
+    travels along the axis they're separated on, across targets twice as wide as they are
+    tall, so overshooting one lands on nothing rather than silently repeating it.
+
+    They stay grouped at the right, where the native arrows were, rather than flanking the
+    field — one cluster to look at per row instead of two.
+
+    The buttons take no focus, so the spin box stays the single tab stop and Up/Down keep
+    working from the keyboard — this wraps a control without becoming one.
+    """
+
+    def __init__(self, spin: QSpinBox, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.spin = spin
+        spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+
+        self._down = self._arrow("−", -1, "Less")
+        self._up = self._arrow("+", 1, "More")
+
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(4)
+        row.addWidget(spin, 1)
+        row.addWidget(self._down)
+        row.addWidget(self._up)
+
+        spin.valueChanged.connect(self._sync)
+        self._sync()
+
+    def _arrow(self, text: str, direction: int, tip: str) -> Button:
+        btn = button(text, "stepper")
+        btn.setFixedSize(*STEP_BUTTON_SIZE)
+        btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        btn.setAutoRepeat(True)  # holding runs the value up rather than needing N clicks
+        btn.setAutoRepeatDelay(400)
+        btn.setAutoRepeatInterval(70)
+        btn.setToolTip(tip)
+        btn.clicked.connect(lambda: self.spin.stepBy(direction))
+        return btn
+
+    def _sync(self) -> None:
+        """Grey out a direction at its limit — silence would read as the earlier bug."""
+        self._down.setEnabled(self.spin.value() > self.spin.minimum())
+        self._up.setEnabled(self.spin.value() < self.spin.maximum())
 
 
 class DurationSpinBox(QSpinBox):

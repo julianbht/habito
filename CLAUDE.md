@@ -155,6 +155,30 @@ small cell cost more than they told you. Anything needing more nuance belongs in
 a mid amber nearly matches its luminance; light gets a deeper one. Still one colour per
 theme, not a ramp.
 
+## Controls
+
+**Never use Qt's built-in spin arrows.** They are two ~14×13px targets stacked in one
+corner: because they touch, the pointer that just pressed one is resting *inside* it, so a
+small nudge toward the other still lands on the first and the control reads as "the up
+button stopped working". Wrap the spin in `widgets.Stepper` instead — `NoButtons` on the
+spin, and `−`/`+` at 30×28 **side by side** at the right-hand end, where the native arrows
+were. Side by side rather than stacked because the pointer then travels along the axis they
+are separated on, across targets wider than they are tall; and grouped rather than flanking
+the field because one cluster per row reads as one control. `TimerView` owns its own pair
+for the same reason, stacked because there it sits beside a 52px display.
+
+The stepper's buttons take **no focus**, so the spin box stays the single tab stop and the
+existing tab chains and Up/Down keys keep working — it wraps a control without becoming one.
+
+`widgets.StepSpinBox` snaps stepping onto multiples of the step size. Plain `QSpinBox` adds
+the step to whatever is there, so an off-grid value stays off it forever (47 → 52 → 57);
+snapping spends the first press rounding onto the grid, in the direction of travel so a
+press never moves the value backwards.
+
+**Step size follows how the value is used, not how big it is.** The goal moves in 5s
+because it's a target you pick roughly; a break moves in 1s because it's tuned against how
+long a break actually feels. Same widget, different `singleStep`.
+
 ## Evidence
 
 - Commit **and push** after every event — GitHub's server-recorded push time is the part
