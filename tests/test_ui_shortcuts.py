@@ -156,3 +156,25 @@ def test_the_current_view_is_ticked_in_the_menu(qtbot, app):
     app.show_page(_LOG_PAGE)
     checked = [a.text() for a in app.build_menu().actions() if a.isChecked()]
     assert checked == ["Log"]
+
+
+# --- window flags ---------------------------------------------------------
+def test_always_on_top_builds_the_window(qtbot, tmp_path):
+    """`always_on_top = true` used to name a Qt flag that doesn't exist, so turning the
+    setting on raised AttributeError before the window ever appeared."""
+    config = Config.model_validate(
+        {
+            "paths": {"data_repo": str(tmp_path)},
+            "project_root": tmp_path,
+            "ui": {"always_on_top": True},
+        }
+    )
+    engine, store = _build_engine_and_store(config, test_mode=False)
+    window = HabitoApp(config, engine, store, test_mode=True)
+    qtbot.addWidget(window)
+
+    assert window.windowFlags() & Qt.WindowType.WindowStaysOnTopHint
+
+
+def test_always_on_top_off_by_default(qtbot, app):
+    assert not (app.windowFlags() & Qt.WindowType.WindowStaysOnTopHint)

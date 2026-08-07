@@ -101,7 +101,7 @@ class HabitoApp(QMainWindow):
         self.setMinimumSize(_PAGE_MINIMUMS[_TIMER_PAGE])
         self.resize(_PAGE_SIZES[_TIMER_PAGE])
         if config.ui.always_on_top:
-            self.setWindowFlag(Qt.WindowType.WindowStaysOnTop, True)
+            self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
 
         self._build()
         self._install_shortcuts()
@@ -320,7 +320,7 @@ class HabitoApp(QMainWindow):
     def _apply_pomodoro(
         self,
         *,
-        work: int | None = None,
+        work: float | None = None,
         brk: int | None = None,
         rounds: int | None = None,
     ) -> str | None:
@@ -347,8 +347,12 @@ class HabitoApp(QMainWindow):
             return f"Applied, but couldn't write settings.toml: {exc}"
         return None
 
-    def on_set_work_minutes(self, minutes: int) -> str | None:
-        """Set the work length from the timer's duration field."""
+    def on_set_work_minutes(self, minutes: float) -> str | None:
+        """Set the work length from the timer's duration field.
+
+        Fractional: the view sends ``seconds / 60``, and ``PomodoroConfig.work_minutes`` is
+        a float so a sub-minute round survives the trip.
+        """
         return self._apply_pomodoro(work=minutes)
 
     def on_save_settings(self, values: SettingsValues) -> str | None:

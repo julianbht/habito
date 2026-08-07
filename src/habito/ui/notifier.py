@@ -70,9 +70,14 @@ def notification_for(previous: State, snap: EngineState) -> Notification | None:
 
 
 class Sink(Protocol):
-    """Somewhere for a notification to go — the desktop, or a list in a test."""
+    """Somewhere for a notification to go — the desktop, or a list in a test.
+
+    A notification carries a sound as well as text, so following a change in Settings is
+    part of the job rather than something only the desktop implementation happens to do.
+    """
 
     def send(self, note: Notification) -> None: ...
+    def set_sound(self, sound: str) -> None: ...
 
 
 class DesktopNotifier:

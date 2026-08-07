@@ -18,9 +18,13 @@ from habito.ui.notifier import Notification, notification_for
 class RecordingSink:
     def __init__(self) -> None:
         self.sent: list[Notification] = []
+        self.sound = ""
 
     def send(self, note: Notification) -> None:
         self.sent.append(note)
+
+    def set_sound(self, sound: str) -> None:
+        self.sound = sound
 
 
 def snapshot(
