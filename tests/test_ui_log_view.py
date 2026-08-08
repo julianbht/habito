@@ -244,7 +244,7 @@ def test_the_store_is_never_written_to(qtbot, tmp_path):
     qtbot.addWidget(app)
     app.show_page(_LOG_PAGE)
 
-    assert app._log.tree.topLevelItemCount() == 1
+    assert app._log_view().tree.topLevelItemCount() == 1
     assert {p: p.read_bytes() for p in store.files()} == before
 
 

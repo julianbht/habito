@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QStackedWidget,
     QVBoxLayout,
+    QWidget,
 )
 
 from habito.config.models import (
@@ -52,6 +53,9 @@ from habito.ui.widgets import button
 
 _TICK_MS = 250
 
+# Page *identities*, not stack indices — the calendar and the log are only added to the
+# stack once they're first opened, so a page's position there depends on what you've
+# visited. `_page` tracks which of these is showing.
 _TIMER_PAGE = 0
 _CALENDAR_PAGE = 1
 _LOG_PAGE = 2
@@ -92,6 +96,10 @@ class HabitoApp(QMainWindow):
         self._theme = theme.Theme.resolve(config.ui.theme, test_mode)
         self._worker: EvidenceWorker | None = None
         self._settings_dialog: SettingsDialog | None = None
+        # Built on first open; see `_calendar_view` / `_log_view`.
+        self._calendar: CalendarView | None = None
+        self._log: LogView | None = None
+        self._page = _TIMER_PAGE
         self._last_state = engine.state
         self._ending_by_hand = False
         self._phase_dialog: PhaseDialog | None = None
@@ -151,17 +159,8 @@ class HabitoApp(QMainWindow):
             work_minutes=self._config.pomodoro.work_minutes,
             ui_theme=self._theme,
         )
-        self._calendar = CalendarView(
-            self._theme,
-            self._config.goals.threshold_seconds(),
-            self._config.goals.stretch_seconds(),
-        )
-        self._log = LogView(self._theme, self._config.time.rollover_hour)
-
         self._pages = QStackedWidget()
         self._pages.addWidget(self._view)
-        self._pages.addWidget(self._calendar)
-        self._pages.addWidget(self._log)
         root.addWidget(self._pages)
         self.setCentralWidget(self._background)
 
@@ -169,6 +168,28 @@ class HabitoApp(QMainWindow):
         self.setTabOrder(self._view.stop_button(), self._menu_btn)
 
     # --- views -----------------------------------------------------------
+    # The calendar and the log are built the first time they're opened, not at startup.
+    # Between them they were roughly a third of the window's construction cost — a
+    # QCalendarWidget and a table — paid before the timer, the page you actually land on,
+    # could paint. Neither has anything to catch up on when built late: each reads the
+    # store on the way in and is constructed from the *current* config, which is what lets
+    # the apply-a-setting paths below skip a view that doesn't exist yet.
+    def _calendar_view(self) -> CalendarView:
+        if self._calendar is None:
+            self._calendar = CalendarView(
+                self._theme,
+                self._config.goals.threshold_seconds(),
+                self._config.goals.stretch_seconds(),
+            )
+            self._pages.addWidget(self._calendar)
+        return self._calendar
+
+    def _log_view(self) -> LogView:
+        if self._log is None:
+            self._log = LogView(self._theme, self._config.time.rollover_hour)
+            self._pages.addWidget(self._log)
+        return self._log
+
     def _open_menu(self) -> None:
         menu = self.build_menu()
         menu.exec(self._menu_btn.mapToGlobal(self._menu_btn.rect().bottomLeft()))
@@ -186,7 +207,7 @@ class HabitoApp(QMainWindow):
         ):
             action = menu.addAction(qta.icon(glyph, color=tint), name)
             action.setCheckable(True)
-            action.setChecked(self._pages.currentIndex() == index)
+            action.setChecked(self._page == index)
             action.triggered.connect(lambda _c=False, i=index: self.show_page(i))
             group.addAction(action)
 
@@ -204,38 +225,46 @@ class HabitoApp(QMainWindow):
         menu.addAction(qta.icon("mdi6.cog-outline", color=tint), "Settings…", self._open_settings)
         return menu
 
-    def show_page(self, index: int) -> None:
+    def show_page(self, page: int) -> None:
         # Both derived views are folded from the log on the way in, so they're never
         # showing a stale picture of a session that finished while they were hidden.
-        if index == _CALENDAR_PAGE:
+        widget: QWidget
+        focus: QWidget | None = None  # None means "the page decides", i.e. the timer
+        if page == _CALENDAR_PAGE:
+            calendar = self._calendar_view()
             self._refresh_calendar()
-        elif index == _LOG_PAGE:
+            widget, focus = calendar, calendar.calendar
+        elif page == _LOG_PAGE:
+            log = self._log_view()
             # The one view showing retractions, so it reads the stream unfiltered.
-            self._log.set_events(self._store.read_all(include_retracted=True))
-
-        self._resize_for(index)
-        self._pages.setCurrentIndex(index)
-        if index == _TIMER_PAGE:
-            self._view.focus_first()
-        elif index == _CALENDAR_PAGE:
-            self._calendar.calendar.setFocus(Qt.FocusReason.OtherFocusReason)
+            log.set_events(self._store.read_all(include_retracted=True))
+            widget, focus = log, log.tree
         else:
-            self._log.tree.setFocus(Qt.FocusReason.OtherFocusReason)
+            widget = self._view
 
-    def _resize_for(self, index: int) -> None:
+        self._resize_for(page)
+        self._pages.setCurrentWidget(widget)
+        self._page = page
+        if focus is None:
+            self._view.focus_first()
+        else:
+            focus.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def _resize_for(self, page: int) -> None:
         """Give each view the room it needs, keeping whatever size you last chose for it."""
-        current = self._pages.currentIndex()
-        if current == index:
+        if self._page == page:
             return
-        self._page_sizes[current] = self.size()
-        self.setMinimumSize(_PAGE_MINIMUMS[index])
+        self._page_sizes[self._page] = self.size()
+        self.setMinimumSize(_PAGE_MINIMUMS[page])
         if not self.isMaximized() and not self.isFullScreen():
-            self.resize(self._page_sizes[index])
+            self.resize(self._page_sizes[page])
 
     def _refresh_calendar(self) -> None:
-        self._calendar.set_summaries(
-            summarize_by_day(self._store.read_all(), self._config.time.rollover_hour)
-        )
+        """Skipped when the calendar was never opened — it folds the log on the way in."""
+        if self._calendar is not None:
+            self._calendar.set_summaries(
+                summarize_by_day(self._store.read_all(), self._config.time.rollover_hour)
+            )
 
     def _install_shortcuts(self) -> None:
         """Keyboard equivalents for the transport controls.
@@ -377,7 +406,8 @@ class HabitoApp(QMainWindow):
 
         self._config.time = updated
         self._clock.set_zone(updated.zone())
-        self._log.set_rollover_hour(updated.rollover_hour)
+        if self._log is not None:
+            self._log.set_rollover_hour(updated.rollover_hour)
         self._store.set_rollover_hour(updated.rollover_hour)
         # "Today" may well have moved, so anything counting from it is now stale.
         self._today_baseline = self._compute_today_baseline()
@@ -406,7 +436,8 @@ class HabitoApp(QMainWindow):
             return f"{field}: {first['msg']}"
 
         self._config.goals = updated
-        self._calendar.set_goals(updated.threshold_seconds(), updated.stretch_seconds())
+        if self._calendar is not None:
+            self._calendar.set_goals(updated.threshold_seconds(), updated.stretch_seconds())
         if self._test_mode:
             return None  # a test run must not rewrite your real settings.toml
         try:

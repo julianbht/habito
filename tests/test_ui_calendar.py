@@ -294,13 +294,61 @@ def test_the_menu_switches_between_the_timer_and_the_calendar(qtbot, tmp_path):
     app.show()
     qtbot.waitExposed(app)
 
-    assert app._pages.currentIndex() == _TIMER_PAGE
+    assert app._pages.currentWidget() is app._view
 
     app.show_page(_CALENDAR_PAGE)
     assert app._pages.currentWidget() is app._calendar
 
     app.show_page(_TIMER_PAGE)
     assert app._pages.currentWidget() is app._view
+
+
+def test_the_derived_views_are_not_built_until_they_are_opened(qtbot, tmp_path):
+    """A QCalendarWidget and a table are the expensive things in the window, and startup
+    lands on neither. Building them on the way in keeps that cost off first paint."""
+    from habito.app import _build_engine_and_store
+    from habito.config.models import Config
+    from habito.ui.app import _CALENDAR_PAGE, _LOG_PAGE, HabitoApp
+
+    config = Config.model_validate(
+        {"paths": {"data_repo": str(tmp_path)}, "project_root": tmp_path}
+    )
+    engine, store = _build_engine_and_store(config, test_mode=False)
+    app = HabitoApp(config, engine, store, test_mode=True)
+    qtbot.addWidget(app)
+
+    assert app._calendar is None and app._log is None
+    assert app._pages.count() == 1  # the timer, and nothing else
+
+    app.show_page(_CALENDAR_PAGE)
+    assert app._calendar is not None and app._log is None
+
+    app.show_page(_LOG_PAGE)
+    assert app._log is not None
+    assert app._pages.count() == 3  # and each is added exactly once
+
+
+def test_a_view_opened_after_a_settings_change_is_born_with_it(qtbot, tmp_path):
+    """The apply paths skip a view that doesn't exist yet, which is only safe because a
+    view built later reads the config as it stands then."""
+    from habito.ui.settings_view import SettingsValues
+
+    app, _ = build_app(qtbot, tmp_path)
+    app.on_save_settings(
+        SettingsValues(
+            break_minutes=5,
+            rounds=4,
+            daily_minutes=100,
+            buffer_minutes=0,
+            stretch_minutes=180,
+            sound="asterisk",
+        )
+    )
+
+    assert app._calendar is None  # never opened, so nothing was applied to it
+    calendar = app._calendar_view().calendar
+    assert calendar.threshold_seconds() == 100 * 60
+    assert calendar.stretch_seconds() == 180 * 60
 
 
 def test_opening_the_calendar_reads_the_log(qtbot, tmp_path):
@@ -327,11 +375,11 @@ def test_opening_the_calendar_reads_the_log(qtbot, tmp_path):
         store.append(event)
 
     app.show_page(_CALENDAR_PAGE)
-    days = {s.day: s for s in app._calendar.month_summaries()}
+    days = {s.day: s for s in app._calendar_view().month_summaries()}
 
     assert ANCHOR in days
     assert days[ANCHOR].total_work_seconds == 100 * 60
-    assert app._calendar.calendar.meets_goal(days[ANCHOR])
+    assert app._calendar_view().calendar.meets_goal(days[ANCHOR])
 
 
 def test_each_view_gets_a_size_that_suits_it(qtbot, tmp_path):
@@ -479,8 +527,8 @@ def test_changing_the_goal_recolours_the_calendar_without_a_restart(qtbot, tmp_p
 
     app, _ = build_app(qtbot, tmp_path)
     day = summary(ANCHOR, verified=70 * 60)  # short of the default 95-minute threshold
-    app._calendar.set_summaries({ANCHOR: day})
-    assert not app._calendar.calendar.meets_goal(day)
+    app._calendar_view().set_summaries({ANCHOR: day})  # open it: the point is "no restart"
+    assert not app._calendar_view().calendar.meets_goal(day)
 
     app.on_save_settings(
         SettingsValues(
@@ -492,7 +540,7 @@ def test_changing_the_goal_recolours_the_calendar_without_a_restart(qtbot, tmp_p
         )
     )
 
-    assert app._calendar.calendar.meets_goal(day)  # 70m now clears a 55m threshold
+    assert app._calendar_view().calendar.meets_goal(day)  # 70m now clears a 55m threshold
 
 
 def test_the_goal_is_written_back_to_settings_toml(qtbot, tmp_path):
@@ -519,8 +567,8 @@ def test_setting_a_stretch_goal_stars_days_without_a_restart(qtbot, tmp_path):
 
     app, _ = build_app(qtbot, tmp_path)
     great = summary(ANCHOR, verified=200 * 60)
-    app._calendar.set_summaries({ANCHOR: great})
-    assert not app._calendar.calendar.meets_stretch(great)  # no stretch goal yet
+    app._calendar_view().set_summaries({ANCHOR: great})
+    assert not app._calendar_view().calendar.meets_stretch(great)  # no stretch goal yet
 
     app.on_save_settings(
         SettingsValues(
@@ -533,7 +581,7 @@ def test_setting_a_stretch_goal_stars_days_without_a_restart(qtbot, tmp_path):
         )
     )
 
-    assert app._calendar.calendar.meets_stretch(great)
+    assert app._calendar_view().calendar.meets_stretch(great)
 
 
 def test_turning_the_stretch_goal_off_again_removes_the_star(qtbot, tmp_path):
@@ -554,10 +602,10 @@ def test_turning_the_stretch_goal_off_again_removes_the_star(qtbot, tmp_path):
         )
 
     save(180)
-    assert app._calendar.calendar.stretch_seconds() is not None
+    assert app._calendar_view().calendar.stretch_seconds() is not None
 
     save(0)  # the spin's "Off"
-    assert app._calendar.calendar.stretch_seconds() is None
+    assert app._calendar_view().calendar.stretch_seconds() is None
     assert "stretch_minutes = 0" in config.settings_file().read_text(encoding="utf-8")
 
 
@@ -578,7 +626,7 @@ def test_a_stretch_goal_under_the_daily_goal_is_reported_not_applied(qtbot, tmp_
 
     assert error is not None
     assert "stretch goal must be above" in error
-    assert app._calendar.calendar.stretch_seconds() is None  # nothing was applied
+    assert app._calendar_view().calendar.stretch_seconds() is None  # nothing was applied
 
 
 def test_the_stretch_goal_round_trips_through_settings_toml(qtbot, tmp_path):

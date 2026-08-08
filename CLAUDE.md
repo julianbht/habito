@@ -218,6 +218,24 @@ press never moves the value backwards.
 because it's a target you pick roughly; a break moves in 1s because it's tuned against how
 long a break actually feels. Same widget, different `singleStep`.
 
+## Pages
+
+The window is a `QStackedWidget` of three pages, but only the **timer** is built at
+startup. `CalendarView` and `LogView` are built the first time they're opened
+(`_calendar_view()` / `_log_view()`) — a `QCalendarWidget` and a table were ~130ms of
+construction and first paint, spent before the one page you actually land on could show.
+
+`_TIMER_PAGE` / `_CALENDAR_PAGE` / `_LOG_PAGE` are therefore **page identities, not stack
+indices**: a page's position in the stack now depends on what you've visited. `self._page`
+tracks what's showing; use `setCurrentWidget`, never `setCurrentIndex`.
+
+This is only safe because **a view built late is born correct**. Each folds the store on
+the way in, and each is constructed from the *current* config — so `_apply_goals`,
+`_apply_time` and `_refresh_calendar` can skip a view that doesn't exist yet (`if
+self._calendar is not None:`) rather than building one to update it. Anything new that
+pushes state at a view must follow that pattern, or it defeats the laziness and starts
+building the calendar every time Settings is saved.
+
 ## Evidence
 
 - Commit **and push** after every event — GitHub's server-recorded push time is the part
