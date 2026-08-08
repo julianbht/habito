@@ -8,6 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeyEvent, QValidator
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
+    QDateTimeEdit,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -119,7 +120,7 @@ STEP_BUTTON_SIZE = (30, 28)
 
 
 class Stepper(QWidget):
-    """A spin box with press-and-hold ``−`` / ``+`` buttons at its right-hand end.
+    """Any spin box with press-and-hold ``−`` / ``+`` buttons at its right-hand end.
 
     Qt stacks its two spin arrows in one corner, touching, at 14x13px each. The pointer
     that just pressed one is therefore sitting *inside* it, and a small nudge toward the
@@ -133,9 +134,13 @@ class Stepper(QWidget):
 
     The buttons take no focus, so the spin box stays the single tab stop and Up/Down keep
     working from the keyboard — this wraps a control without becoming one.
+
+    It wraps ``QAbstractSpinBox`` rather than ``QSpinBox`` because the cramped arrows are
+    drawn by the base class: a ``QTimeEdit`` has exactly the same pair in the same corner,
+    and there is no reason for the fix to stop at the spin boxes that count minutes.
     """
 
-    def __init__(self, spin: QSpinBox, parent: QWidget | None = None) -> None:
+    def __init__(self, spin: QAbstractSpinBox, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.spin = spin
         spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
@@ -150,8 +155,19 @@ class Stepper(QWidget):
         row.addWidget(self._down)
         row.addWidget(self._up)
 
-        spin.valueChanged.connect(self._sync)
+        self._watch(spin)
         self._sync()
+
+    def _watch(self, spin: QAbstractSpinBox) -> None:
+        """Re-sync however the value moved — typed, keyed, or stepped.
+
+        ``QAbstractSpinBox`` declares no value-changed signal of its own; each concrete
+        spin box names its own, so the kinds this app wraps are wired by hand.
+        """
+        if isinstance(spin, QSpinBox):
+            spin.valueChanged.connect(self._sync)
+        elif isinstance(spin, QDateTimeEdit):
+            spin.dateTimeChanged.connect(self._sync)
 
     def _arrow(self, text: str, direction: int, tip: str) -> Button:
         btn = button(text, "stepper")
@@ -165,9 +181,15 @@ class Stepper(QWidget):
         return btn
 
     def _sync(self) -> None:
-        """Grey out a direction at its limit — silence would read as the earlier bug."""
-        self._down.setEnabled(self.spin.value() > self.spin.minimum())
-        self._up.setEnabled(self.spin.value() < self.spin.maximum())
+        """Grey out a direction at its limit — silence would read as the earlier bug.
+
+        ``stepEnabled`` is the spin box's own answer to "can I still move that way", so a
+        minute count at its minimum and a clock at midnight are settled by the same line.
+        """
+        step = QAbstractSpinBox.StepEnabledFlag
+        enabled = self.spin.stepEnabled()
+        self._down.setEnabled(bool(enabled & step.StepDownEnabled))
+        self._up.setEnabled(bool(enabled & step.StepUpEnabled))
 
 
 class DurationSpinBox(QSpinBox):

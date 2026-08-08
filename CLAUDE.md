@@ -198,6 +198,14 @@ are separated on, across targets wider than they are tall; and grouped rather th
 the field because one cluster per row reads as one control. `TimerView` owns its own pair
 for the same reason, stacked because there it sits beside a 52px display.
 
+`Stepper` wraps **`QAbstractSpinBox`**, not `QSpinBox` — the cramped arrows are drawn by the
+base class, so a `QTimeEdit` has the identical pair and gets the identical treatment (the
+backfill dialog's "Start time"). It disables a direction from the spin's own
+`stepEnabled()` rather than comparing `value()` against `minimum()`, since that is the one
+question every `QAbstractSpinBox` can answer — a clock at midnight included. The base class
+declares no value-changed signal, so `_watch` wires each concrete kind's own
+(`valueChanged`, `dateTimeChanged`); a new kind of field needs a line there.
+
 The stepper's buttons take **no focus**, so the spin box stays the single tab stop and the
 existing tab chains and Up/Down keys keep working — it wraps a control without becoming one.
 

@@ -20,7 +20,6 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QLabel,
-    QSpinBox,
     QTimeEdit,
     QVBoxLayout,
     QWidget,
@@ -30,6 +29,7 @@ from habito.backfill import build_backfill_events
 from habito.config.models import TimeConfig
 from habito.domain.events import Event
 from habito.ui import theme
+from habito.ui.widgets import Stepper, StepSpinBox
 
 SubmitCallback = Callable[[list[Event]], None]
 
@@ -75,14 +75,16 @@ class BackfillDialog(QDialog):
 
         self._time = QTimeEdit(QTime(6, 0))
         self._time.setDisplayFormat("HH:mm")
-        form.addRow("Start time", self._time)
+        form.addRow("Start time", Stepper(self._time))
 
-        self._work = self._spin(work, maximum=600)
+        # A round length is remembered in fives — 25, 50 — where a break is tuned against
+        # how long it actually felt, so they don't step alike. Same rule as Settings.
+        self._work = self._spin(work, maximum=600, step=5)
         self._break = self._spin(brk, maximum=120)
         self._rounds = self._spin(rounds, maximum=24)
-        form.addRow("Work minutes", self._work)
-        form.addRow("Break minutes", self._break)
-        form.addRow("Rounds", self._rounds)
+        form.addRow("Work minutes", Stepper(self._work))
+        form.addRow("Break minutes", Stepper(self._break))
+        form.addRow("Rounds", Stepper(self._rounds))
         root.addLayout(form)
 
         self._error = QLabel("")
@@ -99,9 +101,10 @@ class BackfillDialog(QDialog):
         root.addWidget(buttons)
 
     @staticmethod
-    def _spin(value: int, *, maximum: int) -> QSpinBox:
-        spin = QSpinBox()
+    def _spin(value: int, *, maximum: int, step: int = 1) -> StepSpinBox:
+        spin = StepSpinBox()
         spin.setRange(1, maximum)
+        spin.setSingleStep(step)
         spin.setValue(value)
         spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
         return spin
