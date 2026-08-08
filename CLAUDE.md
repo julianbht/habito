@@ -14,13 +14,6 @@ uv run habito          # launch the UI
 uv run habito doctor   # config + data-repo readiness
 ```
 
-Type-check strictness lives in `pyproject.toml`, not per-editor. Tests sit at `standard`
-because strict wants an annotation on every parameter and a pytest fixture arrives as a
-bare one — that alone was ~1700 findings that said nothing about whether the code works.
-
-`uv run pre-commit install` once per clone wires ruff and the whitespace/TOML/YAML checks
-into commits. CI runs all four checks on a clean machine.
-
 ## Layers
 
 One concern per package, dependencies point inward toward `habito.domain`:
@@ -41,20 +34,6 @@ study/2026/08/2026-08-05.jsonl
 study/2027/01/2027-01-01.jsonl
 reading/2027/01/2027-01-01.jsonl
 ```
-
-**Why per-day and not one file.** Every event is committed *and pushed* the moment it
-happens. Git stores a whole new blob of the changed file per commit, so a single growing
-log would make each commit cost more than the last one, forever — at ~40 events/day, a
-year-three file would churn GBs of loose objects between garbage collections. A day file
-stops growing when the day ends, so commit cost is O(1) in log age rather than O(n). It
-also keeps every file under GitHub's 1 MB render limit, and means a finished day's file is
-only ever appended to by a correction — so a touched old file stands out in the history.
-
-**Month directories are for browsing** — a year holds 365 entries. Both levels are
-zero-padded so `08` sorts before `10`, and the file keeps its full ISO name so it
-identifies itself when opened away from its directory.
-
-**Habit at the top** gives each habit its own git pathspec, so a commit stages exactly one.
 
 **Rules that must hold:**
 
@@ -79,11 +58,6 @@ initial commit would otherwise be empty.
 A mistake is corrected by appending `SessionRetracted`, so the record shows both what was
 claimed and that it was withdrawn.
 
-**One event type, targeting a session.** There is no inverse per event type. A mistake is
-made in whole sessions ("that hour went in under the wrong date"), so the retraction names
-a `session_id` and every event carrying it stops counting. It applies to live sessions as
-well as backfilled ones. To reinstate a retracted session, backfill it again.
-
 **It files under the day it corrects**, not the day it was written: `target_date` is copied
 onto the event, and `partition_date` returns it in place of `logical_date`. So the partition
 stays a pure function of the event, opening the day the mistake landed on shows the
@@ -96,29 +70,6 @@ schema upcasting belongs — so projections and views need no knowledge of any o
 two callers that want the raw stream pass `include_retracted=True`: the log view, which
 shows retracted rows struck through with the retraction beneath them, and the retract
 dialog, which lists sessions to pick from.
-
-The cost is one extra pass over a stream every consumer already replays in full, and the
-set is collected before filtering so the result doesn't depend on stream order (a retraction
-of a rollover-spanning session sits in the earlier day's file, ahead of events it voids in
-the later one).
-
-`RetractDialog` sits in the ☰ menu beside Backfill, the other correction made by hand. The
-log view stays read-only: retracting appends to the log like everything else.
-
-## Habits
-
-`habit` is required on every event, with no default. A default would make "absence means
-study" a rule you'd have to know to read the log — a fact asserted by omission. Required on
-`PomodoroEngine` and `build_backfill_events` too, the layers that build events.
-
-Config's top-level `habit` is both stamped on the events and the directory they land in, so
-the two can't drift. `HABIT_PATTERN` (`^[a-z0-9][a-z0-9_-]*$`) keeps a name usable as a path
-segment; lowercase because Windows filesystems are case-insensitive, so `Study` and `study`
-would be two strings but one directory.
-
-An `EventStore` is scoped to one habit for reading: it writes wherever the event says, but
-`read_all()` replays only its own subtree. The app is single-habit end to end — a second
-habit means a second config.
 
 ## Time
 
@@ -157,34 +108,13 @@ Events are immutable and frozen. Evolve **additively only**:
   still disposable
 - removing, renaming, or repurposing an existing field — forbidden
 
-There is deliberately **no `schema_version` field**. The absence of one *is* version 1, so
-it can be introduced on the day something first breaks and old lines still read correctly —
-adding it now would put a meaningless `"schema_version":1` on every line of an evidence log
-forever. When a break does come, add the field to *that event type only*, and upcast on
-read (raw dict → current shape, at the deserialization boundary in `read_all`) rather than
-teaching every consumer about old shapes. If a change can't be upcast honestly, introduce a
-new event type instead of inventing data.
+There is deliberately **no `schema_version` field**. The absence of one *is* version 1.
 
-## Goals and the calendar
+## Goals
 
 Two goals, deliberately different in kind. `daily_minutes` is the one you mean to hit every
-day and colours the cell green; `stretch_minutes` is the great-day mark and adds a star.
+day; `stretch_minutes` is the great-day mark and adds a star.
 `buffer_minutes` applies to **both** — if 95 counts as 100, then 145 has to count as 150.
-The stretch goal is off by default (`None`; the TOML and the Settings spin both spell that
-`0`, since TOML has no null).
-
-Two thresholds rather than a colour gradient on purpose: "met" and "well past it" are
-categories, and a ramp encodes a continuum nobody can read back off a 40px cell without a
-legend. Shape is also a channel that survives colour blindness, where a green→gold ramp is
-exactly the axis that collapses.
-
-The calendar keeps **one meaning per channel**: fill = met, star = stretch. That's why the
-today ring and the backfilled/verified outline were both removed — three encodings in one
-small cell cost more than they told you. Anything needing more nuance belongs in the log.
-
-`Palette.star` is per-theme because the light background's green fill is bright enough that
-a mid amber nearly matches its luminance; light gets a deeper one. Still one colour per
-theme, not a ramp.
 
 ## Controls
 
@@ -198,25 +128,8 @@ are separated on, across targets wider than they are tall; and grouped rather th
 the field because one cluster per row reads as one control. `TimerView` owns its own pair
 for the same reason, stacked because there it sits beside a 52px display.
 
-`Stepper` wraps **`QAbstractSpinBox`**, not `QSpinBox` — the cramped arrows are drawn by the
-base class, so a `QTimeEdit` has the identical pair and gets the identical treatment (the
-backfill dialog's "Start time"). It disables a direction from the spin's own
-`stepEnabled()` rather than comparing `value()` against `minimum()`, since that is the one
-question every `QAbstractSpinBox` can answer — a clock at midnight included. The base class
-declares no value-changed signal, so `_watch` wires each concrete kind's own
-(`valueChanged`, `dateTimeChanged`); a new kind of field needs a line there.
-
 The stepper's buttons take **no focus**, so the spin box stays the single tab stop and the
 existing tab chains and Up/Down keys keep working — it wraps a control without becoming one.
-
-`widgets.StepSpinBox` snaps stepping onto multiples of the step size. Plain `QSpinBox` adds
-the step to whatever is there, so an off-grid value stays off it forever (47 → 52 → 57);
-snapping spends the first press rounding onto the grid, in the direction of travel so a
-press never moves the value backwards.
-
-**Step size follows how the value is used, not how big it is.** The goal moves in 5s
-because it's a target you pick roughly; a break moves in 1s because it's tuned against how
-long a break actually feels. Same widget, different `singleStep`.
 
 ## Pages
 
@@ -245,19 +158,11 @@ building the calendar every time Settings is saved.
 - Backfilled events carry `origin = "backfilled"`, and the log view and `DailySummary` keep
   them separate from live evidence. The calendar deliberately does *not* — one cell per day
   has room for one question ("did this day count"), and a second encoding there was noise.
-- The log view is read-only by construction, not just by omission.
+- The log view is read-only
 
 ## Testing
 
 **A shared thing is tested once, where it lives. A use site tests only its own choices.**
-Everything a `Stepper` *does* — the button geometry, up-still-works-after-down, greying at
-a limit, staying out of the tab order, snapping onto the step grid — is a property of the
-widget, so it is proved against a bare instance in `test_widgets.py` and nowhere else. A
-dialog holding one asserts only what is true of *that dialog*: that it wrapped its fields,
-and what step size each field picked. Without this rule the same six tests get copied into
-every dialog that grows a stepper, and the suite grows by use sites rather than by
-behaviours — which is how a suite gets slow and, worse, how one change starts breaking
-six tests that were all making the same claim.
 
 Two corollaries:
 
