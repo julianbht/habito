@@ -30,12 +30,21 @@ def _git(cwd, *args):
     ).stdout
 
 
-def _make_repos(tmp_path):
-    remote = tmp_path / "remote.git"
+@pytest.fixture(scope="session")
+def _repo_template(tmp_path_factory):
+    """A pristine data repo and its bare 'remote', built once for the whole session.
+
+    Standing this pair up costs eight git subprocesses (~400ms on Windows, where spawning
+    dominates), and it is scaffolding rather than anything under test — every assertion in
+    this module is about what the *worker* does afterwards. So it is built once and each
+    test gets a copy, which is the same repo without paying for `git init` four times.
+    """
+    root = tmp_path_factory.mktemp("evidence-template")
+    remote = root / "remote.git"
     remote.mkdir()
     _git(remote, "init", "--bare", "-b", "main")
 
-    data = tmp_path / "habito-data"
+    data = root / "habito-data"
     data.mkdir()
     _git(data, "init", "-b", "main")
     _git(data, "config", "user.email", "test@habito.local")
@@ -46,11 +55,24 @@ def _make_repos(tmp_path):
     _git(data, "commit", "-m", "init")
     _git(data, "remote", "add", "origin", str(remote))
     _git(data, "push", "-u", "origin", "main")
+    return root
+
+
+@pytest.fixture
+def repos(_repo_template, tmp_path):
+    """This test's own copy of that pair, with origin re-pointed at the copied remote.
+
+    The URL is rewritten through git rather than by editing `.git/config`, so nothing here
+    depends on how git happens to serialise a Windows path into that file.
+    """
+    shutil.copytree(_repo_template, tmp_path, dirs_exist_ok=True)
+    remote, data = tmp_path / "remote.git", tmp_path / "habito-data"
+    _git(data, "remote", "set-url", "origin", str(remote))
     return remote, data
 
 
-def test_each_event_is_committed_and_pushed(tmp_path):
-    remote, data = _make_repos(tmp_path)
+def test_each_event_is_committed_and_pushed(repos):
+    remote, data = repos
 
     store = EventStore(data, "study")
     repo = GitRepo(data)
@@ -93,8 +115,8 @@ def test_each_event_is_committed_and_pushed(tmp_path):
     assert len(store.read_all()) == 4
 
 
-def test_push_deferred_when_remote_unreachable(tmp_path):
-    _remote, data = _make_repos(tmp_path)
+def test_push_deferred_when_remote_unreachable(repos, tmp_path):
+    _remote, data = repos
     # Break the remote so pushes fail; commits must still succeed locally.
     _git(data, "remote", "set-url", "origin", str(tmp_path / "does-not-exist.git"))
 
@@ -118,9 +140,9 @@ def test_push_deferred_when_remote_unreachable(tmp_path):
     assert all(not s.pushed for s in statuses), "no push should have succeeded"
 
 
-def _accumulate_offline_backlog(tmp_path):
-    """Set up repos, study while 'offline', and return (remote, data, store, repo, worker)."""
-    remote, data = _make_repos(tmp_path)
+def _accumulate_offline_backlog(repos, tmp_path):
+    """Study while 'offline', and return (remote, data, store, repo, worker)."""
+    remote, data = repos
     store = EventStore(data, "study")
     repo = GitRepo(data)
     worker = EvidenceWorker(repo, EvidenceConfig(), "study")
@@ -138,8 +160,8 @@ def _accumulate_offline_backlog(tmp_path):
     return remote, data, store, repo, worker
 
 
-def test_startup_flush_pushes_backlog_after_reconnect(tmp_path):
-    remote, data, _store, repo, worker = _accumulate_offline_backlog(tmp_path)
+def test_startup_flush_pushes_backlog_after_reconnect(repos, tmp_path):
+    remote, data, _store, repo, worker = _accumulate_offline_backlog(repos, tmp_path)
 
     # Reconnect, then the startup flush() drains the backlog.
     _git(data, "remote", "set-url", "origin", str(remote))
@@ -153,8 +175,8 @@ def test_startup_flush_pushes_backlog_after_reconnect(tmp_path):
     assert len(_git(remote, "log", "--oneline").strip().splitlines()) > 1
 
 
-def test_close_flush_pushes_backlog_after_reconnect(tmp_path):
-    remote, data, _store, repo, worker = _accumulate_offline_backlog(tmp_path)
+def test_close_flush_pushes_backlog_after_reconnect(repos, tmp_path):
+    remote, data, _store, repo, worker = _accumulate_offline_backlog(repos, tmp_path)
 
     # Reconnect and close — the shutdown flush should push the backlog.
     _git(data, "remote", "set-url", "origin", str(remote))

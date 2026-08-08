@@ -231,9 +231,31 @@ long a break actually feels. Same widget, different `singleStep`.
 
 ## Testing
 
+**A shared thing is tested once, where it lives. A use site tests only its own choices.**
+Everything a `Stepper` *does* — the button geometry, up-still-works-after-down, greying at
+a limit, staying out of the tab order, snapping onto the step grid — is a property of the
+widget, so it is proved against a bare instance in `test_widgets.py` and nowhere else. A
+dialog holding one asserts only what is true of *that dialog*: that it wrapped its fields,
+and what step size each field picked. Without this rule the same six tests get copied into
+every dialog that grows a stepper, and the suite grows by use sites rather than by
+behaviours — which is how a suite gets slow and, worse, how one change starts breaking
+six tests that were all making the same claim.
+
+Two corollaries:
+
+- **Don't assert a constant twice.** `singleStep() == 5` *and* a click proving it moves by
+  5 are one fact. Assert the constant at the use site; the behaviour is already covered
+  where the widget is tested.
+- **Delete a test when its reason dies.** Removing a feature means removing its tests in
+  the same commit, not leaving them to be worked around.
+
 - UI tests use pytest-qt's `qtbot` with real events through Qt's event loop; `conftest.py`
   forces `QT_QPA_PLATFORM=offscreen`.
-- The evidence test stands up a local *bare* repo as a stand-in remote — no network.
+- The evidence test stands up a local *bare* repo as a stand-in remote — no network. That
+  repo pair is **session-scoped and copied per test**: standing it up costs eight git
+  subprocesses (~400ms on Windows, where spawning dominates) and it is scaffolding, not
+  the thing under test — every assertion there is about what the worker does afterwards.
+  Test-owned setup that no assertion is about is a candidate for exactly this treatment.
 - **Piping `pytest` truncates output on a crash.** Python block-buffers stdout to a pipe, so
   a hard Qt abort loses buffered progress and the dot count lies about where it died. Use
   `PYTHONUNBUFFERED=1` and grep for `Fatal|access violation` rather than reading dots.
