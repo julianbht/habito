@@ -180,20 +180,7 @@ class CalendarView(QWidget):
         self._total_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self._total_lbl)
 
-        self._hint_lbl = label("", "muted")
-        self._hint_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        root.addWidget(self._hint_lbl)
-
-        self._render_hint()
         self._render_page()
-
-    def _render_hint(self) -> None:
-        """Name both goals, so the green and the star each say what earned them."""
-        text = f"Daily Goal {format_duration(self.calendar.threshold_seconds())}"
-        stretch = self.calendar.stretch_seconds()
-        if stretch is not None:
-            text += f" · ★ at {format_duration(stretch)}"
-        self._hint_lbl.setText(text)
 
     # --- navigation ------------------------------------------------------
     def shown_month(self) -> tuple[int, int]:
@@ -206,7 +193,6 @@ class CalendarView(QWidget):
     def set_goals(self, threshold_seconds: int, stretch_seconds: int | None = None) -> None:
         """Apply goals changed in Settings without needing a restart."""
         self.calendar.set_goals(threshold_seconds, stretch_seconds)
-        self._render_hint()
         self._render_page()
 
     def set_summaries(self, summaries: dict[date, DailySummary]) -> None:

@@ -170,11 +170,6 @@ def test_no_star_is_ever_drawn_without_a_stretch_goal(view):
     assert STAR not in cell_pixels(view.calendar, ANCHOR)
 
 
-def test_both_goals_are_named_in_the_hint(stretch_view):
-    assert "1h 35m" in stretch_view._hint_lbl.text()
-    assert "2h 55m" in stretch_view._hint_lbl.text()  # 175 minutes
-
-
 def test_the_month_readout_counts_starred_days(stretch_view):
     other = ANCHOR + timedelta(days=1)
     stretch_view.set_summaries(
@@ -280,10 +275,6 @@ def test_the_month_total_counts_only_the_month_shown(view):
         ANCHOR + timedelta(days=1),
     }
     assert "2h 10m" in view._total_lbl.text()
-
-
-def test_the_readout_names_the_goal(view):
-    assert "1h 35m" in view._hint_lbl.text()  # 95 minutes, the buffered threshold
 
 
 # --- reaching it from the window ------------------------------------------
@@ -502,7 +493,6 @@ def test_changing_the_goal_recolours_the_calendar_without_a_restart(qtbot, tmp_p
     )
 
     assert app._calendar.calendar.meets_goal(day)  # 70m now clears a 55m threshold
-    assert "55m" in app._calendar._hint_lbl.text()
 
 
 def test_the_goal_is_written_back_to_settings_toml(qtbot, tmp_path):
@@ -544,7 +534,6 @@ def test_setting_a_stretch_goal_stars_days_without_a_restart(qtbot, tmp_path):
     )
 
     assert app._calendar.calendar.meets_stretch(great)
-    assert "★" in app._calendar._hint_lbl.text()
 
 
 def test_turning_the_stretch_goal_off_again_removes_the_star(qtbot, tmp_path):
@@ -569,7 +558,6 @@ def test_turning_the_stretch_goal_off_again_removes_the_star(qtbot, tmp_path):
 
     save(0)  # the spin's "Off"
     assert app._calendar.calendar.stretch_seconds() is None
-    assert "★" not in app._calendar._hint_lbl.text()
     assert "stretch_minutes = 0" in config.settings_file().read_text(encoding="utf-8")
 
 
