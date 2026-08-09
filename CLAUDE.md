@@ -110,6 +110,15 @@ Events are immutable and frozen. Evolve **additively only**:
 
 There is deliberately **no `schema_version` field**. The absence of one *is* version 1.
 
+**Every field on `BaseEvent` is required.** No defaults, `origin` included — a default there
+would make an omission indistinguishable from a claim, and a backfilled event that forgot
+to say so would pass itself off as verified evidence. Because they are all required, an
+event is spelled out in full at each construction site and pyright rejects one that skips a
+field; nothing stamps the common five on for you. The cost is that `session_id` agreeing
+across a session is now a convention rather than a guarantee, so each producer
+(`engine.pomodoro`, `backfill`) has a test asserting one id and the right origin across a
+whole session.
+
 ## Goals
 
 Two goals, deliberately different in kind. `daily_minutes` is the one you mean to hit every

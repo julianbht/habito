@@ -3,6 +3,7 @@ from __future__ import annotations
 from conftest import make_config
 from habito.domain.events import (
     BreakStarted,
+    Origin,
     RoundEnded,
     RoundStarted,
     SessionEnded,
@@ -213,3 +214,62 @@ def test_session_work_seconds_tracks_live():
     engine.acknowledge()  # start round 2
     clock.advance(100)
     assert engine.snapshot().session_work_seconds == 25 * 60 + 100
+
+
+def test_every_event_of_a_session_carries_one_id_and_a_live_origin():
+    """The stamp each emit site spells out by hand, checked once across all of them.
+
+    Every transition names ``session_id`` and ``origin`` itself, so nothing structural
+    stops one site from disagreeing with the rest — this is what would notice.
+    """
+    engine, clock, events = build(work=25, brk=5, rounds=2)
+    engine.start()
+    engine.pause()
+    engine.resume()
+    engine.add_time(1)
+    clock.advance(26 * 60)
+    engine.tick()  # round 1 -> waiting
+    engine.acknowledge()  # -> break 1
+    clock.advance(5 * 60)
+    engine.tick()  # break 1 -> waiting
+    engine.acknowledge()  # -> round 2
+    clock.advance(25 * 60)
+    engine.tick()  # last round -> session ends
+
+    # Every emit site the engine has, minus the two `stop()` reaches; see below.
+    assert set(types(events)) == {
+        "session_started",
+        "round_started",
+        "session_paused",
+        "session_resumed",
+        "time_adjusted",
+        "round_ended",
+        "break_started",
+        "break_ended",
+        "session_ended",
+    }
+    assert len({e.session_id for e in events}) == 1
+    assert all(e.origin is Origin.live for e in events)
+    assert all(e.habit == "study" for e in events)
+
+
+def test_a_session_ended_by_stop_carries_the_same_stamp():
+    """`stop()` has emit sites of its own, which the run to completion never reaches."""
+    engine, clock, events = build(work=25, brk=5, rounds=2)
+    engine.start()
+    clock.advance(10 * 60)
+    engine.stop()
+
+    assert types(events)[-2:] == ["round_ended", "session_ended"]
+    assert len({e.session_id for e in events}) == 1
+    assert all(e.origin is Origin.live for e in events)
+
+
+def test_a_second_session_gets_its_own_id():
+    engine, clock, events = build(work=25, brk=5, rounds=1)
+    engine.start()
+    first = events[0].session_id
+    engine.stop()
+    engine.start()
+
+    assert events[-1].session_id != first

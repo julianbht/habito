@@ -35,7 +35,9 @@ class BaseEvent(BaseModel):
     event_id: UUID = Field(default_factory=uuid4)
     timestamp: datetime  # timezone-aware, UTC
     tz_offset_minutes: int  # local wall-clock offset from UTC, in minutes
-    origin: Origin = Origin.live
+    # No default: `Origin.live` as one would make an omission indistinguishable from a
+    # claim, and a backfilled event that forgot to say so would pass itself off as live.
+    origin: Origin
     # Required, never defaulted — see CLAUDE.md § Habits.
     habit: str = Field(pattern=HABIT_PATTERN)
     session_id: UUID

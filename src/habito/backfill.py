@@ -46,35 +46,76 @@ def build_backfill_events(
     events: list[Event] = []
     cursor = start
 
-    def emit(cls, **fields) -> None:
+    events.append(
+        SessionStarted(
+            timestamp=cursor.astimezone(UTC),
+            tz_offset_minutes=tz_offset_minutes,
+            origin=Origin.backfilled,
+            habit=habit,
+            session_id=session_id,
+            work_minutes=work_minutes,
+            break_minutes=break_minutes,
+            planned_rounds=rounds,
+        )
+    )
+
+    total_work = 0
+    for r in range(1, rounds + 1):
         events.append(
-            cls(
+            RoundStarted(
                 timestamp=cursor.astimezone(UTC),
                 tz_offset_minutes=tz_offset_minutes,
                 origin=Origin.backfilled,
                 habit=habit,
                 session_id=session_id,
-                **fields,
+                round_index=r,
             )
         )
-
-    emit(
-        SessionStarted,
-        work_minutes=work_minutes,
-        break_minutes=break_minutes,
-        planned_rounds=rounds,
-    )
-
-    total_work = 0
-    for r in range(1, rounds + 1):
-        emit(RoundStarted, round_index=r)
         cursor = cursor + timedelta(minutes=work_minutes)
-        emit(RoundEnded, round_index=r, work_seconds=work_minutes * 60)
+        events.append(
+            RoundEnded(
+                timestamp=cursor.astimezone(UTC),
+                tz_offset_minutes=tz_offset_minutes,
+                origin=Origin.backfilled,
+                habit=habit,
+                session_id=session_id,
+                round_index=r,
+                work_seconds=work_minutes * 60,
+            )
+        )
         total_work += work_minutes * 60
         if r < rounds:
-            emit(BreakStarted, round_index=r)
+            events.append(
+                BreakStarted(
+                    timestamp=cursor.astimezone(UTC),
+                    tz_offset_minutes=tz_offset_minutes,
+                    origin=Origin.backfilled,
+                    habit=habit,
+                    session_id=session_id,
+                    round_index=r,
+                )
+            )
             cursor = cursor + timedelta(minutes=break_minutes)
-            emit(BreakEnded, round_index=r, break_seconds=break_minutes * 60)
+            events.append(
+                BreakEnded(
+                    timestamp=cursor.astimezone(UTC),
+                    tz_offset_minutes=tz_offset_minutes,
+                    origin=Origin.backfilled,
+                    habit=habit,
+                    session_id=session_id,
+                    round_index=r,
+                    break_seconds=break_minutes * 60,
+                )
+            )
 
-    emit(SessionEnded, total_work_seconds=total_work)
+    events.append(
+        SessionEnded(
+            timestamp=cursor.astimezone(UTC),
+            tz_offset_minutes=tz_offset_minutes,
+            origin=Origin.backfilled,
+            habit=habit,
+            session_id=session_id,
+            total_work_seconds=total_work,
+        )
+    )
     return events

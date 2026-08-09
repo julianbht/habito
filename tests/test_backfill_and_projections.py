@@ -32,6 +32,19 @@ def test_backfill_builds_expected_sequence():
     assert events[-1].total_work_seconds == 4 * 25 * 60
 
 
+def test_every_backfilled_event_carries_one_id_and_a_backfilled_origin():
+    """Each construction names the stamp itself, so nothing structural keeps them agreeing.
+
+    ``origin`` matters most here: a backfilled event that claimed to be live would be
+    counted as verified evidence, which is the one thing backfill must never produce.
+    """
+    events = build_backfill_events(_start(), 25, 5, 3, habit="study")
+
+    assert len({e.session_id for e in events}) == 1
+    assert all(e.origin is Origin.backfilled for e in events)
+    assert all(e.habit == "study" for e in events)
+
+
 def test_backfill_timestamps_advance_monotonically():
     events = build_backfill_events(_start(), 25, 5, 2, habit="study")
     stamps = [e.timestamp for e in events]
@@ -70,6 +83,7 @@ def test_local_date_uses_offset():
     ev = SessionStarted(
         timestamp=datetime(2026, 8, 4, 23, 30, tzinfo=UTC),
         tz_offset_minutes=120,
+        origin=Origin.live,
         habit="study",
         session_id=__import__("uuid").uuid4(),
         work_minutes=25,

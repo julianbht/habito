@@ -14,6 +14,7 @@ import pytest
 
 from habito.backfill import build_backfill_events
 from habito.domain.events import (
+    Origin,
     RoundEnded,
     SessionRetracted,
     SessionStarted,
@@ -148,6 +149,7 @@ def test_drop_retracted_ignores_stream_order():
     retraction = SessionRetracted(
         timestamp=LATER.astimezone(UTC),
         tz_offset_minutes=120,
+        origin=Origin.live,
         habit="study",
         session_id=sid,
         target_date=datetime(2026, 8, 4).date(),
@@ -155,6 +157,7 @@ def test_drop_retracted_ignores_stream_order():
     started = SessionStarted(
         timestamp=datetime(2026, 8, 4, 4, 0, tzinfo=UTC),
         tz_offset_minutes=120,
+        origin=Origin.live,
         habit="study",
         session_id=sid,
         work_minutes=25,

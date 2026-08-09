@@ -14,6 +14,7 @@ def _session_started(session_id, when=datetime(2026, 8, 4, 4, 0, tzinfo=UTC), ha
     return SessionStarted(
         timestamp=when,
         tz_offset_minutes=120,
+        origin=Origin.live,
         habit=habit,
         session_id=session_id,
         work_minutes=25,
@@ -35,6 +36,7 @@ def test_append_and_replay_roundtrip(tmp_path):
         RoundEnded(
             timestamp=datetime(2026, 8, 4, 4, 25, tzinfo=UTC),
             tz_offset_minutes=120,
+            origin=Origin.live,
             habit="study",
             session_id=sid,
             round_index=1,
@@ -143,6 +145,7 @@ def test_a_split_session_still_replays_as_one_ordered_stream(tmp_path):
         RoundEnded(
             timestamp=datetime(2026, 8, 4, 22, 30, tzinfo=UTC),
             tz_offset_minutes=120,
+            origin=Origin.live,
             habit="study",
             session_id=sid,
             round_index=1,

@@ -115,6 +115,7 @@ def make_day(day_offset: int, hour: int) -> RoundEnded:
     return RoundEnded(
         timestamp=NOON + timedelta(days=day_offset, hours=hour),
         tz_offset_minutes=0,
+        origin=Origin.live,
         habit="study",
         session_id=SESSION,
         round_index=1,
@@ -230,6 +231,7 @@ def test_the_store_is_never_written_to(qtbot, tmp_path):
         SessionStarted(
             timestamp=NOON,
             tz_offset_minutes=0,
+            origin=Origin.live,
             habit="study",
             session_id=SESSION,
             work_minutes=25,
@@ -287,6 +289,7 @@ def _retraction(target=date(2026, 8, 4), reason="", session=SESSION):
     return SessionRetracted(
         timestamp=datetime(2026, 8, 7, 12, 23, tzinfo=UTC),
         tz_offset_minutes=0,
+        origin=Origin.live,
         habit="study",
         session_id=session,
         target_date=target,
