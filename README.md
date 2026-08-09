@@ -79,9 +79,6 @@ control draws a visible focus ring.
 | `Ctrl+,` | Open Settings |
 | `Esc` | Close a dialog |
 
-The transport shortcuts are `Ctrl`-prefixed on purpose: plain `Space` and `Enter` have to
-keep meaning "press the focused button", or `Tab` navigation stops making sense.
-
 ## Test mode
 
 ```bash
