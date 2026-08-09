@@ -47,7 +47,7 @@ Verify everything is wired up — this should report `Evidence: READY`:
 uv run habito doctor
 ```
 
-Settings live in [`config/settings.toml`](config/settings.toml)
+Settings live in [`config/settings.json`](config/settings.json)
 
 ## Usage
 
@@ -90,7 +90,7 @@ For trying the UI out without polluting your real record. In this mode Habito:
 - writes events to a **throwaway file in your temp directory** (the path is printed on
   startup) — the data repo is never touched;
 - starts **no evidence worker**, so nothing is committed or pushed;
-- leaves **`settings.toml` unwritten** — format changes apply to the run only;
+- leaves **`settings.json` unwritten** — format changes apply to the run only;
 - paints the entire app **red**, with a red title bar and a `TEST MODE — nothing is
   recorded` banner, so it can't be mistaken for a real session.
 

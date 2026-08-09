@@ -116,6 +116,34 @@ Two goals, deliberately different in kind. `daily_minutes` is the one you mean t
 day; `stretch_minutes` is the great-day mark and adds a star.
 `buffer_minutes` applies to **both** — if 95 counts as 100, then 145 has to count as 150.
 
+## Settings
+
+`config/settings.json`, read by `config.loader.load_config` and written whole by
+`save_config`. **JSON, not TOML, and the file is not documentation** — the models are. Once
+comments stop being worth preserving, TOML costs a third-party writer (`tomllib` is
+read-only) to produce a file with no comments in it, while JSON is `json.loads` in and
+`model_dump_json` out. Every key the file can hold is on `Config`, so writing the whole
+thing round-trips the settings the UI can't reach as faithfully as the ones it can. The
+trade: a hand-edit made *while the app is running* is lost at the next save.
+
+Changing a setting is two jobs, split accordingly. `config.editor.ConfigEditor` validates
+it, puts it on the live `Config` and writes the file — no Qt, so what counts as a valid
+setting is testable without a window. `HabitoApp` keeps only what needs widgets, in
+`_retune_clock` / `_retune_goals` / `_retune_sound`.
+
+Two entry points, because there are two ways to change a setting: `apply_work_minutes` for
+the timer's duration field, and `apply_settings` for the whole dialog. The dialog's values
+are validated **as one config and rejected as one** — applying section by section could
+leave the goals saved and the timezone refused, with the file disagreeing with the dialog
+still on screen. It also makes a Save one write instead of four.
+
+`Applied` distinguishes **rejected** from **applied-but-unsaved** because the two look the
+same to the status line but must not behave the same: a rejection changed nothing, so the
+side effects have to be skipped, while a failed write still leaves the change in force for
+the session. Check `outcome.ok` before the side effects; return `outcome.message` either
+way. `ConfigEditor` mutates the same `Config` object the window holds, so the side effects
+read the new values straight off `self._config`.
+
 ## Controls
 
 **Never use Qt's built-in spin arrows.** They are two ~14×13px targets stacked in one

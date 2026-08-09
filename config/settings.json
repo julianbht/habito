@@ -1,0 +1,34 @@
+{
+  "habit": "study",
+  "pomodoro": {
+    "work_minutes": 25.0,
+    "break_minutes": 5,
+    "rounds": 4
+  },
+  "time": {
+    "timezone": "Europe/Berlin",
+    "rollover_hour": 3
+  },
+  "evidence": {
+    "auto_commit": true,
+    "auto_push": true,
+    "remote": "origin",
+    "branch": "main",
+    "commit_message_template": "event: {type} [{origin}] @ {iso}",
+    "warn_when_unpushed": true
+  },
+  "ui": {
+    "theme": "dark",
+    "notifications": true,
+    "sound": "notification",
+    "always_on_top": false
+  },
+  "goals": {
+    "daily_minutes": 100,
+    "buffer_minutes": 5,
+    "stretch_minutes": 200
+  },
+  "paths": {
+    "data_repo": "../habito-data"
+  }
+}

@@ -506,9 +506,9 @@ def build_app(qtbot, tmp_path):
     from habito.config.models import Config
     from habito.ui.app import HabitoApp
 
-    settings = tmp_path / "config" / "settings.toml"
+    settings = tmp_path / "config" / "settings.json"
     settings.parent.mkdir(parents=True, exist_ok=True)
-    settings.write_text("[goals]\ndaily_minutes = 100\nbuffer_minutes = 5\n", encoding="utf-8")
+    settings.write_text('{"goals": {"daily_minutes": 100, "buffer_minutes": 5}}', encoding="utf-8")
     config = Config.model_validate(
         {
             "paths": {"data_repo": str(tmp_path)},
@@ -543,7 +543,7 @@ def test_changing_the_goal_recolours_the_calendar_without_a_restart(qtbot, tmp_p
     assert app._calendar_view().calendar.meets_goal(day)  # 70m now clears a 55m threshold
 
 
-def test_the_goal_is_written_back_to_settings_toml(qtbot, tmp_path):
+def test_the_goal_is_written_back_to_the_settings_file(qtbot, tmp_path):
     from habito.ui.settings_view import SettingsValues
 
     app, config = build_app(qtbot, tmp_path)
@@ -558,8 +558,8 @@ def test_the_goal_is_written_back_to_settings_toml(qtbot, tmp_path):
     )
 
     written = config.settings_file().read_text(encoding="utf-8")
-    assert "daily_minutes = 150" in written
-    assert "buffer_minutes = 15" in written
+    assert '"daily_minutes": 150' in written
+    assert '"buffer_minutes": 15' in written
 
 
 def test_setting_a_stretch_goal_stars_days_without_a_restart(qtbot, tmp_path):
@@ -606,7 +606,8 @@ def test_turning_the_stretch_goal_off_again_removes_the_star(qtbot, tmp_path):
 
     save(0)  # the spin's "Off"
     assert app._calendar_view().calendar.stretch_seconds() is None
-    assert "stretch_minutes = 0" in config.settings_file().read_text(encoding="utf-8")
+    # JSON has a null, so "no stretch goal" is written as one rather than as a 0 standing in.
+    assert '"stretch_minutes": null' in config.settings_file().read_text(encoding="utf-8")
 
 
 def test_a_stretch_goal_under_the_daily_goal_is_reported_not_applied(qtbot, tmp_path):
@@ -629,7 +630,7 @@ def test_a_stretch_goal_under_the_daily_goal_is_reported_not_applied(qtbot, tmp_
     assert app._calendar_view().calendar.stretch_seconds() is None  # nothing was applied
 
 
-def test_the_stretch_goal_round_trips_through_settings_toml(qtbot, tmp_path):
+def test_the_stretch_goal_round_trips_through_the_settings_file(qtbot, tmp_path):
     from habito.config.loader import load_config
     from habito.ui.settings_view import SettingsValues
 

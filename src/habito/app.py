@@ -74,7 +74,7 @@ def run_gui(config: Config, test_mode: bool = False) -> int:
     if test_mode:
         # No GitRepo, no worker, no recorder: nothing can reach the data repo from here.
         print(f"TEST MODE — events go to {_log_root(config, test_mode) / config.habit}")
-        print("            the data repo is not touched and settings.toml is not written")
+        print("            the data repo is not touched and settings.json is not written")
         app.set_status_mode("status: TEST MODE · not recorded", theme.ACCENT_TEST)
     else:
         _attach_evidence(app, config, store)
@@ -180,7 +180,7 @@ def main(argv: list[str] | None = None) -> int:
         choices=["run", "doctor", "init-data"],
         help="run the UI (default), check setup, or initialise the data repo",
     )
-    parser.add_argument("--config", type=Path, default=None, help="path to settings.toml")
+    parser.add_argument("--config", type=Path, default=None, help="path to settings.json")
     parser.add_argument(
         "--test-mode",
         action="store_true",

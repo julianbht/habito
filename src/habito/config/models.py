@@ -41,7 +41,7 @@ COMMON_TIMEZONES: tuple[str, ...] = (
 
 Deliberately a shortlist. Neither Qt nor ``zoneinfo`` has a "popular zones" built-in —
 both only offer the full ~600-entry IANA list, which needs a search box to be usable.
-``settings.toml`` still accepts any valid zone; see :meth:`TimeConfig.choices`.
+``settings.json`` still accepts any valid zone; see :meth:`TimeConfig.choices`.
 """
 
 
@@ -95,7 +95,7 @@ class TimeConfig(BaseModel):
     def choices(self) -> list[str]:
         """The picker's list: the common zones, plus whatever is actually configured.
 
-        A zone hand-edited into ``settings.toml`` isn't in the shortlist, so it's appended
+        A zone hand-edited into ``settings.json`` isn't in the shortlist, so it's appended
         rather than silently dropped — otherwise opening Settings would offer no way back
         to the setting you already had.
         """
@@ -144,7 +144,7 @@ class GoalsConfig(BaseModel):
     @field_validator("stretch_minutes", mode="before")
     @classmethod
     def _zero_means_off(cls, value: object) -> object:
-        """TOML has no null and the Settings spin bottoms out at "Off", so both say 0."""
+        """The Settings spin bottoms out at "Off", which it reports as 0 rather than null."""
         return None if value == 0 else value
 
     @model_validator(mode="after")
@@ -172,7 +172,7 @@ class PathsConfig(BaseModel):
 
 
 class Config(BaseModel):
-    """Root config. ``project_root`` is injected by the loader, not read from TOML."""
+    """Root config. ``project_root`` is injected by the loader, not read from the file."""
 
     # Stamped onto every event, and the directory those events are filed under.
     habit: str = Field(default="study", pattern=HABIT_PATTERN)
@@ -185,11 +185,11 @@ class Config(BaseModel):
     paths: PathsConfig = Field(default_factory=PathsConfig)
 
     project_root: Path
-    config_path: Path | None = None  # the settings.toml this config was loaded from
+    config_path: Path | None = None  # the settings.json this config was loaded from
 
     def settings_file(self) -> Path:
-        """The settings.toml to read/write (the loaded one, or the default location)."""
-        return self.config_path or (self.project_root / "config" / "settings.toml")
+        """The settings.json to read/write (the loaded one, or the default location)."""
+        return self.config_path or (self.project_root / "config" / "settings.json")
 
     def data_repo_path(self) -> Path:
         """Absolute path of the separate git repo that stores the evidence log."""

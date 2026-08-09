@@ -11,7 +11,6 @@ from collections.abc import Iterable
 from datetime import date
 
 import qtawesome as qta
-from pydantic import ValidationError
 from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QActionGroup, QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
@@ -24,14 +23,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from habito.config.models import (
-    Config,
-    GoalsConfig,
-    PomodoroConfig,
-    TimeConfig,
-    UIConfig,
-)
-from habito.config.writer import save_goals, save_pomodoro, save_time, save_ui
+from habito.config.editor import ConfigEditor
+from habito.config.models import Config
 from habito.domain.events import Event, logical_day
 from habito.engine.pomodoro import EngineState, PomodoroEngine, State
 from habito.evidence.worker import EvidenceStatus, EvidenceWorker
@@ -87,6 +80,9 @@ class HabitoApp(QMainWindow):
     ) -> None:
         super().__init__()
         self._config = config
+        # Validates and persists every settings change; mutates the same `config` object,
+        # so reads of `self._config` below always see the current values.
+        self._config_editor = ConfigEditor(config, test_mode)
         self._engine = engine
         self._store = store
         # Borrowed rather than built: one clock means a timezone change from Settings
@@ -346,127 +342,62 @@ class HabitoApp(QMainWindow):
         self._engine.add_time(minutes)
         self._repaint()
 
-    def _apply_pomodoro(
-        self,
-        *,
-        work: float | None = None,
-        brk: int | None = None,
-        rounds: int | None = None,
-    ) -> str | None:
-        """Merge overrides into the Pomodoro config, validate, apply, and persist."""
-        cur = self._config.pomodoro
-        try:
-            updated = PomodoroConfig(
-                work_minutes=cur.work_minutes if work is None else work,
-                break_minutes=cur.break_minutes if brk is None else brk,
-                rounds=cur.rounds if rounds is None else rounds,
-            )
-        except ValidationError as exc:
-            first = exc.errors()[0]
-            field = first["loc"][0] if first["loc"] else "value"
-            return f"{field}: {first['msg']}"
-
-        self._config.pomodoro = updated
-        self._engine.update_config(updated)
-        if self._test_mode:
-            return None  # a test run must not rewrite your real settings.toml
-        try:
-            save_pomodoro(self._config, updated)
-        except OSError as exc:
-            return f"Applied, but couldn't write settings.toml: {exc}"
-        return None
-
+    # The ConfigEditor validates, applies and writes; what's left here is the part that
+    # needs widgets. A rejected change left the config untouched, so its side effects are
+    # skipped — but an accepted-yet-unwritten one is still in force, so those still run.
     def on_set_work_minutes(self, minutes: float) -> str | None:
         """Set the work length from the timer's duration field.
 
         Fractional: the view sends ``seconds / 60``, and ``PomodoroConfig.work_minutes`` is
         a float so a sub-minute round survives the trip.
         """
-        return self._apply_pomodoro(work=minutes)
+        outcome = self._config_editor.apply_work_minutes(minutes)
+        if outcome.ok:
+            self._engine.update_config(self._config.pomodoro)
+        return outcome.message
 
     def on_save_settings(self, values: SettingsValues) -> str | None:
-        """Apply everything the Settings dialog can change, stopping at the first error."""
-        return (
-            self._apply_pomodoro(brk=values.break_minutes, rounds=values.rounds)
-            or self._apply_goals(
-                values.daily_minutes, values.buffer_minutes, values.stretch_minutes
-            )
-            or self._apply_sound(values.sound)
-            or self._apply_time(values.timezone, values.rollover_hour)
+        """Apply everything the Settings dialog can change, all of it or none of it."""
+        outcome = self._config_editor.apply_settings(
+            break_minutes=values.break_minutes,
+            rounds=values.rounds,
+            daily_minutes=values.daily_minutes,
+            buffer_minutes=values.buffer_minutes,
+            stretch_minutes=values.stretch_minutes,
+            sound=values.sound,
+            timezone=values.timezone,
+            rollover_hour=values.rollover_hour,
         )
+        if outcome.ok:
+            self._engine.update_config(self._config.pomodoro)
+            self._retune_goals()
+            self._retune_sound()
+            self._retune_clock()
+        return outcome.message
 
-    def _apply_time(self, timezone: str, rollover_hour: int) -> str | None:
-        """Point the shared clock at a new zone; events from here on carry its offset."""
-        try:
-            updated = TimeConfig(timezone=timezone, rollover_hour=rollover_hour)
-        except ValidationError as exc:
-            first = exc.errors()[0]
-            field = first["loc"][0] if first["loc"] else "timezone"
-            return f"{field}: {first['msg']}"
-
-        self._config.time = updated
-        self._clock.set_zone(updated.zone())
+    def _retune_clock(self) -> None:
+        """Point the shared clock at the configured zone; new events carry its offset."""
+        time_config = self._config.time
+        self._clock.set_zone(time_config.zone())
         if self._log is not None:
-            self._log.set_rollover_hour(updated.rollover_hour)
-        self._store.set_rollover_hour(updated.rollover_hour)
+            self._log.set_rollover_hour(time_config.rollover_hour)
+        self._store.set_rollover_hour(time_config.rollover_hour)
         # "Today" may well have moved, so anything counting from it is now stale.
         self._today_baseline = self._compute_today_baseline()
         self._refresh_calendar()
-        if self._test_mode:
-            return None  # a test run must not rewrite your real settings.toml
-        try:
-            save_time(self._config, updated)
-        except OSError as exc:
-            return f"Applied, but couldn't write settings.toml: {exc}"
-        return None
 
-    def _apply_goals(
-        self, daily_minutes: int, buffer_minutes: int, stretch_minutes: int = 0
-    ) -> str | None:
-        try:
-            updated = GoalsConfig(
-                daily_minutes=daily_minutes,
-                buffer_minutes=buffer_minutes,
-                # The spin's "Off" is 0; the config says "no stretch goal" with None.
-                stretch_minutes=stretch_minutes or None,
-            )
-        except ValidationError as exc:
-            first = exc.errors()[0]
-            field = first["loc"][0] if first["loc"] else "goal"
-            return f"{field}: {first['msg']}"
-
-        self._config.goals = updated
+    def _retune_goals(self) -> None:
         if self._calendar is not None:
-            self._calendar.set_goals(updated.threshold_seconds(), updated.stretch_seconds())
-        if self._test_mode:
-            return None  # a test run must not rewrite your real settings.toml
-        try:
-            save_goals(self._config, updated)
-        except OSError as exc:
-            return f"Applied, but couldn't write settings.toml: {exc}"
-        return None
+            goals = self._config.goals
+            self._calendar.set_goals(goals.threshold_seconds(), goals.stretch_seconds())
+
+    def _retune_sound(self) -> None:
+        self._notifier.set_sound(self._config.ui.sound)
+        self._sounds.preload(self._config.ui.sound)
 
     def on_preview_sound(self, sound: str) -> None:
         """Play a sound without committing to it, so it can be auditioned."""
         self._sounds.play(sound)
-
-    def _apply_sound(self, sound: str) -> str | None:
-        try:
-            updated = self._config.ui.model_copy(update={"sound": sound})
-            UIConfig.model_validate(updated.model_dump())
-        except ValidationError as exc:
-            return f"sound: {exc.errors()[0]['msg']}"
-
-        self._config.ui = updated
-        self._notifier.set_sound(sound)
-        self._sounds.preload(sound)
-        if self._test_mode:
-            return None  # a test run must not rewrite your real settings.toml
-        try:
-            save_ui(self._config, updated)
-        except OSError as exc:
-            return f"Applied, but couldn't write settings.toml: {exc}"
-        return None
 
     def on_open_backfill(self) -> None:
         BackfillDialog(

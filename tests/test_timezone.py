@@ -13,8 +13,7 @@ import pytest
 from pydantic import ValidationError
 from PySide6.QtCore import QTime
 
-from habito.config.models import SYSTEM_TZ, Config, TimeConfig
-from habito.config.writer import save_time
+from habito.config.models import SYSTEM_TZ, TimeConfig
 from habito.domain.events import logical_date, logical_day
 from habito.engine.clock import FakeClock, SystemClock
 
@@ -194,21 +193,3 @@ def test_the_backfill_dialog_stamps_the_configured_zone(qtbot):
     started = captured[0][0]
     assert started.tz_offset_minutes == 120  # CEST, not the machine's offset
     assert logical_date(started) == date(2026, 8, 5)  # 23:50 is still the 5th in Berlin
-
-
-# --- persistence ----------------------------------------------------------
-def test_saving_the_zone_leaves_the_rest_of_the_file_alone(tmp_path):
-    settings = tmp_path / "settings.toml"
-    settings.write_text(
-        "# keep me\n[pomodoro]\nwork_minutes = 25  # trailing note\n",
-        encoding="utf-8",
-    )
-    config = Config(project_root=tmp_path, config_path=settings)
-
-    save_time(config, TimeConfig(timezone="Europe/Berlin"))
-
-    written = settings.read_text(encoding="utf-8")
-    assert "[time]" in written
-    assert 'timezone = "Europe/Berlin"' in written
-    assert "# keep me" in written
-    assert "# trailing note" in written

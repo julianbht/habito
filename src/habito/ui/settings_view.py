@@ -1,7 +1,7 @@
 """The Settings dialog: Pomodoro format, daily goal, notification sound.
 
 Kept off the main timer window so the timer stays uncluttered. Saving validates through the
-controller (which persists to settings.toml and applies to the engine) and reports back a
+controller (which persists to settings.json and applies to the engine) and reports back a
 short confirmation or error.
 """
 

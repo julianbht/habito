@@ -1,7 +1,7 @@
 """Test mode must be inert and unmistakable.
 
 Inert: the events log goes to a throwaway file, no evidence worker exists, and
-``settings.toml`` is never rewritten. Unmistakable: everything is red.
+``settings.json`` is never rewritten. Unmistakable: everything is red.
 """
 
 from __future__ import annotations
@@ -16,17 +16,14 @@ from habito.ui.app import HabitoApp
 from habito.ui.settings_view import SettingsValues
 
 SETTINGS = """\
-[pomodoro]
-work_minutes = 25
-break_minutes = 5
-rounds = 4
+{"pomodoro": {"work_minutes": 25, "break_minutes": 5, "rounds": 4}}
 """
 
 
 @pytest.fixture
 def config(tmp_path) -> Config:
     """A config whose data repo and settings file are both real files we can watch."""
-    settings = tmp_path / "config" / "settings.toml"
+    settings = tmp_path / "config" / "settings.json"
     settings.parent.mkdir(parents=True)
     settings.write_text(SETTINGS, encoding="utf-8")
     (tmp_path / "data-repo").mkdir()
@@ -84,7 +81,7 @@ def test_no_evidence_worker_is_attached(qtbot, config):
     assert app._worker is None
 
 
-def test_settings_toml_is_not_rewritten(qtbot, config):
+def test_the_settings_file_is_not_rewritten(qtbot, config):
     before = config.settings_file().read_text(encoding="utf-8")
 
     app = build_app(qtbot, config, test_mode=True)
@@ -97,11 +94,11 @@ def test_settings_toml_is_not_rewritten(qtbot, config):
     assert app._config.pomodoro.work_minutes == 42
 
 
-def test_live_mode_does_rewrite_settings_toml(qtbot, config):
+def test_live_mode_does_rewrite_the_settings_file(qtbot, config):
     app = build_app(qtbot, config, test_mode=False)
     assert app.on_save_settings(settings(brk=17, rounds=9)) is None
 
-    assert "break_minutes = 17" in config.settings_file().read_text(encoding="utf-8")
+    assert '"break_minutes": 17' in config.settings_file().read_text(encoding="utf-8")
 
 
 # --- unmistakable ---------------------------------------------------------
