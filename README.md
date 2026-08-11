@@ -79,6 +79,8 @@ control draws a visible focus ring.
 | `Ctrl+,` | Open Settings |
 | `Esc` | Close a dialog |
 
+Ctrl + key is reserved for manipulating the timer.
+
 ## Test mode
 
 ```bash
