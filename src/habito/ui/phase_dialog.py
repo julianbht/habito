@@ -88,14 +88,18 @@ class PhaseDialog(QDialog):
         """
         # Annotated because the stub types this non-optional; it is None until show().
         handle: QWindow | None = self.windowHandle()
-        if handle is None:
+        if handle is None:  # pyright: ignore[reportUnnecessaryComparison]
             self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, on)
         else:
             handle.setFlag(Qt.WindowType.WindowStaysOnTopHint, on)
 
     def is_always_on_top(self) -> bool:
         handle: QWindow | None = self.windowHandle()
-        flags = self.windowFlags() if handle is None else handle.flags()
+        flags = (
+            self.windowFlags()
+            if handle is None  # pyright: ignore[reportUnnecessaryComparison]
+            else handle.flags()
+        )
         return bool(flags & Qt.WindowType.WindowStaysOnTopHint)
 
     def event(self, event: QEvent) -> bool:

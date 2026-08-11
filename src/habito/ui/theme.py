@@ -84,9 +84,10 @@ def palette_for(theme: str) -> Palette:
     if theme == "dark":
         return DARK
     hints = QGuiApplication.styleHints()  # "system": ask the OS, defaulting to dark
-    if hints is not None and hints.colorScheme() == Qt.ColorScheme.Light:
-        return LIGHT
-    return DARK
+    # Stubbed as always returning QStyleHints; it can be None before a QGuiApplication exists.
+    if hints is None:  # pyright: ignore[reportUnnecessaryComparison]
+        return DARK
+    return LIGHT if hints.colorScheme() == Qt.ColorScheme.Light else DARK
 
 
 def mix(base: str, tint: str, amount: float) -> QColor:

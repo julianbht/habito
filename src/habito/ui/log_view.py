@@ -223,7 +223,8 @@ class LogView(QWidget):
     @staticmethod
     def _mark_expanded(item: QTreeWidgetItem) -> None:
         """Keep the day row's ▾/▸ in step with whether it's open."""
-        if item.parent() is not None:
+        # Stubbed as always returning QTreeWidgetItem; a top-level item's parent is None.
+        if item.parent() is not None:  # pyright: ignore[reportUnnecessaryComparison]
             return
         arrow = "▾" if item.isExpanded() else "▸"
         item.setText(0, f"{arrow}  {item.data(0, _HEADING_ROLE)}")
