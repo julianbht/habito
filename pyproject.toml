@@ -8,7 +8,6 @@ authors = [{ name = "Julian" }]
 dependencies = [
     "pydantic>=2.6",
     "pyside6>=6.11.1",
-    "qtawesome>=1.4.2",
     # Windows ships no IANA timezone database, so zoneinfo has nothing to read without
     # this. Installed everywhere so the timezone setting behaves identically per platform.
     "tzdata>=2024.1",

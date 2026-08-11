@@ -1,0 +1,13 @@
+These SVG icons are vendored from Google's Material Symbols (Outlined), part of the
+material-design-icons project:
+
+    https://github.com/google/material-design-icons
+
+Licensed under the Apache License, Version 2.0:
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Each file here is named after its icon and fetched unmodified from
+symbols/web/<name>/materialsymbolsoutlined/<name>_24px.svg, except for a `fill` attribute
+added to the root <svg> element to set a static colour — Qt's QIcon does not recolour SVGs
+at paint time the way qtawesome did.

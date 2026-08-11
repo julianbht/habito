@@ -10,7 +10,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-import qtawesome as qta
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QComboBox,
@@ -25,6 +24,7 @@ from PySide6.QtWidgets import (
 
 from habito.config.models import SYSTEM_TZ, GoalsConfig, PomodoroConfig, TimeConfig
 from habito.ui import sounds, theme
+from habito.ui.svg_icons import icon
 from habito.ui.widgets import Stepper, StepSpinBox, button, label
 
 
@@ -182,7 +182,7 @@ class SettingsDialog(QDialog):
         row.addWidget(self._sound_box, 1)
 
         self._preview_btn = button("Test")
-        self._preview_btn.setIcon(qta.icon("mdi6.volume-high", color=theme.MUTED))
+        self._preview_btn.setIcon(icon("volume_up"))
         self._preview_btn.setIconSize(QSize(16, 16))
         self._preview_btn.setToolTip("Hear the selected sound")
         self._preview_btn.clicked.connect(self._preview)

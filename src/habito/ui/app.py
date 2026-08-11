@@ -10,7 +10,6 @@ from __future__ import annotations
 from collections.abc import Iterable
 from datetime import date
 
-import qtawesome as qta
 from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QActionGroup, QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
@@ -40,6 +39,7 @@ from habito.ui.progress_background import ProgressBackground
 from habito.ui.retract_view import RetractDialog
 from habito.ui.settings_view import SettingsDialog, SettingsValues
 from habito.ui.sounds import SoundPlayer
+from habito.ui.svg_icons import icon
 from habito.ui.timer_view import TimerView, progress_for
 from habito.ui.widgets import button
 
@@ -137,7 +137,7 @@ class HabitoApp(QMainWindow):
         top.addStretch(1)
         self._menu_btn = button("", "gear")
         self._menu_btn.setFixedSize(30, 28)
-        self._menu_btn.setIcon(qta.icon("mdi6.menu", color=self._theme.palette.text))
+        self._menu_btn.setIcon(icon("menu"))
         self._menu_btn.setIconSize(QSize(18, 18))
         self._menu_btn.setToolTip("Menu — switch view, settings")
         self._menu_btn.clicked.connect(self._open_menu)
@@ -189,30 +189,21 @@ class HabitoApp(QMainWindow):
         menu = QMenu(self)
         group = QActionGroup(menu)
         group.setExclusive(True)
-        tint = self._theme.palette.text
         for index, name, glyph in (
-            (_TIMER_PAGE, "Timer", "mdi6.timer-outline"),
-            (_CALENDAR_PAGE, "Calendar", "mdi6.calendar-month-outline"),
-            (_LOG_PAGE, "Log", "mdi6.format-list-bulleted"),
+            (_TIMER_PAGE, "Timer", "timer"),
+            (_CALENDAR_PAGE, "Calendar", "calendar_month"),
+            (_LOG_PAGE, "Log", "format_list_bulleted"),
         ):
-            action = menu.addAction(qta.icon(glyph, color=tint), name)
+            action = menu.addAction(icon(glyph), name)
             action.setCheckable(True)
             action.setChecked(self._page == index)
             action.triggered.connect(lambda _c=False, i=index: self.show_page(i))
             group.addAction(action)
 
         menu.addSeparator()
-        menu.addAction(
-            qta.icon("mdi6.calendar-plus", color=tint),
-            "Backfill…",
-            self.on_open_backfill,
-        )
-        menu.addAction(
-            qta.icon("mdi6.undo-variant", color=tint),
-            "Retract session…",
-            self.on_open_retract,
-        )
-        menu.addAction(qta.icon("mdi6.cog-outline", color=tint), "Settings…", self._open_settings)
+        menu.addAction(icon("calendar_add_on"), "Backfill…", self.on_open_backfill)
+        menu.addAction(icon("undo"), "Retract session…", self.on_open_retract)
+        menu.addAction(icon("settings"), "Settings…", self._open_settings)
         return menu
 
     def show_page(self, page: int) -> None:

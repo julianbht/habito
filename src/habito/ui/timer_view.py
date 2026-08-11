@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from typing import Protocol
 
-import qtawesome as qta
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
@@ -26,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from habito.engine.pomodoro import EngineState, State
 from habito.ui import theme
+from habito.ui.svg_icons import icon
 from habito.ui.widgets import DurationSpinBox, button, format_duration, format_timer, label
 
 _STATE_LABEL = {
@@ -47,13 +47,14 @@ _STATE_COLOR = {
 # One press of ▲/▼ is worth one minute — deliberately not configurable.
 _STEP_SECONDS = 60
 
-# Icon names (Material Design Icons, via qtawesome). Drawn glyphs at one weight beat the
-# Unicode symbols they replaced, which the font resolved from three different blocks.
-_PLAY = "mdi6.play"  # start / resume
-_PAUSE = "mdi6.pause"  # the primary button toggles to this while running
-_STOP = "mdi6.stop"  # end session
-_UP = "mdi6.chevron-up"
-_DOWN = "mdi6.chevron-down"
+# Icon names (Material Symbols, vendored as local SVGs — see ui/icons/LICENSE.txt). Drawn
+# glyphs at one weight beat the Unicode symbols they replaced, which the font resolved from
+# three different blocks.
+_PLAY = "play_arrow"  # start / resume
+_PAUSE = "pause"  # the primary button toggles to this while running
+_STOP = "stop"  # end session
+_UP = "keyboard_arrow_up"
+_DOWN = "keyboard_arrow_down"
 
 _EDIT_PAGE = 0
 _COUNTDOWN_PAGE = 1
@@ -169,7 +170,7 @@ class TimerView(QWidget):
             (self._down_btn, _DOWN, self.nudge_down, "Shorter  (Ctrl+↓)"),
         ):
             btn.setFixedSize(34, 31)
-            btn.setIcon(qta.icon(name, color=self._theme.palette.text))
+            btn.setIcon(icon(name))
             btn.setIconSize(QSize(18, 18))
             btn.setToolTip(tip)
             btn.clicked.connect(slot)
@@ -201,7 +202,7 @@ class TimerView(QWidget):
 
         self._stop_btn = button("", "transport")
         self._stop_btn.setFixedSize(66, 42)
-        self._stop_btn.setIcon(qta.icon(_STOP, color=self._theme.palette.text))
+        self._stop_btn.setIcon(icon(_STOP))
         self._stop_btn.setIconSize(QSize(24, 24))
         self._stop_btn.setToolTip("End the session  (Ctrl+.)")
         self._stop_btn.clicked.connect(self._c.on_stop)
@@ -213,7 +214,7 @@ class TimerView(QWidget):
         """White on the accent fill, whichever palette is in use."""
         if name != getattr(self, "_primary_icon", None):
             self._primary_icon = name
-            self._primary_btn.setIcon(qta.icon(name, color="#ffffff"))
+            self._primary_btn.setIcon(icon(name))
 
     def _apply_tab_order(self) -> None:
         """Walk Tab through the controls in the order you'd actually use them."""

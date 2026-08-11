@@ -300,13 +300,13 @@ def test_controls_use_drawn_icons_not_unicode_glyphs(view):
 def test_the_primary_icon_follows_the_running_state(view):
     widget, _ = view
     widget.render_state(snapshot(State.idle), 0)
-    assert widget._primary_icon == "mdi6.play"
+    assert widget._primary_icon == "play_arrow"
 
     widget.render_state(snapshot(State.work, remaining=900, target=1500), 0)
-    assert widget._primary_icon == "mdi6.pause"
+    assert widget._primary_icon == "pause"
 
     widget.render_state(snapshot(State.paused, remaining=900, target=1500), 0)
-    assert widget._primary_icon == "mdi6.play"
+    assert widget._primary_icon == "play_arrow"
 
 
 def test_the_primary_icon_is_only_rebuilt_when_it_changes(view):

@@ -121,8 +121,9 @@ to quietly remove the evidence.
 | `habito.ui` | PySide6/Qt timer + calendar + log, dialogs (settings, backfill, phase prompt), window/controller, theme, progress background, notifications + sounds |
 | `habito.backfill` | Synthesize events for a past session |
 
-Icons are [qtawesome](https://github.com/spyder-ide/qtawesome) (Material Design Icons),
-recoloured per palette — so they follow light/dark and go red in test mode.
+Icons are vendored SVGs from Google's
+[Material Symbols](https://github.com/google/material-design-icons) (`ui/icons/`,
+Apache-2.0) — a fixed colour baked into each file for now, not yet recoloured per palette.
 
 Only `habito.ui` knows about Qt. The views are purely presentational and talk to a
 `Controller` protocol, so the engine, storage, projection and evidence layers are entirely
