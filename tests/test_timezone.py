@@ -21,6 +21,16 @@ BERLIN = ZoneInfo("Europe/Berlin")
 NEW_YORK = ZoneInfo("America/New_York")
 
 
+class _NoopController:
+    """Satisfies settings_view.Controller for dialogs that never save in these tests."""
+
+    def on_save_settings(self, values: object) -> str | None:
+        return None
+
+    def on_preview_sound(self, sound: str) -> None:
+        return None
+
+
 # --- config ---------------------------------------------------------------
 def test_system_is_the_default_and_means_no_zone():
     config = TimeConfig()
@@ -57,7 +67,9 @@ def test_a_typed_time_is_read_as_being_in_the_configured_zone():
     stamped = TimeConfig(timezone="Europe/Berlin").localize(typed)
 
     assert stamped.hour == 23  # the wall-clock reading is preserved
-    assert stamped.utcoffset().total_seconds() == 2 * 3600  # CEST
+    offset = stamped.utcoffset()
+    assert offset is not None
+    assert offset.total_seconds() == 2 * 3600  # CEST
     assert stamped.astimezone(UTC).hour == 21
 
 
@@ -148,7 +160,7 @@ def test_the_settings_picker_reports_the_chosen_zone(qtbot):
     from habito.config.models import PomodoroConfig
     from habito.ui.settings_view import SettingsDialog
 
-    dialog = SettingsDialog(controller=None, pomodoro=PomodoroConfig())
+    dialog = SettingsDialog(controller=_NoopController(), pomodoro=PomodoroConfig())
     qtbot.addWidget(dialog)
 
     assert dialog.values().timezone == SYSTEM_TZ  # opens on whatever is configured
@@ -161,7 +173,7 @@ def test_the_picker_opens_on_a_hand_edited_zone_outside_the_shortlist(qtbot):
     from habito.ui.settings_view import SettingsDialog
 
     dialog = SettingsDialog(
-        controller=None,
+        controller=_NoopController(),
         pomodoro=PomodoroConfig(),
         time_config=TimeConfig(timezone="Pacific/Auckland"),
     )

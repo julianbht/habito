@@ -49,11 +49,12 @@ def cell_pixels(calendar: StudyCalendar, day: date) -> list[tuple[int, int, int]
     painter = QPainter(image)
     calendar.paintCell(painter, QRect(0, 0, 40, 34), QDate(day.year, day.month, day.day))
     painter.end()
-    return [
-        image.pixelColor(x, y).getRgb()[:3]
-        for x in range(image.width())
-        for y in range(image.height())
-    ]
+
+    def rgb(x: int, y: int) -> tuple[int, int, int]:
+        pixel = image.pixelColor(x, y)
+        return (pixel.red(), pixel.green(), pixel.blue())
+
+    return [rgb(x, y) for x in range(image.width()) for y in range(image.height())]
 
 
 def green_pixels(calendar: StudyCalendar, day: date) -> int:
@@ -92,7 +93,8 @@ def test_backfilled_time_counts_toward_the_goal(view):
 
 
 # --- what gets painted ----------------------------------------------------
-FILL = theme.mix(theme.DARK.bg, theme.OK, 0.30).getRgb()[:3]
+_FILL_COLOR = theme.mix(theme.DARK.bg, theme.OK, 0.30)
+FILL = (_FILL_COLOR.red(), _FILL_COLOR.green(), _FILL_COLOR.blue())
 
 
 def test_a_day_that_missed_the_goal_gets_no_colour(view):
@@ -111,7 +113,8 @@ def test_a_day_with_no_entry_at_all_is_plain(view):
 
 
 # --- the stretch goal -----------------------------------------------------
-STAR = QColor(theme.DARK.star).getRgb()[:3]
+_STAR_COLOR = QColor(theme.DARK.star)
+STAR = (_STAR_COLOR.red(), _STAR_COLOR.green(), _STAR_COLOR.blue())
 
 
 @pytest.fixture

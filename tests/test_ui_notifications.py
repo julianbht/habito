@@ -12,7 +12,7 @@ from habito.app import _build_engine_and_store
 from habito.config.models import Config
 from habito.engine.pomodoro import EngineState, State
 from habito.ui.app import HabitoApp
-from habito.ui.notifier import Notification, notification_for
+from habito.ui.notifier import DesktopNotifier, Notification, notification_for
 
 
 class RecordingSink:
@@ -160,4 +160,5 @@ def test_notifications_can_be_switched_off(qtbot, tmp_path):
     window = HabitoApp(config, engine, store, test_mode=True)
     qtbot.addWidget(window)
 
+    assert isinstance(window._notifier, DesktopNotifier)
     assert window._notifier._enabled is False

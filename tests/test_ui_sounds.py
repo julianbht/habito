@@ -121,6 +121,8 @@ def test_finishing_a_round_or_a_break_makes_a_noise():
     round_done = notification_for(State.work, _snapshot(State.awaiting, State.break_))
     break_done = notification_for(State.break_, _snapshot(State.awaiting, State.work))
 
+    assert round_done is not None
+    assert break_done is not None
     assert round_done.sound is True
     assert break_done.sound is True
 
@@ -130,7 +132,9 @@ def test_the_session_summary_is_silent():
     from habito.engine.pomodoro import State
     from habito.ui.notifier import notification_for
 
-    assert notification_for(State.work, _snapshot(State.done)).sound is False
+    note = notification_for(State.work, _snapshot(State.done))
+    assert note is not None
+    assert note.sound is False
 
 
 def test_a_silent_notification_shows_without_playing_anything():
@@ -143,8 +147,8 @@ def test_a_silent_notification_shows_without_playing_anything():
             played.append(setting)
 
     notifier = DesktopNotifier.__new__(DesktopNotifier)
-    notifier._window = None
-    notifier._player = Recorder()
+    notifier._window = None  # pyright: ignore[reportAttributeAccessIssue] # bypassing __init__ on purpose
+    notifier._player = Recorder()  # pyright: ignore[reportAttributeAccessIssue] # duck-typed stand-in for SoundPlayer
     notifier._sound = "asterisk"
     notifier._enabled = True
     notifier._tray = None
