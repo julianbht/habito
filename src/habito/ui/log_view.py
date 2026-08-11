@@ -101,7 +101,7 @@ def describe(event: Event) -> Line:
     elif isinstance(event, SessionEnded):
         what = "Session ended"
         detail = f"{format_duration(event.total_work_seconds)} total"
-    elif isinstance(event, SessionRetracted):
+    else:
         what = "Session retracted"
         # Says when the correction was made, since the row sits under the day it corrects
         # and its time column would otherwise read as that day's.
@@ -210,8 +210,9 @@ class LogView(QWidget):
             self._mark_expanded(parent)
 
         # Today is the one you'd look at first; everything older stays folded away.
-        if self.tree.topLevelItemCount():
-            self.tree.topLevelItem(0).setExpanded(True)
+        first = self.tree.topLevelItem(0)
+        if first is not None:
+            first.setExpanded(True)
         for column in (0, 1):
             self.tree.resizeColumnToContents(column)
 

@@ -9,7 +9,7 @@ stopping at the timer's edge.
 from __future__ import annotations
 
 from PySide6.QtCore import QRect
-from PySide6.QtGui import QPainter, QPaintEvent
+from PySide6.QtGui import QColor, QPainter, QPaintEvent
 from PySide6.QtWidgets import QWidget
 
 from habito.ui import theme
@@ -21,7 +21,7 @@ class ProgressBackground(QWidget):
         self.setObjectName("progressBackground")
         self._theme = ui_theme
         self._fraction = 0.0
-        self._fill = ui_theme.progress_fill(theme.OK)
+        self._fill: QColor = ui_theme.progress_fill(theme.OK)
 
     def set_progress(self, fraction: float, phase_color: str) -> None:
         """Set how far the fill reaches, repainting only when it would actually move."""

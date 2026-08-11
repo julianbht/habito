@@ -9,6 +9,7 @@ non-fast-forward rejection triggers one ``pull --rebase`` retry.
 
 from __future__ import annotations
 
+import enum
 import logging
 import queue
 import threading
@@ -21,8 +22,16 @@ from habito.evidence.git import GitError, GitRepo
 
 log = logging.getLogger("habito.evidence")
 
-_SENTINEL = object()
-_FLUSH = object()
+
+class _Signal(enum.Enum):
+    """Queue markers alongside events, so ``_loop`` can narrow to a real Event by elimination."""
+
+    STOP = enum.auto()
+    FLUSH = enum.auto()
+
+
+_SENTINEL = _Signal.STOP
+_FLUSH = _Signal.FLUSH
 
 
 @dataclass(frozen=True)
@@ -50,7 +59,7 @@ class EvidenceWorker:
         # the whole habit tree picks up whichever day file the event just landed in.
         self._pathspec = habit_dir
         self._on_status = on_status
-        self._queue: queue.Queue[object] = queue.Queue()
+        self._queue: queue.Queue[Event | _Signal] = queue.Queue()
         self._thread = threading.Thread(target=self._loop, name="evidence-worker", daemon=True)
 
     def start(self) -> None:

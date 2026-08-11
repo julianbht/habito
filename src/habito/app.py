@@ -59,7 +59,8 @@ def run_gui(config: Config, test_mode: bool = False) -> int:
     from habito.ui import theme
     from habito.ui.app import HabitoApp
 
-    qt_app = QApplication.instance() or QApplication(sys.argv[:1])
+    existing = QApplication.instance()
+    qt_app = existing if isinstance(existing, QApplication) else QApplication(sys.argv[:1])
     theme.apply(qt_app, theme.Theme.resolve(config.ui.theme, test_mode))
 
     if test_mode:
