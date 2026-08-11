@@ -7,7 +7,6 @@ Inert: the events log goes to a throwaway file, no evidence worker exists, and
 from __future__ import annotations
 
 import pytest
-from PySide6.QtWidgets import QLabel
 
 from habito.app import _build_engine_and_store, _log_root
 from habito.config.models import Config
@@ -44,10 +43,6 @@ def settings(*, brk: int = 5, rounds: int = 4, sound: str = "asterisk") -> Setti
         buffer_minutes=5,
         sound=sound,
     )
-
-
-def banner_labels(app: HabitoApp) -> list[QLabel]:
-    return [w for w in app.findChildren(QLabel) if w.objectName() == "banner"]
 
 
 def build_app(qtbot, config: Config, *, test_mode: bool) -> HabitoApp:
@@ -118,17 +113,10 @@ def test_window_is_labelled_as_a_test_run(qtbot, config):
     app = build_app(qtbot, config, test_mode=True)
     assert "TEST MODE" in app.windowTitle()
 
-    banners = banner_labels(app)
-    assert len(banners) == 1
-    assert "nothing is recorded" in banners[0].text()
 
-
-def test_live_window_has_no_test_banner(qtbot, config):
+def test_live_window_is_not_labelled_as_a_test_run(qtbot, config):
     app = build_app(qtbot, config, test_mode=False)
     assert "TEST MODE" not in app.windowTitle()
-
-    banners = banner_labels(app)
-    assert banners == []
 
 
 # --- fonts ----------------------------------------------------------------

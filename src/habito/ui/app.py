@@ -15,7 +15,6 @@ from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QActionGroup, QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QHBoxLayout,
-    QLabel,
     QMainWindow,
     QMenu,
     QStackedWidget,
@@ -131,11 +130,6 @@ class HabitoApp(QMainWindow):
         root = QVBoxLayout(self._background)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
-
-        if self._test_mode:
-            banner = QLabel("TEST MODE — nothing is recorded", objectName="banner")
-            banner.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            root.addWidget(banner)
 
         # The menu sits in its own top row rather than floating over the timer.
         top = QHBoxLayout()
@@ -275,7 +269,7 @@ class HabitoApp(QMainWindow):
             ("Ctrl+Up", self._view.nudge_up),
             ("Ctrl+Down", self._view.nudge_down),
         ):
-            QShortcut(QKeySequence(keys), self, activated=slot)
+            QShortcut(QKeySequence(keys), self).activated.connect(slot)
 
     # --- wiring from the composition root --------------------------------
     @property

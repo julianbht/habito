@@ -148,12 +148,6 @@ def build_stylesheet(accent: str, palette: Palette = DARK) -> str:
     QLabel#time {{ font-size: 52px; font-weight: bold; }}
     QLabel#today {{ font-size: 13px; }}
     QLabel#heading {{ font-size: 15px; font-weight: bold; }}
-    QLabel#banner {{
-        background-color: {ACCENT_TEST};
-        color: #ffffff;
-        font-weight: bold;
-        padding: 5px;
-    }}
 
     QPushButton {{
         background-color: {p.surface_hi};
