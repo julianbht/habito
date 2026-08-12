@@ -35,21 +35,27 @@ def press(qtbot, window, key, modifier=Qt.KeyboardModifier.ControlModifier):
     qtbot.keyClick(window, key, modifier)
 
 
-def test_ctrl_space_starts_then_pauses_then_resumes(qtbot, app):
+def press_space(qtbot, window):
+    """Start/pause/resume is the one shortcut that's deliberately bare — see
+    TimerView.focus_first and the SHORTCUTS comment in settings_view.py."""
+    qtbot.keyClick(window, Qt.Key.Key_Space, Qt.KeyboardModifier.NoModifier)
+
+
+def test_space_starts_then_pauses_then_resumes(qtbot, app):
     assert app._engine.state is State.idle
 
-    press(qtbot, app, Qt.Key.Key_Space)
+    press_space(qtbot, app)
     assert app._engine.state is State.work
 
-    press(qtbot, app, Qt.Key.Key_Space)
+    press_space(qtbot, app)
     assert app._engine.state is State.paused
 
-    press(qtbot, app, Qt.Key.Key_Space)
+    press_space(qtbot, app)
     assert app._engine.state is State.work
 
 
 def test_ctrl_period_stops_the_session(qtbot, app):
-    press(qtbot, app, Qt.Key.Key_Space)
+    press_space(qtbot, app)
     assert app._engine.state is State.work
 
     press(qtbot, app, Qt.Key.Key_Period)
@@ -57,7 +63,7 @@ def test_ctrl_period_stops_the_session(qtbot, app):
 
 
 def test_ctrl_arrows_extend_the_running_round(qtbot, app):
-    press(qtbot, app, Qt.Key.Key_Space)
+    press_space(qtbot, app)
     before = app._engine.snapshot().phase_target_seconds
 
     press(qtbot, app, Qt.Key.Key_Up)
@@ -113,6 +119,17 @@ def test_tab_from_the_timer_reaches_the_menu(qtbot, app):
     assert app.focusWidget() is app._menu_btn
 
 
+def test_shortcuts_menu_entry_opens_the_dialog(qtbot, app, monkeypatch):
+    from habito.ui.shortcuts_view import ShortcutsDialog
+
+    opened = []
+    monkeypatch.setattr(ShortcutsDialog, "exec", lambda self: opened.append(self) or 0)
+
+    app.on_open_shortcuts()
+
+    assert len(opened) == 1
+
+
 def test_settings_shortcut_does_not_stack_duplicate_dialogs(qtbot, app):
     press(qtbot, app, Qt.Key.Key_Comma)
     first = app._settings_dialog
@@ -135,6 +152,7 @@ def test_settings_is_the_last_menu_entry(qtbot, app):
         "",
         "Backfill…",
         "Retract session…",
+        "Shortcuts…",
         "Settings…",
     ]
 

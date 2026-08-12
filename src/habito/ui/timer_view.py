@@ -196,7 +196,7 @@ class TimerView(QWidget):
         self._primary_btn.setFixedSize(88, 42)
         self._primary_btn.setIconSize(QSize(26, 26))
         self._set_primary_icon(_PLAY)
-        self._primary_btn.setToolTip("Start / pause  (Ctrl+Space)")
+        self._primary_btn.setToolTip("Start / pause  (Space)")
         self._primary_btn.clicked.connect(self._primary)
         row.addWidget(self._primary_btn)
 
@@ -229,8 +229,14 @@ class TimerView(QWidget):
             self.setTabOrder(earlier, later)
 
     def focus_first(self) -> None:
-        """Put focus where a keyboard user starts: the duration field."""
-        self._spin.setFocus(Qt.FocusReason.OtherFocusReason)
+        """Put focus on the Play button, so Space activates it immediately.
+
+        Not the duration field: a focused text-editable widget claims Space for itself
+        before any window-level shortcut sees it, which would make the global Space
+        shortcut silently do nothing right after opening the app — exactly the case it
+        most needs to work. Typing a custom duration still works, just via Tab first.
+        """
+        self._primary_btn.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def stop_button(self) -> QPushButton:
         """Last control in the view's tab chain, so the window can continue it."""

@@ -205,9 +205,20 @@ def test_tab_walks_the_controls_in_order(view, qtbot, state):
     assert tab_chain(widget, qtbot, len(expected)) == expected
 
 
-def test_focus_survives_the_switch_into_a_running_session(view):
+def test_focus_first_lands_on_the_primary_button(view):
+    """Not the duration field: a global Space shortcut needs a focused button to mean
+    the same thing whether it's caught there or by the shortcut — see app.py."""
     widget, _ = view
     widget.focus_first()
+    assert widget.focusWidget() is widget._primary_btn
+
+
+def test_focus_survives_the_switch_into_a_running_session(view):
+    """Belt-and-suspenders for a focus the spin box could still pick up some other way
+    (e.g. Tab) right as a session starts — not reachable via focus_first() anymore, but
+    still not a state the duration field should be stranded in."""
+    widget, _ = view
+    widget._spin.setFocus()
     assert widget.focusWidget() is widget._spin
 
     # The duration field is about to be hidden; focus must land somewhere usable.

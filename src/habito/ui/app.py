@@ -41,6 +41,7 @@ from habito.ui.progress_background import ProgressBackground
 from habito.ui.resume_dialog import ResumePromptDialog
 from habito.ui.retract_view import RetractDialog
 from habito.ui.settings_view import SettingsDialog, SettingsValues
+from habito.ui.shortcuts_view import SHORTCUTS, ShortcutsDialog
 from habito.ui.sounds import SoundPlayer
 from habito.ui.svg_icons import icon
 from habito.ui.timer_view import TimerView, progress_for
@@ -206,6 +207,7 @@ class HabitoApp(QMainWindow):
         menu.addSeparator()
         menu.addAction(icon("calendar_add_on"), "Backfill…", self.on_open_backfill)
         menu.addAction(icon("undo"), "Retract session…", self.on_open_retract)
+        menu.addAction(icon("keyboard"), "Shortcuts…", self.on_open_shortcuts)
         menu.addAction(icon("settings"), "Settings…", self._open_settings)
         return menu
 
@@ -253,17 +255,20 @@ class HabitoApp(QMainWindow):
     def _install_shortcuts(self) -> None:
         """Keyboard equivalents for the transport controls.
 
-        Deliberately Ctrl-prefixed: a bare Space or Enter has to keep meaning "press the
-        focused button", or Tab navigation stops making sense.
+        Bound off SHORTCUTS (see shortcuts_view.py for why each one is or isn't
+        Ctrl-prefixed) — zipped against the slots below in that same order, so a
+        mismatched length fails loudly here rather than silently binding the wrong slot
+        to the wrong key.
         """
-        for keys, slot in (
-            ("Ctrl+Space", self.on_pause_resume_or_start),
-            ("Ctrl+.", self.on_stop),
-            ("Ctrl+,", self._open_settings),
-            ("Ctrl+Up", self._view.nudge_up),
-            ("Ctrl+Down", self._view.nudge_down),
-        ):
-            QShortcut(QKeySequence(keys), self).activated.connect(slot)
+        slots = (
+            self.on_pause_resume_or_start,
+            self.on_stop,
+            self._open_settings,
+            self._view.nudge_up,
+            self._view.nudge_down,
+        )
+        for (key, _description), slot in zip(SHORTCUTS, slots, strict=True):
+            QShortcut(QKeySequence(key), self).activated.connect(slot)
 
     # --- wiring from the composition root --------------------------------
     @property
@@ -446,6 +451,9 @@ class HabitoApp(QMainWindow):
             now=self._clock.local_now(),
             parent=self._settings_dialog or self,
         ).exec()
+
+    def on_open_shortcuts(self) -> None:
+        ShortcutsDialog(parent=self._settings_dialog or self).exec()
 
     # --- internals -------------------------------------------------------
     def _append_all(self, events: Iterable[Event]) -> None:
