@@ -21,6 +21,7 @@ from habito.domain.events import (
     SessionPaused,
     SessionRetracted,
     SessionStarted,
+    SessionTagged,
     TimeAdjusted,
 )
 from habito.ui import theme
@@ -89,6 +90,12 @@ def test_the_session_end_reports_the_total():
     line = describe(at(11, cls=SessionEnded, total_work_seconds=6000))
     assert line.what == "Session ended"
     assert "1h 40m" in line.detail
+
+
+def test_a_tagged_session_shows_its_tag():
+    line = describe(at(11, cls=SessionTagged, tag="linear algebra"))
+    assert line.what == "Tagged"
+    assert line.detail == "linear algebra"
 
 
 def test_events_without_detail_still_read_cleanly():

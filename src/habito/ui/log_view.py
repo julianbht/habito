@@ -35,6 +35,7 @@ from habito.domain.events import (
     SessionResumed,
     SessionRetracted,
     SessionStarted,
+    SessionTagged,
     TimeAdjusted,
     local_datetime,
     partition_date,
@@ -101,6 +102,8 @@ def describe(event: Event) -> Line:
     elif isinstance(event, SessionEnded):
         what = "Session ended"
         detail = f"{format_duration(event.total_work_seconds)} total"
+    elif isinstance(event, SessionTagged):
+        what, detail = "Tagged", event.tag
     else:
         what = "Session retracted"
         # Says when the correction was made, since the row sits under the day it corrects

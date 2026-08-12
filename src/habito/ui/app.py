@@ -24,12 +24,13 @@ from PySide6.QtWidgets import (
 
 from habito.config.editor import ConfigEditor
 from habito.config.models import Config
-from habito.domain.events import Event, logical_day
+from habito.domain.events import Event, Origin, SessionTagged, logical_day
 from habito.engine.pomodoro import EngineState, PomodoroEngine, State
 from habito.evidence.worker import EvidenceStatus, EvidenceWorker
 from habito.projections.daily import summarize_by_day, summary_for
 from habito.projections.resume import ResumePhase, find_resumable
 from habito.projections.sessions import summarize_sessions
+from habito.projections.tags import known_tags
 from habito.storage.event_store import EventStore
 from habito.ui import theme
 from habito.ui.backfill_view import BackfillDialog
@@ -46,6 +47,7 @@ from habito.ui.phase_dialog import PhaseDialog
 from habito.ui.progress_background import ProgressBackground
 from habito.ui.resume_dialog import ResumePromptDialog
 from habito.ui.retract_view import RetractDialog
+from habito.ui.session_complete_dialog import SessionCompleteDialog
 from habito.ui.settings_view import SettingsDialog, SettingsValues
 from habito.ui.shortcuts_view import SHORTCUTS, ShortcutsDialog
 from habito.ui.sounds import SoundPlayer
@@ -107,7 +109,7 @@ class HabitoApp(QMainWindow):
         self._page = _TIMER_PAGE
         self._last_state = engine.state
         self._ending_by_hand = False
-        self._phase_dialog: PhaseDialog | None = None
+        self._phase_dialog: PhaseDialog | SessionCompleteDialog | None = None
         # When "awaiting, break just ended" started (monotonic), and whether the
         # follow-up nudge has already fired for this particular wait — see
         # _maybe_remind. Reset the moment that state isn't current any more.
@@ -555,14 +557,24 @@ class HabitoApp(QMainWindow):
     def _prompt(self, note: Notification) -> None:
         """Put the phase prompt in front of whatever the user is doing."""
         self._close_prompt()
-        self._phase_dialog = PhaseDialog(
-            note.title,
-            note.body,
-            note.action,
-            on_accept=self._on_prompt_accepted,
-            gates_phase=self._engine.state is State.awaiting,
-            parent=self,
-        )
+        if self._engine.state is State.done:
+            self._phase_dialog = SessionCompleteDialog(
+                note.title,
+                note.body,
+                note.action,
+                known_tags(self._store.read_all(), self._config.habit),
+                on_accept=self._on_session_complete_accepted,
+                parent=self,
+            )
+        else:
+            self._phase_dialog = PhaseDialog(
+                note.title,
+                note.body,
+                note.action,
+                on_accept=self._on_prompt_accepted,
+                gates_phase=self._engine.state is State.awaiting,
+                parent=self,
+            )
         self._phase_dialog.present()
 
     def _on_prompt_accepted(self) -> None:
@@ -570,6 +582,33 @@ class HabitoApp(QMainWindow):
         self._phase_dialog = None
         self._engine.acknowledge()
         self._last_state = self._engine.state  # already handled; don't re-announce it
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        self._view.focus_first()
+        self._repaint()
+
+    def _on_session_complete_accepted(self, tag: str | None) -> None:
+        """Record the optional tag, if one was picked, and bring the timer back to front.
+
+        Skipping (blank tag, Esc, the close button) is just as valid an answer as
+        picking one — nothing here is required, so nothing here is enforced.
+        """
+        self._phase_dialog = None
+        session_id = self._engine.session_id
+        if tag and session_id is not None:
+            self._append_all(
+                [
+                    SessionTagged(
+                        timestamp=self._clock.now(),
+                        tz_offset_minutes=self._clock.utc_offset_minutes(),
+                        origin=Origin.live,
+                        habit=self._config.habit,
+                        session_id=session_id,
+                        tag=tag,
+                    )
+                ]
+            )
         self.show()
         self.raise_()
         self.activateWindow()

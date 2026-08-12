@@ -116,6 +116,21 @@ class SessionRetracted(BaseEvent):
     reason: str = ""
 
 
+class SessionTagged(BaseEvent):
+    """A free-form label put on a session after the fact — the ☰ prompt on session end.
+
+    Its own event rather than a field on ``SessionStarted``: the tag is only known once
+    the session is over, and ``SessionStarted`` is long since written and committed by
+    then — nothing is ever rewritten to add it. Optional and rare by design: skipping the
+    prompt (the common case) means no event at all, not an empty tag. Filed under today
+    like anything else — ``target_date`` doesn't apply, since this describes the session
+    rather than correcting an earlier day.
+    """
+
+    type: Literal["session_tagged"] = "session_tagged"
+    tag: str
+
+
 Event = Annotated[
     SessionStarted
     | RoundStarted
@@ -126,7 +141,8 @@ Event = Annotated[
     | SessionResumed
     | TimeAdjusted
     | SessionEnded
-    | SessionRetracted,
+    | SessionRetracted
+    | SessionTagged,
     Field(discriminator="type"),
 ]
 """Discriminated union over the ``type`` field — validates each line into its subtype."""

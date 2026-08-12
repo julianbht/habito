@@ -402,6 +402,13 @@ class PomodoroEngine:
     def state(self) -> State:
         return self._state
 
+    @property
+    def session_id(self) -> UUID | None:
+        """The running (or just-finished) session's id — None only before the first
+        ``start()``. Not cleared on completion, so the session-complete prompt can still
+        tag the session it's about."""
+        return self._session_id
+
     def update_config(self, config: PomodoroConfig) -> None:
         """Apply new Pomodoro settings. Takes effect from the next phase/session."""
         self._config = config

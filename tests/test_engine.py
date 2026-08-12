@@ -253,6 +253,23 @@ def test_resume_session_rejects_a_running_engine():
         engine.resume_session(1, State.work, remaining_seconds=60, resumed_from=uuid4())
 
 
+def test_session_id_is_none_before_the_first_start():
+    engine, clock, events = build()
+    assert engine.session_id is None
+
+
+def test_session_id_survives_completion_for_the_session_complete_prompt():
+    engine, clock, events = build(work=25, brk=5, rounds=1)
+    engine.start()
+    started_id = events[0].session_id
+
+    clock.advance(25 * 60)
+    engine.tick()
+
+    assert engine.state is State.done
+    assert engine.session_id == started_id
+
+
 def test_update_config_takes_effect_next_session():
     engine, clock, events = build(work=25, brk=5, rounds=1)
     engine.update_config(make_config(work=50, brk=10, rounds=1))

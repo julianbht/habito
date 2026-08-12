@@ -71,6 +71,30 @@ two callers that want the raw stream pass `include_retracted=True`: the log view
 shows retracted rows struck through with the retraction beneath them, and the retract
 dialog, which lists sessions to pick from.
 
+## Tags
+
+A session may be labelled with a free-form tag — what you were studying, not a setting —
+via `SessionTagged`, offered once at session end and always optional.
+
+**Its own event, not a field on `SessionStarted`**: the tag is only known once the session
+is over, and `SessionStarted` is long since written (and probably already committed) by
+then. Nothing is ever rewritten to add it — `SessionTagged` carries the session's
+`session_id` the same way `SessionRetracted` does, an annotation appended after the fact
+rather than an edit to what already stands. Filed under today like anything else;
+`target_date` doesn't apply here, since this describes the session rather than correcting
+an earlier day.
+
+**No tag list to maintain.** `projections.tags.known_tags` derives every tag on offer by
+folding `SessionTagged` out of the log itself, the same shape as `find_resumable` and
+`summarize_sessions` — so the picker can't drift from what the log actually says, and
+skipping the prompt (the expected common case) leaves no trace at all rather than an empty
+tag.
+
+**The picker is a plain, non-editable combo**, not an editable one: large editable
+`QComboBox`es have caused hard Qt aborts elsewhere in this app (see Testing). A "New tag…"
+entry opens a one-line `QInputDialog` instead, the same shape Settings already uses for
+"choose a custom sound file."
+
 ## Time
 
 Three distinct things, easy to conflate:
