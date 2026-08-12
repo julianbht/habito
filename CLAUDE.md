@@ -123,7 +123,13 @@ whole session.
 
 Two goals, deliberately different in kind. `daily_minutes` is the one you mean to hit every
 day; `stretch_minutes` is the great-day mark and adds a star.
-`buffer_minutes` applies to **both** — if 95 counts as 100, then 145 has to count as 150.
+
+Each has its **own** buffer — `buffer_minutes` for the daily goal, `stretch_buffer_minutes`
+for the stretch one — rather than sharing one. A great day is a bigger ask, so it reasonably
+gets more slack for the same reason the daily goal has a buffer at all; the two amounts have
+no reason to move together. `GoalsConfig` still refuses a config where the *buffered* stretch
+threshold would sit at or below the *buffered* daily one — a generous stretch buffer can't
+let the star trigger before the day would even read as met.
 
 ## Settings
 

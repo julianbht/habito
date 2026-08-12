@@ -389,6 +389,7 @@ class HabitoApp(QMainWindow):
             daily_minutes=values.daily_minutes,
             buffer_minutes=values.buffer_minutes,
             stretch_minutes=values.stretch_minutes,
+            stretch_buffer_minutes=values.stretch_buffer_minutes,
             sound=values.sound,
             timezone=values.timezone,
             rollover_hour=values.rollover_hour,

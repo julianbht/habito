@@ -16,6 +16,7 @@ _VALID = {
     "daily_minutes": 100,
     "buffer_minutes": 5,
     "stretch_minutes": 0,
+    "stretch_buffer_minutes": 10,
     "sound": "asterisk",
     "timezone": "Europe/Berlin",
     "rollover_hour": 3,

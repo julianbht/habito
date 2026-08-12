@@ -81,6 +81,7 @@ class ConfigEditor:
         daily_minutes: int,
         buffer_minutes: int,
         stretch_minutes: int,
+        stretch_buffer_minutes: int,
         sound: str,
         timezone: str,
         rollover_hour: int,
@@ -97,6 +98,7 @@ class ConfigEditor:
                 buffer_minutes=buffer_minutes,
                 # The spin's "Off" is 0; the config says "no stretch goal" with null.
                 stretch_minutes=stretch_minutes or None,
+                stretch_buffer_minutes=stretch_buffer_minutes,
             )
             # model_copy skips validation, so the copy is re-validated to catch a bad value
             # before it reaches the config.

@@ -120,7 +120,8 @@ STAR = (_STAR_COLOR.red(), _STAR_COLOR.green(), _STAR_COLOR.blue())
 @pytest.fixture
 def stretch_view(qtbot):
     """A calendar with both goals set: green at 95m (buffered), star at 175m."""
-    widget = CalendarView(DARK, THRESHOLD, GoalsConfig(stretch_minutes=180).stretch_seconds())
+    goals = GoalsConfig(stretch_minutes=180, stretch_buffer_minutes=5)
+    widget = CalendarView(DARK, THRESHOLD, goals.stretch_seconds())
     qtbot.addWidget(widget)
     widget.resize(360, 400)
     widget.show()
@@ -128,10 +129,27 @@ def stretch_view(qtbot):
     return widget
 
 
-def test_the_stretch_goal_is_buffered_like_the_daily_one():
-    goals = GoalsConfig(daily_minutes=100, buffer_minutes=5, stretch_minutes=180)
+def test_the_stretch_goal_has_its_own_buffer():
+    """Not shared with the daily goal's — a great day is a bigger ask, so it reasonably
+    gets more slack."""
+    goals = GoalsConfig(
+        daily_minutes=100, buffer_minutes=5, stretch_minutes=180, stretch_buffer_minutes=10
+    )
     assert goals.threshold_seconds() == 95 * 60
-    assert goals.stretch_seconds() == 175 * 60
+    assert goals.stretch_seconds() == 170 * 60  # buffered by 10, not the daily goal's 5
+
+
+def test_the_stretch_buffer_defaults_more_lenient_than_the_daily_one():
+    assert GoalsConfig().stretch_buffer_minutes > GoalsConfig().buffer_minutes
+
+
+def test_too_generous_a_stretch_buffer_is_refused():
+    """however lenient the great-day allowance is, it can't make the star trigger before
+    the day would even read as met."""
+    with pytest.raises(ValidationError, match="easier to reach than the daily goal"):
+        GoalsConfig(
+            daily_minutes=100, buffer_minutes=5, stretch_minutes=101, stretch_buffer_minutes=10
+        )
 
 
 def test_no_stretch_goal_by_default():
@@ -344,6 +362,7 @@ def test_a_view_opened_after_a_settings_change_is_born_with_it(qtbot, tmp_path):
             daily_minutes=100,
             buffer_minutes=0,
             stretch_minutes=180,
+            stretch_buffer_minutes=0,
             sound="asterisk",
         )
     )
@@ -645,10 +664,11 @@ def test_the_stretch_goal_round_trips_through_the_settings_file(qtbot, tmp_path)
             daily_minutes=100,
             buffer_minutes=5,
             stretch_minutes=180,
+            stretch_buffer_minutes=10,
             sound="asterisk",
         )
     )
 
     reloaded = load_config(project_root=tmp_path, config_path=config.settings_file())
     assert reloaded.goals.stretch_minutes == 180
-    assert reloaded.goals.stretch_seconds() == 175 * 60
+    assert reloaded.goals.stretch_seconds() == 170 * 60

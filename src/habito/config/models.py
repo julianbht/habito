@@ -136,6 +136,12 @@ class GoalsConfig(BaseModel):
     earns a star on top. Two thresholds rather than a gradient — "met" and "well past it"
     are categories, and a colour ramp would encode a continuum nobody can read back off a
     calendar cell.
+
+    Each has its own buffer rather than sharing one: a great day is a bigger ask, so it
+    reasonably gets more slack for the same "missed it by a bit still counts" reason the
+    daily goal has one at all. ``_stretch_sits_above_daily`` still requires the *buffered*
+    stretch threshold to sit above the *buffered* daily one — a generous stretch buffer
+    can't let the star trigger before the day would even read as met.
     """
 
     daily_minutes: int = Field(default=100, gt=0)  # 4 rounds x 25 minutes
@@ -144,6 +150,8 @@ class GoalsConfig(BaseModel):
     buffer_minutes: int = Field(default=5, ge=0)
     # The great-day mark. None means there isn't one, and no star is ever drawn.
     stretch_minutes: int | None = Field(default=None, gt=0)
+    # Its own allowance, separate from buffer_minutes — see the class docstring.
+    stretch_buffer_minutes: int = Field(default=10, ge=0)
 
     @field_validator("stretch_minutes", mode="before")
     @classmethod
@@ -153,22 +161,26 @@ class GoalsConfig(BaseModel):
 
     @model_validator(mode="after")
     def _stretch_sits_above_daily(self) -> GoalsConfig:
-        if self.stretch_minutes is not None and self.stretch_minutes <= self.daily_minutes:
+        if self.stretch_minutes is None:
+            return self
+        if self.stretch_minutes <= self.daily_minutes:
             raise ValueError("the stretch goal must be above the daily goal")
+        stretch_seconds = max(0, self.stretch_minutes - self.stretch_buffer_minutes) * 60
+        if stretch_seconds < self.threshold_seconds():
+            raise ValueError(
+                "the stretch allowance makes the great-day mark easier to reach than the "
+                "daily goal — lower it, or raise the stretch goal"
+            )
         return self
 
     def threshold_seconds(self) -> int:
         return max(0, self.daily_minutes - self.buffer_minutes) * 60
 
     def stretch_seconds(self) -> int | None:
-        """The buffered stretch threshold, or ``None`` when no stretch goal is set.
-
-        The buffer applies here too: if 95 minutes counts as a 100-minute goal, 145 has to
-        count as 150, or the two goals would behave inconsistently for no good reason.
-        """
+        """The buffered stretch threshold, or ``None`` when no stretch goal is set."""
         if self.stretch_minutes is None:
             return None
-        return max(0, self.stretch_minutes - self.buffer_minutes) * 60
+        return max(0, self.stretch_minutes - self.stretch_buffer_minutes) * 60
 
 
 class PathsConfig(BaseModel):

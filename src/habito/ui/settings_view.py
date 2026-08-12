@@ -42,6 +42,7 @@ class SettingsValues:
     buffer_minutes: int
     sound: str
     stretch_minutes: int = 0  # 0 means "no stretch goal", matching the spin's "Off"
+    stretch_buffer_minutes: int = 10
     timezone: str = SYSTEM_TZ
     rollover_hour: int = 3
 
@@ -128,6 +129,7 @@ class SettingsDialog(QDialog):
             self._goal_spin,
             self._buffer_spin,
             self._stretch_spin,
+            self._stretch_buffer_spin,
             self._sound_box,
             self._preview_btn,
             self._tz_box,
@@ -159,9 +161,18 @@ class SettingsDialog(QDialog):
         self._stretch_spin.setSpecialValueText("Off")
         self._stretch_spin.setToolTip("A great day — earns a ★ on the calendar")
 
+        # Its own allowance rather than reusing buffer_minutes: a great day is a bigger
+        # ask, so it reasonably gets more slack for the same reason the daily goal has a
+        # buffer at all.
+        self._stretch_buffer_spin = self._spin(
+            goals.stretch_buffer_minutes, minimum=0, maximum=60, suffix=" min"
+        )
+        self._stretch_buffer_spin.setToolTip("Falling this far short of the great day still counts")
+
         form.addRow("Goal", Stepper(self._goal_spin))
         form.addRow("Allowance", Stepper(self._buffer_spin))
         form.addRow("Great day", Stepper(self._stretch_spin))
+        form.addRow("Great-day allowance", Stepper(self._stretch_buffer_spin))
         return form
 
     def _build_sound_row(self, sound: str) -> QHBoxLayout:
@@ -269,6 +280,7 @@ class SettingsDialog(QDialog):
             daily_minutes=self._goal_spin.value(),
             buffer_minutes=self._buffer_spin.value(),
             stretch_minutes=self._stretch_spin.value(),
+            stretch_buffer_minutes=self._stretch_buffer_spin.value(),
             sound=self.selected_sound(),
             timezone=self.selected_timezone(),
             rollover_hour=self._rollover_spin.value(),
