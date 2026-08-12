@@ -12,7 +12,7 @@ from habito.app import _build_engine_and_store
 from habito.config.models import Config
 from habito.engine.pomodoro import EngineState, State
 from habito.ui.app import HabitoApp
-from habito.ui.notifier import DesktopNotifier, Notification, notification_for
+from habito.ui.notifier import DesktopNotifier, Notification, break_over_reminder, notification_for
 
 
 class RecordingSink:
@@ -85,6 +85,31 @@ def test_finishing_the_session_reports_the_total():
 )
 def test_nothing_is_announced_for_non_events(previous, state):
     assert notification_for(previous, snapshot(state)) is None
+
+
+# --- the "still on break?" reminder ----------------------------------------
+def test_the_reminder_says_which_round_is_next():
+    snap = snapshot(State.awaiting, round_index=2, pending=State.work)
+    note = break_over_reminder(snap)
+    assert note is not None
+    assert note.title == "Still on break?"
+    assert "Round 3 of 4" in note.body  # the one about to start, not the one just done
+    assert note.action == "Start round 3"
+
+
+@pytest.mark.parametrize(
+    ("state", "pending"),
+    [
+        (State.awaiting, State.break_),  # a round just ended, not a break — out of scope
+        (State.work, None),
+        (State.break_, None),
+        (State.paused, None),
+        (State.idle, None),
+        (State.done, None),
+    ],
+)
+def test_the_reminder_is_silent_outside_awaiting_a_round(state, pending):
+    assert break_over_reminder(snapshot(state, pending=pending)) is None
 
 
 # --- when the window sends them -------------------------------------------

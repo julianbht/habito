@@ -126,6 +126,10 @@ class UIConfig(BaseModel):
     # start, so that's handled at playback time instead.
     sound: str = "notification"
     always_on_top: bool = False
+    # A break that ends while you're away from the machine is easy to miss — one nudge,
+    # this long after "Break over" first fired, if it's still unacknowledged. Not
+    # buffered like the goals: there's no "close enough", so nothing to allow for.
+    break_reminder_minutes: int = Field(default=3, ge=1)
 
 
 class GoalsConfig(BaseModel):

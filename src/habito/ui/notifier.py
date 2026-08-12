@@ -69,6 +69,25 @@ def notification_for(previous: State, snap: EngineState) -> Notification | None:
     return None
 
 
+def break_over_reminder(snap: EngineState) -> Notification | None:
+    """A second nudge for when "Break over" went unacknowledged — easy to miss the
+    first alert if you're away from the machine.
+
+    Unlike :func:`notification_for`, not keyed off a transition: the caller
+    (``HabitoApp._maybe_remind``) is what tracks *how long* ``snap`` has held still in
+    this state and decides when to ask for one, since that's a real-time question this
+    pure function has no clock to answer on its own.
+    """
+    if snap.state is not State.awaiting or snap.pending is not State.work:
+        return None
+    return Notification(
+        "Still on break?",
+        f"Round {snap.round_index + 1} of {snap.total_rounds} is waiting whenever you are.",
+        action=f"Start round {snap.round_index + 1}",
+        sound=True,
+    )
+
+
 class Sink(Protocol):
     """Somewhere for a notification to go — the desktop, or a list in a test.
 

@@ -35,7 +35,13 @@ from habito.ui import theme
 from habito.ui.backfill_view import BackfillDialog
 from habito.ui.calendar_view import CalendarView
 from habito.ui.log_view import LogView
-from habito.ui.notifier import DesktopNotifier, Notification, Sink, notification_for
+from habito.ui.notifier import (
+    DesktopNotifier,
+    Notification,
+    Sink,
+    break_over_reminder,
+    notification_for,
+)
 from habito.ui.phase_dialog import PhaseDialog
 from habito.ui.progress_background import ProgressBackground
 from habito.ui.resume_dialog import ResumePromptDialog
@@ -102,6 +108,11 @@ class HabitoApp(QMainWindow):
         self._last_state = engine.state
         self._ending_by_hand = False
         self._phase_dialog: PhaseDialog | None = None
+        # When "awaiting, break just ended" started (monotonic), and whether the
+        # follow-up nudge has already fired for this particular wait — see
+        # _maybe_remind. Reset the moment that state isn't current any more.
+        self._awaiting_break_over_since: float | None = None
+        self._break_reminded = False
 
         self.setWindowTitle("Habito — TEST MODE" if test_mode else "Habito")
         self._page_sizes = dict(_PAGE_SIZES)
@@ -492,6 +503,7 @@ class HabitoApp(QMainWindow):
         self._view.render_state(snap, self._today_baseline + snap.session_work_seconds)
         self._background.set_progress(*progress_for(snap))
         self._announce(snap)
+        self._maybe_remind(snap)
 
     def _announce(self, snap: EngineState) -> None:
         """Prompt and notify on phase changes the engine made on its own.
@@ -510,6 +522,33 @@ class HabitoApp(QMainWindow):
             return
         self._notifier.send(note)
         self._prompt(note)
+
+    def _maybe_remind(self, snap: EngineState) -> None:
+        """A second nudge if "Break over" goes unacknowledged for a while.
+
+        Tracked here rather than the engine: it's a UX nicety with no domain meaning, not
+        something worth a log event or a place in the engine's own tested invariants.
+        Monotonic, like the engine's own phase timing, so it can't be fooled by the wall
+        clock changing underneath it.
+        """
+        if snap.state is not State.awaiting or snap.pending is not State.work:
+            self._awaiting_break_over_since = None
+            self._break_reminded = False
+            return
+        if self._awaiting_break_over_since is None:
+            self._awaiting_break_over_since = self._clock.monotonic()
+            self._break_reminded = False
+            return
+        if self._break_reminded:
+            return
+        elapsed = self._clock.monotonic() - self._awaiting_break_over_since
+        if elapsed < self._config.ui.break_reminder_minutes * 60:
+            return
+        self._break_reminded = True
+        note = break_over_reminder(snap)
+        if note is not None:
+            self._notifier.send(note)
+            self._prompt(note)
 
     def _prompt(self, note: Notification) -> None:
         """Put the phase prompt in front of whatever the user is doing."""
