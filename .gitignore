@@ -16,6 +16,10 @@ venv/
 .DS_Store
 Thumbs.db
 
+# Rotating diagnostic log for the evidence worker (habito.app._configure_logging).
+# Local-machine noise, not project state.
+logs/
+
 # Local editor. settings.json describes the project rather than the machine, so it is
 # shared; everything else here (launch.json, local paths) is not.
 .vscode/*

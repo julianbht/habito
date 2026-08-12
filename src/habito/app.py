@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import logging.handlers
 import shutil
 import subprocess
 import sys
@@ -35,6 +36,31 @@ from habito.evidence.git import GitRepo
 from habito.evidence.recorder import EvidenceRecorder
 from habito.evidence.worker import EvidenceWorker
 from habito.storage.event_store import EventStore
+
+
+def _configure_logging(project_root: Path) -> None:
+    """Log to a file always, plus the console when one exists.
+
+    ``habito`` is a gui-script (see pyproject.toml) so it launches with no console
+    attached and outlives the terminal it was started from — but that also means
+    ``sys.stderr`` may be ``None``, and even when it isn't, there's nowhere for anyone to
+    read it. The file is what makes evidence-worker failures (push rejected, offline,
+    etc.) diagnosable after the fact.
+    """
+    log_dir = project_root / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    handlers: list[logging.Handler] = [
+        logging.handlers.RotatingFileHandler(
+            log_dir / "habito.log", maxBytes=1_000_000, backupCount=3, encoding="utf-8"
+        )
+    ]
+    if sys.stderr is not None:
+        handlers.append(logging.StreamHandler())
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        handlers=handlers,
+    )
 
 
 def _log_root(config: Config, test_mode: bool) -> Path:
@@ -172,7 +198,6 @@ def init_data(config: Config) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     parser = argparse.ArgumentParser(prog="habito", description="Pomodoro habit tracker")
     parser.add_argument(
         "command",
@@ -190,6 +215,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     config = load_config(config_path=args.config)
+    _configure_logging(config.project_root)
 
     if args.command == "doctor":
         return doctor(config)
