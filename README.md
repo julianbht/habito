@@ -91,8 +91,7 @@ For trying the UI out without polluting your real record. In this mode Habito:
   startup) — the data repo is never touched;
 - starts **no evidence worker**, so nothing is committed or pushed;
 - leaves **`settings.json` unwritten** — format changes apply to the run only;
-- paints the entire app **red**, with a red title bar and a `TEST MODE — nothing is
-  recorded` banner, so it can't be mistaken for a real session.
+- paints the entire app **red**, so it can't be mistaken for a real session.
 
 ## Log
 
