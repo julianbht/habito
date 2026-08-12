@@ -48,6 +48,10 @@ class SessionStarted(BaseEvent):
     work_minutes: float  # fractional so a round can be shorter than a minute
     break_minutes: int
     planned_rounds: int
+    # Set only when this session continues one closed mid-round rather than starting
+    # fresh at round 1 (see habito.projections.resume) — the interrupted session's id, so
+    # the log itself shows the link instead of a round sequence that looks like a gap.
+    resumed_from: UUID | None = None
 
 
 class RoundStarted(BaseEvent):

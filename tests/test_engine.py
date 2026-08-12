@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from uuid import uuid4
+
+import pytest
+
 from conftest import make_config
 from habito.domain.events import (
     BreakStarted,
@@ -192,6 +196,61 @@ def test_stop_finalizes_and_ends_session():
     assert isinstance(events[-1], SessionEnded)
     assert events[-1].total_work_seconds == 600
     assert engine.state is State.done
+
+
+def test_resume_session_starts_new_session_with_shortened_work_target():
+    engine, clock, events = build(work=25, brk=5, rounds=4)
+    engine.resume_session(2, State.work, remaining_seconds=180, resumed_from=uuid4())
+
+    assert isinstance(events[0], SessionStarted)
+    assert isinstance(events[1], RoundStarted)
+    assert events[1].round_index == 2
+    assert engine.state is State.work
+    assert engine.snapshot().round_index == 2
+    assert engine.remaining_seconds() == 180  # not the configured 25 minutes
+
+
+def test_resume_session_starts_new_session_with_shortened_break_target():
+    engine, clock, events = build(work=25, brk=5, rounds=4)
+    engine.resume_session(1, State.break_, remaining_seconds=90, resumed_from=uuid4())
+
+    assert isinstance(events[1], BreakStarted)
+    assert events[1].round_index == 1
+    assert engine.state is State.break_
+    assert engine.remaining_seconds() == 90  # not the configured 5 minutes
+
+
+def test_resume_session_completes_normally_from_there():
+    """A resumed round still ends (and can finish the session) like any other."""
+    engine, clock, events = build(work=25, brk=5, rounds=1)
+    engine.resume_session(1, State.work, remaining_seconds=120, resumed_from=uuid4())
+
+    clock.advance(120)
+    engine.tick()
+    assert isinstance(events[-1], SessionEnded)
+    assert events[-1].total_work_seconds == 120
+
+
+def test_resume_session_links_back_to_the_interrupted_session():
+    engine, clock, events = build(work=25, brk=5, rounds=4)
+    engine.start()
+    clock.advance(60)
+    engine.stop()
+    first_id = events[0].session_id
+
+    engine.resume_session(2, State.work, remaining_seconds=180, resumed_from=first_id)
+    resumed = events[len(events) - 2 :]  # SessionStarted, RoundStarted just emitted
+    assert resumed[0].session_id != first_id
+    assert resumed[0].resumed_from == first_id
+    assert all(e.session_id == resumed[0].session_id for e in resumed)
+    assert all(e.origin is Origin.live for e in resumed)
+
+
+def test_resume_session_rejects_a_running_engine():
+    engine, clock, events = build(work=25, brk=5, rounds=4)
+    engine.start()
+    with pytest.raises(RuntimeError):
+        engine.resume_session(1, State.work, remaining_seconds=60, resumed_from=uuid4())
 
 
 def test_update_config_takes_effect_next_session():

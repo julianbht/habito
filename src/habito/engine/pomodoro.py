@@ -222,6 +222,48 @@ class PomodoroEngine:
         )
         self._begin_work(1)
 
+    def resume_session(
+        self, round_index: int, phase: State, remaining_seconds: int, resumed_from: UUID
+    ) -> None:
+        """Begin a new session already midway through ``round_index``/``phase``.
+
+        For continuing a phase a previous, already-closed-out session left short — see
+        :mod:`habito.projections.resume`, which is also what's responsible for ``
+        round_index`` still fitting the *current* ``rounds`` setting: this method trusts
+        its caller on that rather than re-checking, same as ``start()`` trusts round 1 is
+        always valid.
+
+        Deliberately a *new* session_id rather than the interrupted one's: that id's
+        ``SessionEnded`` already stands, and one id per session is a tested invariant
+        elsewhere (CLAUDE.md § Schema evolution). The two sessions read as separate rows
+        in the log view, linked by ``resumed_from``; their round/work totals still add up
+        correctly since projections sum by day, not by session.
+        """
+        if self._state not in (State.idle, State.done):
+            raise RuntimeError(f"cannot start from state {self._state}")
+        if phase not in (State.work, State.break_):
+            raise ValueError(f"phase must be work or break, got {phase}")
+        self._session_id = new_session_id()
+        self._accumulated_work = 0
+        self._sink(
+            SessionStarted(
+                timestamp=self._clock.now(),
+                tz_offset_minutes=self._clock.utc_offset_minutes(),
+                origin=Origin.live,
+                habit=self._habit,
+                session_id=self._session,
+                work_minutes=self._config.work_minutes,
+                break_minutes=self._config.break_minutes,
+                planned_rounds=self._config.rounds,
+                resumed_from=resumed_from,
+            )
+        )
+        if phase is State.work:
+            self._begin_work(round_index)
+        else:
+            self._begin_break(round_index)
+        self._phase_target = max(0, remaining_seconds)
+
     def pause(self) -> None:
         if self._state not in (State.work, State.break_):
             return

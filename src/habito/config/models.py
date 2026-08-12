@@ -15,6 +15,10 @@ class PomodoroConfig(BaseModel):
     work_minutes: float = Field(default=25, gt=0)  # fractional for sub-minute rounds
     break_minutes: int = Field(default=5, gt=0)
     rounds: int = Field(default=4, gt=0)
+    # How long after a session was cut short (closing the window mid-round) the next
+    # launch still offers to resume it. Past this, the prompt would be asking about work
+    # from a sitting long over, so it's left alone rather than offered back.
+    resume_window_minutes: int = Field(default=30, gt=0)
 
 
 SYSTEM_TZ = "system"

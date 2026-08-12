@@ -107,6 +107,7 @@ def run_gui(config: Config, test_mode: bool = False) -> int:
         _attach_evidence(app, config, store)
 
     app.show()
+    app.offer_resume()
     return qt_app.exec()
 
 

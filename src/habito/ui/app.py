@@ -13,6 +13,7 @@ from datetime import date
 from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QActionGroup, QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QDialog,
     QHBoxLayout,
     QMainWindow,
     QMenu,
@@ -27,6 +28,7 @@ from habito.domain.events import Event, logical_day
 from habito.engine.pomodoro import EngineState, PomodoroEngine, State
 from habito.evidence.worker import EvidenceStatus, EvidenceWorker
 from habito.projections.daily import summarize_by_day, summary_for
+from habito.projections.resume import ResumePhase, find_resumable
 from habito.projections.sessions import summarize_sessions
 from habito.storage.event_store import EventStore
 from habito.ui import theme
@@ -36,6 +38,7 @@ from habito.ui.log_view import LogView
 from habito.ui.notifier import DesktopNotifier, Notification, Sink, notification_for
 from habito.ui.phase_dialog import PhaseDialog
 from habito.ui.progress_background import ProgressBackground
+from habito.ui.resume_dialog import ResumePromptDialog
 from habito.ui.retract_view import RetractDialog
 from habito.ui.settings_view import SettingsDialog, SettingsValues
 from habito.ui.sounds import SoundPlayer
@@ -293,6 +296,38 @@ class HabitoApp(QMainWindow):
         )
         self._settings_dialog.show()
 
+    # --- resume ------------------------------------------------------------
+    def offer_resume(self) -> None:
+        """Called once by ``run_gui``, right after ``show()``: ask before continuing a
+        session closed mid-round.
+
+        Deliberately an explicit call from the composition root rather than a
+        self-scheduled ``QTimer.singleShot`` — a zero-delay timer fires on whatever the
+        *next* spin of the event loop happens to be, which in tests that construct a
+        window without entering the loop is some later, unrelated test's spin (and its
+        real, unmocked dialog). A plain call has no such lifetime beyond this one
+        invocation, and the engine-idle guard below is what makes it safe for direct
+        tests to call it whenever they like rather than only right after construction.
+        """
+        if self._engine.state not in (State.idle, State.done):
+            return
+        resumable = find_resumable(
+            self._store.read_all(), self._config.habit, self._config.pomodoro.rounds
+        )
+        if resumable is None:
+            return
+        window = self._config.pomodoro.resume_window_minutes * 60
+        elapsed = (self._clock.now() - resumable.interrupted_at).total_seconds()
+        if elapsed > window:
+            return
+        if ResumePromptDialog(resumable, parent=self).exec() == QDialog.DialogCode.Accepted:
+            self._today_baseline = self._compute_today_baseline()
+            phase = State.work if resumable.phase is ResumePhase.work else State.break_
+            self._engine.resume_session(
+                resumable.round_index, phase, resumable.remaining_seconds, resumable.session_id
+            )
+            self._repaint()
+
     # --- controller callbacks (from the views) ---------------------------
     def on_start(self) -> None:
         self._today_baseline = self._compute_today_baseline()
@@ -514,6 +549,10 @@ class HabitoApp(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 (Qt override)
         self._timer.stop()
         self._close_prompt()
+        # Finalise an in-flight round/session honestly, same as hitting Stop, so quitting
+        # mid-round doesn't drop the work — a no-op when idle/done. Must run before the
+        # worker is stopped below: it's what queues the closing event for that final flush.
+        self.on_stop()
         if isinstance(self._notifier, DesktopNotifier):
             self._notifier.close()
         if self._worker is not None:
