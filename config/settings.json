@@ -4,7 +4,7 @@
     "work_minutes": 25.0,
     "break_minutes": 5,
     "rounds": 4,
-    "resume_window_minutes": 30
+    "resume_window_minutes": 10
   },
   "time": {
     "timezone": "Europe/Berlin",
