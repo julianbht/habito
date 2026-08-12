@@ -157,6 +157,10 @@ let the star trigger before the day would even read as met.
 
 ## Settings
 
+**Default to a widget.** Most settings belong in the Settings dialog; hand-edit-only is the
+exception, earned by a concrete reason (e.g. `paths.data_repo` and the git remote config are set
+once per machine) When in doubt, wire it up.
+
 `config/settings.json`, read by `config.loader.load_config` and written whole by
 `save_config`. **JSON, not TOML, and the file is not documentation** — the models are. Once
 comments stop being worth preserving, TOML costs a third-party writer (`tomllib` is

@@ -44,6 +44,7 @@ class SettingsValues:
     stretch_minutes: int = 0  # 0 means "no stretch goal", matching the spin's "Off"
     stretch_buffer_minutes: int = 10
     break_reminder_minutes: int = 3
+    resume_window_minutes: int = 10
     timezone: str = SYSTEM_TZ
     rollover_hour: int = 3
 
@@ -101,8 +102,16 @@ class SettingsDialog(QDialog):
         form.setSpacing(8)
         self._break_spin = self._spin(pomodoro.break_minutes, maximum=120, suffix=" min")
         self._rounds_spin = self._spin(pomodoro.rounds, maximum=24)
+        self._resume_window_spin = self._spin(
+            pomodoro.resume_window_minutes, maximum=180, suffix=" min"
+        )
+        self._resume_window_spin.setToolTip(
+            "Closing the app mid-round still offers to resume it, but only if you're back "
+            "within this long"
+        )
         form.addRow("Break length", Stepper(self._break_spin))
         form.addRow("Rounds", Stepper(self._rounds_spin))
+        form.addRow("Resume window", Stepper(self._resume_window_spin))
         root.addLayout(form)
 
         root.addWidget(_rule())
@@ -131,6 +140,7 @@ class SettingsDialog(QDialog):
         chain = [
             self._break_spin,
             self._rounds_spin,
+            self._resume_window_spin,
             self._goal_spin,
             self._buffer_spin,
             self._stretch_spin,
@@ -295,6 +305,7 @@ class SettingsDialog(QDialog):
         return SettingsValues(
             break_minutes=self._break_spin.value(),
             rounds=self._rounds_spin.value(),
+            resume_window_minutes=self._resume_window_spin.value(),
             daily_minutes=self._goal_spin.value(),
             buffer_minutes=self._buffer_spin.value(),
             stretch_minutes=self._stretch_spin.value(),

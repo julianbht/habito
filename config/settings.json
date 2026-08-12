@@ -3,7 +3,8 @@
   "pomodoro": {
     "work_minutes": 25.0,
     "break_minutes": 5,
-    "rounds": 4
+    "rounds": 4,
+    "resume_window_minutes": 30
   },
   "time": {
     "timezone": "Europe/Berlin",
@@ -21,12 +22,14 @@
     "theme": "dark",
     "notifications": true,
     "sound": "notification",
-    "always_on_top": false
+    "always_on_top": false,
+    "break_reminder_minutes": 3
   },
   "goals": {
     "daily_minutes": 100,
     "buffer_minutes": 5,
-    "stretch_minutes": 200
+    "stretch_minutes": 200,
+    "stretch_buffer_minutes": 10
   },
   "paths": {
     "data_repo": "../habito-data"

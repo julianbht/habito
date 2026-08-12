@@ -18,7 +18,7 @@ class PomodoroConfig(BaseModel):
     # How long after a session was cut short (closing the window mid-round) the next
     # launch still offers to resume it. Past this, the prompt would be asking about work
     # from a sitting long over, so it's left alone rather than offered back.
-    resume_window_minutes: int = Field(default=30, gt=0)
+    resume_window_minutes: int = Field(default=10, gt=0)
 
 
 SYSTEM_TZ = "system"

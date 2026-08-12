@@ -78,6 +78,7 @@ class ConfigEditor:
         *,
         break_minutes: int,
         rounds: int,
+        resume_window_minutes: int,
         daily_minutes: int,
         buffer_minutes: int,
         stretch_minutes: int,
@@ -93,6 +94,7 @@ class ConfigEditor:
                 work_minutes=self._config.pomodoro.work_minutes,
                 break_minutes=break_minutes,
                 rounds=rounds,
+                resume_window_minutes=resume_window_minutes,
             )
             goals = GoalsConfig(
                 daily_minutes=daily_minutes,

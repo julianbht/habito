@@ -91,12 +91,13 @@ def test_tab_reaches_every_control(dialog, qtbot):
     widget._break_spin.setFocus()
 
     seen = []
-    for _ in range(11):
+    for _ in range(12):
         qtbot.keyClick(widget.focusWidget(), Qt.Key.Key_Tab)
         seen.append(widget.focusWidget())
 
     assert seen == [
         widget._rounds_spin,
+        widget._resume_window_spin,
         widget._goal_spin,
         widget._buffer_spin,
         widget._stretch_spin,
@@ -167,6 +168,24 @@ def test_reminder_delay_edits_reach_the_controller(dialog, qtbot):
     assert controller.saved[0].break_reminder_minutes == 10
 
 
+def test_resume_window_starts_from_the_config(qtbot):
+    controller = FakeController()
+    widget = SettingsDialog(
+        controller=controller, pomodoro=PomodoroConfig(resume_window_minutes=15)
+    )
+    qtbot.addWidget(widget)
+
+    assert widget._resume_window_spin.value() == 15
+
+
+def test_resume_window_edits_reach_the_controller(dialog, qtbot):
+    widget, controller = dialog
+    widget._resume_window_spin.setValue(20)
+    qtbot.mouseClick(widget._save_btn, Qt.MouseButton.LeftButton)
+
+    assert controller.saved[0].resume_window_minutes == 20
+
+
 # --- stepping ------------------------------------------------------------
 # What a Stepper *does* is proved once in test_widgets.py. All that is left here is what
 # this dialog chose: that every number field got one, and how coarsely each one moves.
@@ -175,6 +194,7 @@ def test_every_number_field_is_wrapped_in_a_stepper(dialog):
     fields = (
         widget._break_spin,
         widget._rounds_spin,
+        widget._resume_window_spin,
         widget._goal_spin,
         widget._buffer_spin,
         widget._stretch_spin,
@@ -197,6 +217,7 @@ def test_the_step_size_follows_how_the_value_is_used(dialog):
     assert widget._buffer_spin.singleStep() == 1
     assert widget._stretch_buffer_spin.singleStep() == 1
     assert widget._reminder_spin.singleStep() == 1
+    assert widget._resume_window_spin.singleStep() == 1
 
 
 def test_backfill_is_not_offered_here(qtbot, dialog):

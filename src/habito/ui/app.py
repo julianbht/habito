@@ -400,6 +400,7 @@ class HabitoApp(QMainWindow):
         outcome = self._config_editor.apply_settings(
             break_minutes=values.break_minutes,
             rounds=values.rounds,
+            resume_window_minutes=values.resume_window_minutes,
             daily_minutes=values.daily_minutes,
             buffer_minutes=values.buffer_minutes,
             stretch_minutes=values.stretch_minutes,

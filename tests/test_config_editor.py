@@ -13,6 +13,7 @@ from habito.config.models import Config
 _VALID = {
     "break_minutes": 5,
     "rounds": 4,
+    "resume_window_minutes": 10,
     "daily_minutes": 100,
     "buffer_minutes": 5,
     "stretch_minutes": 0,
