@@ -65,21 +65,19 @@ uv run habito --test-mode
 
 ## Keyboard
 
-The whole app is reachable without a mouse. Focus starts in the duration field, and every
+The whole app is reachable without a mouse. Focus starts on the Play button, and every
 control draws a visible focus ring.
 
 | Key | Action |
 |---|---|
 | `Tab` / `Shift+Tab` | Move through duration → up → down → play/pause → stop → menu |
-| `Space` / `Enter` | Press the focused button (Qt only gives you `Space`; `Enter` is ours) |
+| `Space` / `Enter` | Press the focused button |
+| `Space` | Start / pause / resume, from anywhere |
 | `↑` / `↓` | Nudge the duration by a minute, while it has focus |
 | `Ctrl+↑` / `Ctrl+↓` | Nudge by a minute from anywhere — the duration when idle, the live round when running |
-| `Ctrl+Space` | Start / pause / resume, or start a phase that's waiting |
 | `Ctrl+.` | Stop the session |
 | `Ctrl+,` | Open Settings |
 | `Esc` | Close a dialog |
-
-Ctrl + key is reserved for manipulating the timer.
 
 ## Test mode
 
@@ -120,10 +118,6 @@ to quietly remove the evidence.
 | `habito.evidence` | git wrapper, background commit+push worker, Observer recorder |
 | `habito.ui` | PySide6/Qt timer + calendar + log, dialogs (settings, backfill, phase prompt), window/controller, theme, progress background, notifications + sounds |
 | `habito.backfill` | Synthesize events for a past session |
-
-Icons are vendored SVGs from Google's
-[Material Symbols](https://github.com/google/material-design-icons) (`ui/icons/`,
-Apache-2.0) — a fixed colour baked into each file for now, not yet recoloured per palette.
 
 Only `habito.ui` knows about Qt. The views are purely presentational and talk to a
 `Controller` protocol, so the engine, storage, projection and evidence layers are entirely
