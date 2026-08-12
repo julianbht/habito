@@ -91,7 +91,7 @@ def test_tab_reaches_every_control(dialog, qtbot):
     widget._break_spin.setFocus()
 
     seen = []
-    for _ in range(10):
+    for _ in range(11):
         qtbot.keyClick(widget.focusWidget(), Qt.Key.Key_Tab)
         seen.append(widget.focusWidget())
 
@@ -103,6 +103,7 @@ def test_tab_reaches_every_control(dialog, qtbot):
         widget._stretch_buffer_spin,
         widget._sound_box,
         widget._preview_btn,
+        widget._reminder_spin,
         widget._tz_box,
         widget._rollover_spin,
         widget._save_btn,
@@ -148,6 +149,24 @@ def test_stretch_buffer_edits_reach_the_controller(dialog, qtbot):
     assert controller.saved[0].stretch_buffer_minutes == 20
 
 
+def test_reminder_delay_starts_from_the_config(qtbot):
+    controller = FakeController()
+    widget = SettingsDialog(
+        controller=controller, pomodoro=PomodoroConfig(), break_reminder_minutes=7
+    )
+    qtbot.addWidget(widget)
+
+    assert widget._reminder_spin.value() == 7
+
+
+def test_reminder_delay_edits_reach_the_controller(dialog, qtbot):
+    widget, controller = dialog
+    widget._reminder_spin.setValue(10)
+    qtbot.mouseClick(widget._save_btn, Qt.MouseButton.LeftButton)
+
+    assert controller.saved[0].break_reminder_minutes == 10
+
+
 # --- stepping ------------------------------------------------------------
 # What a Stepper *does* is proved once in test_widgets.py. All that is left here is what
 # this dialog chose: that every number field got one, and how coarsely each one moves.
@@ -160,6 +179,7 @@ def test_every_number_field_is_wrapped_in_a_stepper(dialog):
         widget._buffer_spin,
         widget._stretch_spin,
         widget._stretch_buffer_spin,
+        widget._reminder_spin,
         widget._rollover_spin,
     )
     assert all(isinstance(spin.parent(), Stepper) for spin in fields)
@@ -176,6 +196,7 @@ def test_the_step_size_follows_how_the_value_is_used(dialog):
     assert widget._rounds_spin.singleStep() == 1
     assert widget._buffer_spin.singleStep() == 1
     assert widget._stretch_buffer_spin.singleStep() == 1
+    assert widget._reminder_spin.singleStep() == 1
 
 
 def test_backfill_is_not_offered_here(qtbot, dialog):

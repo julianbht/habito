@@ -43,6 +43,7 @@ class SettingsValues:
     sound: str
     stretch_minutes: int = 0  # 0 means "no stretch goal", matching the spin's "Off"
     stretch_buffer_minutes: int = 10
+    break_reminder_minutes: int = 3
     timezone: str = SYSTEM_TZ
     rollover_hour: int = 3
 
@@ -74,6 +75,7 @@ class SettingsDialog(QDialog):
         pomodoro: PomodoroConfig,
         goals: GoalsConfig | None = None,
         sound: str = sounds.DEFAULT,
+        break_reminder_minutes: int = 3,
         time_config: TimeConfig | None = None,
         parent: QWidget | None = None,
     ) -> None:
@@ -84,9 +86,11 @@ class SettingsDialog(QDialog):
         self._last_timezone = self._time.timezone
         self.setWindowTitle("Settings")
         self.setMinimumWidth(340)
-        self._build(pomodoro, goals or GoalsConfig(), sound)
+        self._build(pomodoro, goals or GoalsConfig(), sound, break_reminder_minutes)
 
-    def _build(self, pomodoro: PomodoroConfig, goals: GoalsConfig, sound: str) -> None:
+    def _build(
+        self, pomodoro: PomodoroConfig, goals: GoalsConfig, sound: str, break_reminder_minutes: int
+    ) -> None:
         root = QVBoxLayout(self)
         root.setContentsMargins(20, 18, 20, 18)
         root.setSpacing(8)
@@ -106,8 +110,9 @@ class SettingsDialog(QDialog):
         root.addLayout(self._build_goal_form(goals))
 
         root.addWidget(_rule())
-        root.addWidget(label("Notification sound", "heading"))
+        root.addWidget(label("Notifications", "heading"))
         root.addLayout(self._build_sound_row(sound))
+        root.addLayout(self._build_reminder_form(break_reminder_minutes))
 
         root.addWidget(_rule())
         root.addWidget(label("Timezone", "heading"))
@@ -132,6 +137,7 @@ class SettingsDialog(QDialog):
             self._stretch_buffer_spin,
             self._sound_box,
             self._preview_btn,
+            self._reminder_spin,
             self._tz_box,
             self._rollover_spin,
             self._save_btn,
@@ -199,6 +205,18 @@ class SettingsDialog(QDialog):
         self._preview_btn.clicked.connect(self._preview)
         row.addWidget(self._preview_btn)
         return row
+
+    def _build_reminder_form(self, break_reminder_minutes: int) -> QFormLayout:
+        form = QFormLayout()
+        form.setSpacing(8)
+        self._reminder_spin = self._spin(
+            break_reminder_minutes, minimum=1, maximum=60, suffix=" min"
+        )
+        self._reminder_spin.setToolTip(
+            "A second nudge this long after “Break over”, if it's still unacknowledged"
+        )
+        form.addRow("Reminder", Stepper(self._reminder_spin))
+        return form
 
     def _build_timezone_form(self) -> QFormLayout:
         """Which wall clock a day is measured against, and where that day breaks."""
@@ -281,6 +299,7 @@ class SettingsDialog(QDialog):
             buffer_minutes=self._buffer_spin.value(),
             stretch_minutes=self._stretch_spin.value(),
             stretch_buffer_minutes=self._stretch_buffer_spin.value(),
+            break_reminder_minutes=self._reminder_spin.value(),
             sound=self.selected_sound(),
             timezone=self.selected_timezone(),
             rollover_hour=self._rollover_spin.value(),

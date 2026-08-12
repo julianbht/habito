@@ -17,6 +17,7 @@ _VALID = {
     "buffer_minutes": 5,
     "stretch_minutes": 0,
     "stretch_buffer_minutes": 10,
+    "break_reminder_minutes": 3,
     "sound": "asterisk",
     "timezone": "Europe/Berlin",
     "rollover_hour": 3,

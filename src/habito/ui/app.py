@@ -307,6 +307,7 @@ class HabitoApp(QMainWindow):
             pomodoro=self._config.pomodoro,
             goals=self._config.goals,
             sound=self._config.ui.sound,
+            break_reminder_minutes=self._config.ui.break_reminder_minutes,
             time_config=self._config.time,
             parent=self,
         )
@@ -401,6 +402,7 @@ class HabitoApp(QMainWindow):
             buffer_minutes=values.buffer_minutes,
             stretch_minutes=values.stretch_minutes,
             stretch_buffer_minutes=values.stretch_buffer_minutes,
+            break_reminder_minutes=values.break_reminder_minutes,
             sound=values.sound,
             timezone=values.timezone,
             rollover_hour=values.rollover_hour,

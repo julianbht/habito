@@ -82,6 +82,7 @@ class ConfigEditor:
         buffer_minutes: int,
         stretch_minutes: int,
         stretch_buffer_minutes: int,
+        break_reminder_minutes: int,
         sound: str,
         timezone: str,
         rollover_hour: int,
@@ -102,7 +103,9 @@ class ConfigEditor:
             )
             # model_copy skips validation, so the copy is re-validated to catch a bad value
             # before it reaches the config.
-            ui = self._config.ui.model_copy(update={"sound": sound})
+            ui = self._config.ui.model_copy(
+                update={"sound": sound, "break_reminder_minutes": break_reminder_minutes}
+            )
             UIConfig.model_validate(ui.model_dump())
             time = TimeConfig(timezone=timezone, rollover_hour=rollover_hour)
         except ValidationError as exc:
