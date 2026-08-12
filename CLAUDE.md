@@ -198,6 +198,20 @@ for the same reason, stacked because there it sits beside a 52px display.
 The stepper's buttons take **no focus**, so the spin box stays the single tab stop and the
 existing tab chains and Up/Down keys keep working — it wraps a control without becoming one.
 
+## Icons
+
+Vendored SVGs (`ui/icons/`), not a font or a CDN — `svg_icons.icon(name)` is just
+`QIcon(icons/<name>.svg)`. Sourced from Google's [Material
+Symbols](https://github.com/google/material-design-icons) (Outlined, Apache-2.0), fetched
+**unmodified** except for a `fill` attribute added to the root `<svg>` — provenance and the
+exact source path per file are in `icons/LICENSE.txt`, not repeated per-icon in code.
+
+Colour is baked into the file rather than applied at paint time (unlike qtawesome, which
+this replaced), so an icon doesn't yet follow the light/dark palette or turn red in test
+mode. `#e6e6e6` for the menu/dialog icons, `#ffffff` for the primary button's (white on its
+accent fill), `#9aa0a6` for the muted volume icon — match whichever of those the icon sits
+against rather than introducing a fourth.
+
 ## Pages
 
 The window is a `QStackedWidget` of three pages, but only the **timer** is built at
