@@ -131,6 +131,27 @@ class SessionTagged(BaseEvent):
     tag: str
 
 
+class TagDescribed(BaseEvent):
+    """Attaches or updates a tag's longer-form description — the tag manager, not the
+    session-end prompt.
+
+    Its own event rather than a field on ``SessionTagged``: the two facts are learned on
+    different clocks. A session picks up a tag in the moment it ends; writing down what the
+    tag actually means ("Strang — Linear Algebra and Its Applications") happens whenever you
+    get around to it, often long before or after any session that uses it. Folding the log
+    for the latest ``TagDescribed`` per tag gives the current description — a correction is
+    just a later event for the same tag, nothing is ever rewritten.
+
+    Not about any particular session, so ``session_id`` (required on every ``BaseEvent``)
+    carries no meaning here beyond satisfying the schema — each write mints a fresh one, the
+    same way it would for an event with nothing to link.
+    """
+
+    type: Literal["tag_described"] = "tag_described"
+    tag: str
+    description: str
+
+
 Event = Annotated[
     SessionStarted
     | RoundStarted
@@ -142,7 +163,8 @@ Event = Annotated[
     | TimeAdjusted
     | SessionEnded
     | SessionRetracted
-    | SessionTagged,
+    | SessionTagged
+    | TagDescribed,
     Field(discriminator="type"),
 ]
 """Discriminated union over the ``type`` field — validates each line into its subtype."""

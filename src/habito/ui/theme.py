@@ -166,9 +166,27 @@ def build_stylesheet(accent: str, palette: Palette = DARK) -> str:
         font-size: 19px;
     }}
     QPushButton#primary:hover {{ background-color: {accent}; border-color: {p.text}; }}
+    /* Same accent colour as #primary, without its enlarged size — for an affirmative
+       action that should stand out among a row of ordinary buttons, not tower over it. */
+    QPushButton#accent {{
+        background-color: {accent};
+        border-color: {accent};
+        color: #ffffff;
+    }}
+    QPushButton#accent:hover {{ background-color: {accent}; border-color: {p.text}; }}
     QPushButton#transport {{ font-size: 19px; }}
     QPushButton#nudge {{ padding: 0px; font-size: 13px; border-radius: 5px; }}
     QPushButton#gear {{ font-size: 15px; padding: 2px 7px; }}
+    /* An affordance that reads as text, not a button — the session-complete prompt's
+       "+ Add tag", so the tag picker stays out of sight until asked for. */
+    QPushButton#link {{
+        background: transparent;
+        border: none;
+        padding: 4px 2px;
+        color: {accent};
+    }}
+    QPushButton#link:hover {{ color: {p.text}; }}
+    QPushButton#link:pressed {{ color: {p.text}; }}
     /* Widgets.Stepper's −/+. The size is fixed in code (it's a hit target, not a look);
        here it only loses the text padding that would squeeze the glyph off-centre. */
     QPushButton#stepper {{ padding: 0px; font-size: 17px; font-weight: bold; }}

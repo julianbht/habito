@@ -36,6 +36,7 @@ from habito.domain.events import (
     SessionRetracted,
     SessionStarted,
     SessionTagged,
+    TagDescribed,
     TimeAdjusted,
     local_datetime,
     partition_date,
@@ -72,8 +73,13 @@ def _minutes(value: float) -> str:
     return str(int(value)) if float(value).is_integer() else f"{value:.2f}".rstrip("0")
 
 
-def describe(event: Event) -> Line:
-    """A human-readable rendering of one event."""
+def describe(event: Event, tag_description: str | None = None) -> Line:
+    """A human-readable rendering of one event.
+
+    ``tag_description`` is the tag's current description, if any — known only to the view
+    that folded the whole stream, not to a single ``SessionTagged`` event, so it's passed
+    in rather than looked up here.
+    """
     what, detail = "Event", event.type
     if isinstance(event, SessionStarted):
         what = "Session started"
@@ -104,6 +110,11 @@ def describe(event: Event) -> Line:
         detail = f"{format_duration(event.total_work_seconds)} total"
     elif isinstance(event, SessionTagged):
         what, detail = "Tagged", event.tag
+        if tag_description:
+            detail = f"{event.tag} — {tag_description}"
+    elif isinstance(event, TagDescribed):
+        what = "Tag described"
+        detail = f"{event.tag} — {event.description}" if event.description else event.tag
     else:
         what = "Session retracted"
         # Says when the correction was made, since the row sits under the day it corrects
@@ -197,6 +208,9 @@ class LogView(QWidget):
         self._events = entries
         voided = retracted_session_ids(entries)
         days = group_by_day(entries, self._rollover_hour)
+        # A tag's description isn't on the SessionTagged event itself — it's known only by
+        # folding the whole stream, which this view already does for retractions.
+        descriptions = {e.tag: e.description for e in entries if isinstance(e, TagDescribed)}
 
         self.tree.clear()
         for day, day_events in days.items():
@@ -209,7 +223,9 @@ class LogView(QWidget):
             for event in day_events:
                 # The retraction itself is the standing statement, so it isn't struck out.
                 struck = event.session_id in voided and not isinstance(event, SessionRetracted)
-                self._add_line(parent, describe(event), voided=struck)
+                tag = event.tag if isinstance(event, SessionTagged) else None
+                line = describe(event, descriptions.get(tag) if tag else None)
+                self._add_line(parent, line, voided=struck)
             self._mark_expanded(parent)
 
         # Today is the one you'd look at first; everything older stays folded away.

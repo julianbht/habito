@@ -30,7 +30,7 @@ from habito.evidence.worker import EvidenceStatus, EvidenceWorker
 from habito.projections.daily import summarize_by_day, summary_for
 from habito.projections.resume import ResumePhase, find_resumable
 from habito.projections.sessions import summarize_sessions
-from habito.projections.tags import known_tags
+from habito.projections.tags import known_tags, tag_descriptions
 from habito.storage.event_store import EventStore
 from habito.ui import theme
 from habito.ui.backfill_view import BackfillDialog
@@ -52,6 +52,7 @@ from habito.ui.settings_view import SettingsDialog, SettingsValues
 from habito.ui.shortcuts_view import SHORTCUTS, ShortcutsDialog
 from habito.ui.sounds import SoundPlayer
 from habito.ui.svg_icons import icon
+from habito.ui.tag_manager_view import TagManagerDialog
 from habito.ui.timer_view import TimerView, progress_for
 from habito.ui.widgets import button
 
@@ -220,6 +221,7 @@ class HabitoApp(QMainWindow):
         menu.addSeparator()
         menu.addAction(icon("calendar_add_on"), "Backfill…", self.on_open_backfill)
         menu.addAction(icon("undo"), "Retract session…", self.on_open_retract)
+        menu.addAction(icon("sell"), "Manage tags…", self.on_open_manage_tags)
         menu.addAction(icon("keyboard"), "Shortcuts…", self.on_open_shortcuts)
         menu.addAction(icon("settings"), "Settings…", self._open_settings)
         return menu
@@ -472,6 +474,17 @@ class HabitoApp(QMainWindow):
     def on_open_shortcuts(self) -> None:
         ShortcutsDialog(parent=self._settings_dialog or self).exec()
 
+    def on_open_manage_tags(self) -> None:
+        events = self._store.read_all()
+        TagManagerDialog(
+            tags=known_tags(events, self._config.habit),
+            descriptions=tag_descriptions(events, self._config.habit),
+            on_submit=lambda event: self._append_all([event]),
+            habit=self._config.habit,
+            now=self._clock.local_now(),
+            parent=self._settings_dialog or self,
+        ).exec()
+
     # --- internals -------------------------------------------------------
     def _append_all(self, events: Iterable[Event]) -> None:
         """Land a hand-made correction — backfill or retraction — and re-derive from it.
@@ -559,12 +572,14 @@ class HabitoApp(QMainWindow):
         """Put the phase prompt in front of whatever the user is doing."""
         self._close_prompt()
         if self._engine.state is State.done:
+            events = self._store.read_all()
             self._phase_dialog = SessionCompleteDialog(
                 note.title,
                 note.body,
                 note.action,
-                known_tags(self._store.read_all(), self._config.habit),
+                known_tags(events, self._config.habit),
                 on_accept=self._on_session_complete_accepted,
+                descriptions=tag_descriptions(events, self._config.habit),
                 parent=self,
             )
         else:
@@ -589,15 +604,16 @@ class HabitoApp(QMainWindow):
         self._view.focus_first()
         self._repaint()
 
-    def _on_session_complete_accepted(self, tag: str | None) -> None:
-        """Record the optional tag, if one was picked, and bring the timer back to front.
+    def _on_session_complete_accepted(self, tags: list[str]) -> None:
+        """Record whichever tags were picked, if any, and bring the timer back to front.
 
-        Skipping (blank tag, Esc, the close button) is just as valid an answer as
-        picking one — nothing here is required, so nothing here is enforced.
+        Skipping (no tags, Esc, the close button) is just as valid an answer as picking
+        some — nothing here is required, so nothing here is enforced. One SessionTagged
+        per tag, all annotating the same session_id.
         """
         self._phase_dialog = None
         session_id = self._engine.session_id
-        if tag and session_id is not None:
+        if tags and session_id is not None:
             self._append_all(
                 [
                     SessionTagged(
@@ -608,6 +624,7 @@ class HabitoApp(QMainWindow):
                         session_id=session_id,
                         tag=tag,
                     )
+                    for tag in tags
                 ]
             )
         self.show()

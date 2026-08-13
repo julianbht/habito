@@ -22,6 +22,7 @@ from habito.domain.events import (
     SessionRetracted,
     SessionStarted,
     SessionTagged,
+    TagDescribed,
     TimeAdjusted,
 )
 from habito.ui import theme
@@ -96,6 +97,25 @@ def test_a_tagged_session_shows_its_tag():
     line = describe(at(11, cls=SessionTagged, tag="linear algebra"))
     assert line.what == "Tagged"
     assert line.detail == "linear algebra"
+
+
+def test_a_tagged_session_shows_its_description_when_known():
+    line = describe(
+        at(11, cls=SessionTagged, tag="LinAlg-S"),
+        tag_description="Strang — Linear Algebra and Its Applications",
+    )
+    assert line.detail == "LinAlg-S — Strang — Linear Algebra and Its Applications"
+
+
+def test_a_tag_described_event_shows_what_it_means():
+    line = describe(at(11, cls=TagDescribed, tag="LinAlg-S", description="Strang's book"))
+    assert line.what == "Tag described"
+    assert line.detail == "LinAlg-S — Strang's book"
+
+
+def test_a_tag_described_event_without_text_still_reads():
+    line = describe(at(11, cls=TagDescribed, tag="LinAlg-S", description=""))
+    assert line.detail == "LinAlg-S"
 
 
 def test_events_without_detail_still_read_cleanly():
@@ -213,6 +233,22 @@ def test_backfilled_rows_are_marked_in_the_tree(view):
     row = view.tree.topLevelItem(0).child(0)
 
     assert "backfilled" in row.text(2)
+
+
+def test_the_view_shows_a_tags_description_alongside_its_tag(view):
+    tagged = at(9, cls=SessionTagged, tag="LinAlg-S")
+    described = TagDescribed(
+        timestamp=datetime(2026, 8, 5, 9, 0, tzinfo=UTC),
+        tz_offset_minutes=0,
+        origin=Origin.live,
+        habit="study",
+        session_id=uuid4(),
+        tag="LinAlg-S",
+        description="Strang's book",
+    )
+    view.set_events([tagged, described])
+    day = view.tree.topLevelItem(0)
+    assert "Strang's book" in day.child(0).text(2)
 
 
 def test_the_view_cannot_edit_the_log(view):
