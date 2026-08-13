@@ -9,7 +9,11 @@ others' construction. Subcommands:
 
 ``--test-mode`` runs the UI against a throwaway log with no evidence worker, so the real
 data repo is never touched. It paints the whole app red so you can't mistake it for a
-real session.
+real session, and — unless ``--config`` says otherwise — loads settings from a gitignored
+``config/test-settings.json`` instead of ``config/settings.json``, so poking at the UI
+(e.g. a 1-minute, 1-round Pomodoro) never needs the real settings touched or reverted.
+Pass ``--config config/settings.json`` explicitly to use the real settings while in test
+mode anyway.
 """
 
 from __future__ import annotations
@@ -28,7 +32,7 @@ if TYPE_CHECKING:
     # Type-only, so the CLI paths that never open a window still don't import Qt.
     from habito.ui.app import HabitoApp
 
-from habito.config.loader import load_config
+from habito.config.loader import find_project_root, load_config
 from habito.config.models import Config
 from habito.engine.clock import SystemClock
 from habito.engine.pomodoro import PomodoroEngine
@@ -221,7 +225,13 @@ def main(argv: list[str] | None = None) -> int:
         choices=["run", "doctor", "init-data"],
         help="run the UI (default), check setup, or initialise the data repo",
     )
-    parser.add_argument("--config", type=Path, default=None, help="path to settings.json")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help="path to settings.json (default: config/test-settings.json in --test-mode, "
+        "else config/settings.json)",
+    )
     parser.add_argument(
         "--test-mode",
         action="store_true",
@@ -229,7 +239,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    config = load_config(config_path=args.config)
+    project_root = find_project_root()
+    config_path = args.config
+    if config_path is None and args.test_mode:
+        # A separate file, not the real config, so poking at the UI never needs settings
+        # touched or reverted afterwards — pass --config explicitly to use the real one
+        # while in test mode anyway. Falls back to defaults like any other config path if
+        # it doesn't exist yet (see load_config).
+        config_path = project_root / "config" / "test-settings.json"
+
+    config = load_config(project_root=project_root, config_path=config_path)
     _configure_logging(config.project_root)
 
     if args.command == "doctor":
