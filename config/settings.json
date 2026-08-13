@@ -23,7 +23,7 @@
     "notifications": true,
     "sound": "notification",
     "always_on_top": false,
-    "break_reminder_minutes": 3
+    "break_reminder_minutes": 5
   },
   "goals": {
     "daily_minutes": 100,

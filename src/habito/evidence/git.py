@@ -8,7 +8,10 @@ repo) is never touched.
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
+
+_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 
 class GitError(RuntimeError):
@@ -28,6 +31,7 @@ class GitRepo:
             cwd=self.cwd,
             capture_output=True,
             text=True,
+            creationflags=_NO_WINDOW,
         )
         if check and proc.returncode != 0:
             raise GitError(list(args), proc.returncode, proc.stderr)

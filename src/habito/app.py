@@ -37,6 +37,10 @@ from habito.evidence.recorder import EvidenceRecorder
 from habito.evidence.worker import EvidenceWorker
 from habito.storage.event_store import EventStore
 
+# habito is a gui-script (no attached console), so a console child like git.exe would
+# otherwise flash its own new console window on every invocation.
+_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
 
 def _configure_logging(project_root: Path) -> None:
     """Log to a file always, plus the console when one exists.
@@ -176,7 +180,12 @@ def init_data(config: Config) -> int:
         print(f"Already a git repo: {path}")
         return 0
 
-    subprocess.run(["git", "init", "-b", config.evidence.branch], cwd=path, check=True)
+    subprocess.run(
+        ["git", "init", "-b", config.evidence.branch],
+        cwd=path,
+        check=True,
+        creationflags=_NO_WINDOW,
+    )
     gitignore = path / ".gitignore"
     if not gitignore.exists():
         gitignore.write_text("# habito evidence repo — the events log IS tracked.\n")
@@ -187,8 +196,13 @@ def init_data(config: Config) -> int:
     keep = habit_dir / ".gitkeep"
     if not keep.exists():
         keep.touch()
-    subprocess.run(["git", "add", "."], cwd=path, check=True)
-    subprocess.run(["git", "commit", "-m", "init habito evidence repo"], cwd=path, check=True)
+    subprocess.run(["git", "add", "."], cwd=path, check=True, creationflags=_NO_WINDOW)
+    subprocess.run(
+        ["git", "commit", "-m", "init habito evidence repo"],
+        cwd=path,
+        check=True,
+        creationflags=_NO_WINDOW,
+    )
     print(f"Initialised data repo at {path}")
     print("Next: create a GitHub repo, then:")
     print(
