@@ -44,11 +44,17 @@ def finish_the_session(window):
         window._repaint()
 
 
+def last_row(dialog: SessionCompleteDialog):
+    """``topLevelItem`` is stubbed as ``| None``; the "+ New tag…" row is always there."""
+    item = dialog._tag_tree.topLevelItem(dialog._tag_tree.topLevelItemCount() - 1)
+    assert item is not None
+    return item
+
+
 def pick_new_tag(qtbot, monkeypatch, dialog: SessionCompleteDialog, tag: str) -> None:
     monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **kw: (tag, True)))
-    new_tag_index = dialog._tag_box.count() - 1
-    dialog._tag_box.setCurrentIndex(new_tag_index)
-    dialog._on_tag_chosen(new_tag_index)
+    dialog._reveal_tag_tree()
+    dialog._on_tag_item_clicked(last_row(dialog), 0)
 
 
 def test_finishing_a_session_shows_the_tag_prompt_not_the_phase_prompt(qtbot, tmp_path):
@@ -75,6 +81,22 @@ def test_choosing_a_tag_appends_a_session_tagged_event(qtbot, tmp_path, monkeypa
     assert tagged[0].tag == "linear algebra"
     assert tagged[0].session_id == session_id
     assert window._phase_dialog is None
+
+
+def test_checking_two_tags_appends_one_session_tagged_event_each(qtbot, tmp_path, monkeypatch):
+    window, store = build(qtbot, tmp_path)
+    finish_the_session(window)
+    session_id = window._engine.session_id
+
+    dialog = window._phase_dialog
+    assert isinstance(dialog, SessionCompleteDialog)
+    pick_new_tag(qtbot, monkeypatch, dialog, "linear algebra")
+    pick_new_tag(qtbot, monkeypatch, dialog, "topology")
+    qtbot.mouseClick(dialog.action_button, Qt.MouseButton.LeftButton)
+
+    tagged = [e for e in store.read_all() if isinstance(e, SessionTagged)]
+    assert {e.tag for e in tagged} == {"linear algebra", "topology"}
+    assert all(e.session_id == session_id for e in tagged)
 
 
 def test_skipping_the_prompt_appends_nothing(qtbot, tmp_path):
@@ -134,5 +156,10 @@ def test_the_prompt_offers_a_tag_used_in_an_earlier_session(qtbot, tmp_path, mon
 
     dialog2 = window2._phase_dialog
     assert isinstance(dialog2, SessionCompleteDialog)
-    items = [dialog2._tag_box.itemText(i) for i in range(dialog2._tag_box.count())]
-    assert "topology" in items
+    tree = dialog2._tag_tree
+    labels = []
+    for i in range(tree.topLevelItemCount()):
+        item = tree.topLevelItem(i)
+        assert item is not None
+        labels.append(item.text(0))
+    assert "topology" in labels

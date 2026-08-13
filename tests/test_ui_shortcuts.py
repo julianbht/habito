@@ -152,6 +152,7 @@ def test_settings_is_the_last_menu_entry(qtbot, app):
         "",
         "Backfill…",
         "Retract session…",
+        "Manage tags…",
         "Shortcuts…",
         "Settings…",
     ]
