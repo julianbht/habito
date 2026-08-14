@@ -206,13 +206,25 @@ existing tab chains and Up/Down keys keep working — it wraps a control without
 colour differs.** `widgets.button(text, object_name)` with no object name is the plain,
 unstyled case — Close, Cancel, "+ New tag" — anything that isn't the thing the dialog
 exists to do. `object_name="primary"` is the accent colour, for whichever button *is* the
-thing the dialog exists to do — TagManagerDialog's and SettingsView's "Save",
-PhaseDialog's "Start round N" / "Take a break", SessionCompleteDialog's "Done" — one per
-dialog, never a size bump, so it reads as "this is the one that commits" without visually
-outweighing its neighbours. `widgets.primary_button(text)` additionally calls
-`setDefault(True)`, for the dialogs above where Enter should trigger it. Reach for
-whichever tier matches the button's *role* before writing a one-off `QPushButton` — a
-same-role button styled differently elsewhere is a bug, not a new case.
+thing the dialog exists to do — Save, Retract & commit, Add & commit, Resume, Done, Start
+round N — one per dialog, never a size bump, so it reads as "this is the one that commits"
+without visually outweighing its neighbours. Reach for whichever tier matches the button's
+*role* before writing a one-off `QPushButton` — a same-role button styled differently
+elsewhere is a bug, not a new case.
+
+**A dialog's primary button is always also its default button** (`setDefault(True)`, or
+`widgets.primary_button(text)`, which bundles the two) — whether it was built with
+`widgets.button()` or pulled out of a `QDialogButtonBox`. Skipping this leaves Enter's
+behaviour to Qt's implicit-default guessing (whichever button last held focus), which is
+exactly the kind of per-dialog drift this section exists to rule out — every dialog's one
+affirmative action should respond to Enter the same deterministic way.
+
+**Esc closes the dialog, full stop — that's native `QDialog` behaviour and no dialog should
+need to earn it.** The one exception is `PhaseDialog`, which swallows Esc because the
+session is genuinely parked behind it and closing without answering would strand it; that
+override is documented at the call site precisely because it's the exception, not the
+rule. A new dialog that wants different Esc behaviour needs the same kind of justification,
+not just an omission.
 
 ## Icons
 

@@ -105,6 +105,8 @@ class RetractDialog(QDialog):
         )
         ok = self._buttons.button(QDialogButtonBox.StandardButton.Ok)
         ok.setText("Retract && commit")
+        ok.setObjectName("primary")
+        ok.setDefault(True)
         ok.setEnabled(bool(self._sessions))
         if not self._sessions:
             self._error.setText("Nothing to retract — the log has no standing sessions.")

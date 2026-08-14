@@ -95,7 +95,10 @@ class BackfillDialog(QDialog):
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Add && commit")
+        ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        ok.setText("Add && commit")
+        ok.setObjectName("primary")
+        ok.setDefault(True)
         buttons.accepted.connect(self._submit)
         buttons.rejected.connect(self.reject)  # Esc also closes, via QDialog
         root.addWidget(buttons)

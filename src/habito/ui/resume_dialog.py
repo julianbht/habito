@@ -43,6 +43,7 @@ class ResumePromptDialog(QDialog):
         )
         ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
         ok.setText("Resume")
+        ok.setObjectName("primary")
         ok.setDefault(True)
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Not now")
         buttons.accepted.connect(self.accept)
