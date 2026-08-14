@@ -223,10 +223,15 @@ def build_stylesheet(accent: str, palette: Palette = DARK) -> str:
         border-width: 2px;
         padding: 2px 4px;
     }}
-    /* The focus ring — the whole point of the keyboard work; must be obvious. */
+    /* The focus ring — the whole point of the keyboard work; must be obvious. `outline:
+       none` kills Qt's own native focus rectangle, which the style draws inset from the
+       border regardless of this stylesheet — left alone, it doubles up on the border
+       below (worst on #primary, where its light dotted ring sits right on the accent
+       fill) instead of one clean ring around the whole control. */
     QPushButton:focus, QSpinBox:focus,
     QDateEdit:focus, QTimeEdit:focus, QLineEdit:focus {{
         border: 2px solid {accent};
+        outline: none;
     }}
 
     /* Painted in ProgressBackground.paintEvent — it *is* the progress indicator. */
@@ -272,13 +277,17 @@ def build_stylesheet(accent: str, palette: Palette = DARK) -> str:
         margin: 3px 2px;
     }}
 
-    /* The log is a dense table; it gets a size of its own and room to breathe. */
+    /* The log is a dense table; it gets a size of its own and room to breathe. Also
+       QTreeWidget (the shortcuts list, the tag pickers): same native-focus-rect problem
+       as the button/input rule above, on the current item instead of the whole control —
+       ``outline: none`` here for the same reason. */
     QTreeView {{
         background-color: {p.surface};
         alternate-background-color: {p.bg};  /* a faint stripe helps a dense table scan */
         border: 1px solid {p.border};
         border-radius: 6px;
         font-size: 14px;
+        outline: none;
     }}
     QTreeView::item {{ padding: 5px 4px; border: none; }}
     QTreeView::item:selected {{ background-color: {accent}; color: #ffffff; }}
