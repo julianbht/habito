@@ -19,6 +19,7 @@ from habito.domain.events import (
     SessionEnded,
     SessionStarted,
     new_session_id,
+    stamp,
 )
 
 
@@ -35,13 +36,12 @@ def build_backfill_events(
     Mirrors the live flow: work → break → work … with no trailing break after the
     final round.
     """
-    if start.tzinfo is None:
-        raise ValueError("start must be timezone-aware")
     if rounds <= 0 or work_minutes <= 0 or break_minutes <= 0:
         raise ValueError("rounds, work_minutes and break_minutes must be positive")
 
-    offset = start.utcoffset() or timedelta(0)
-    tz_offset_minutes = int(offset.total_seconds() // 60)
+    # Only the offset is wanted here — every event's own timestamp still tracks cursor as
+    # it walks forward through the session below.
+    _, tz_offset_minutes = stamp(start)
     session_id = new_session_id()
     events: list[Event] = []
     cursor = start

@@ -8,11 +8,11 @@ appends them to the store, which commits+pushes each one.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from datetime import UTC, date, timedelta
+from datetime import date
 from datetime import datetime as _datetime
 from uuid import UUID
 
-from habito.domain.events import Origin, SessionRetracted
+from habito.domain.events import Origin, SessionRetracted, stamp
 
 
 def build_retraction_events(
@@ -28,17 +28,15 @@ def build_retraction_events(
     ``now`` is a timezone-aware local datetime — when the correction is being made, which
     is what the retraction records as its own timestamp.
     """
-    if now.tzinfo is None:
-        raise ValueError("now must be timezone-aware")
     targets = sorted(set(days))
     if not targets:
         raise ValueError("a retraction needs at least one target day")
 
-    offset = now.utcoffset() or timedelta(0)
+    timestamp, tz_offset_minutes = stamp(now)
     return [
         SessionRetracted(
-            timestamp=now.astimezone(UTC),
-            tz_offset_minutes=int(offset.total_seconds() // 60),
+            timestamp=timestamp,
+            tz_offset_minutes=tz_offset_minutes,
             origin=Origin.live,
             habit=habit,
             session_id=session_id,

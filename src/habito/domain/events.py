@@ -12,7 +12,7 @@ what was claimed and that it was withdrawn.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
 from typing import Annotated, Literal
 from uuid import UUID, uuid4
@@ -188,6 +188,17 @@ EventAdapter: TypeAdapter[Event] = TypeAdapter(Event)
 
 def new_session_id() -> UUID:
     return uuid4()
+
+
+def stamp(local: datetime) -> tuple[datetime, int]:
+    """The ``(timestamp, tz_offset_minutes)`` pair every event constructor needs, from a
+    timezone-aware local instant — the inverse of :func:`local_datetime`, and the one
+    place that pair is computed rather than a copy of it in each event-builder module.
+    """
+    if local.tzinfo is None:
+        raise ValueError("local must be timezone-aware")
+    offset = local.utcoffset() or timedelta(0)
+    return local.astimezone(UTC), int(offset.total_seconds() // 60)
 
 
 def local_datetime(event: Event) -> datetime:
