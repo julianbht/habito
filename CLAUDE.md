@@ -202,18 +202,17 @@ for the same reason, stacked because there it sits beside a 52px display.
 The stepper's buttons take **no focus**, so the spin box stays the single tab stop and the
 existing tab chains and Up/Down keys keep working — it wraps a control without becoming one.
 
-**Three button tiers, reused rather than rebuilt per view.** `widgets.button(text,
-object_name)` covers the plain, unstyled case — Close, Cancel, "+ New tag" — anything that
-isn't the thing the dialog exists to do. `object_name="accent"` is the accent colour at
-normal size, for the one affirmative action that commits a dialog sitting among peer
-buttons — TagManagerDialog's and SettingsView's "Save" are both this, because both are
-"commit these changes" next to (or above) buttons that aren't. `widgets.primary_button(text)`
-is the large standalone CTA — accent colour, 19px text, 38px tall, `setDefault(True)` — for
-a dialog that exists to ask exactly one question, nothing else on screen competing for
-attention: PhaseDialog's "Start round N" / "Take a break" and SessionCompleteDialog's
-"Done". Reach for whichever tier matches the button's *role* in its dialog before writing a
-one-off `QPushButton` — a same-role button styled differently elsewhere is a bug, not a
-new case.
+**Two button tiers, reused rather than rebuilt per view — same size either way, only the
+colour differs.** `widgets.button(text, object_name)` with no object name is the plain,
+unstyled case — Close, Cancel, "+ New tag" — anything that isn't the thing the dialog
+exists to do. `object_name="primary"` is the accent colour, for whichever button *is* the
+thing the dialog exists to do — TagManagerDialog's and SettingsView's "Save",
+PhaseDialog's "Start round N" / "Take a break", SessionCompleteDialog's "Done" — one per
+dialog, never a size bump, so it reads as "this is the one that commits" without visually
+outweighing its neighbours. `widgets.primary_button(text)` additionally calls
+`setDefault(True)`, for the dialogs above where Enter should trigger it. Reach for
+whichever tier matches the button's *role* before writing a one-off `QPushButton` — a
+same-role button styled differently elsewhere is a bug, not a new case.
 
 ## Icons
 

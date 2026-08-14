@@ -102,17 +102,10 @@ def button(text: str = "", object_name: str = "") -> Button:
     return widget
 
 
-# The single big call-to-action a dialog is otherwise empty without — PhaseDialog's "Start
-# round N" / "Take a break" and SessionCompleteDialog's "Done" are the same shape of button
-# (and, before this, the same four duplicated lines) even though nothing else in either
-# dialog is shared code.
-_PRIMARY_BUTTON_HEIGHT = 38
-
-
 def primary_button(text: str) -> Button:
-    """The one prominent, default-activated action in an otherwise button-light dialog."""
+    """The dialog's one affirmative action: accent-coloured, and the button Enter
+    activates. Same size as every other button — see CLAUDE.md § Controls."""
     widget = button(text, "primary")
-    widget.setMinimumHeight(_PRIMARY_BUTTON_HEIGHT)
     widget.setDefault(True)
     return widget
 

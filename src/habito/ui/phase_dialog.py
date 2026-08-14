@@ -6,7 +6,8 @@ comes up on top of whatever you're doing, and the next phase begins only when yo
 button — at which point the main window is brought back to the front.
 
 Topmost is for *arriving* in front, not for staying there: the hint is set in
-:meth:`present` and dropped again as soon as you move to another window.
+:meth:`~habito.ui.prompt_dialog.PromptDialog.present` and dropped again as soon as you move
+to another window.
 """
 
 from __future__ import annotations
@@ -14,13 +15,13 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PySide6.QtCore import QEvent, Qt
-from PySide6.QtGui import QKeyEvent, QWindow
-from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QVBoxLayout, QWidget
+from PySide6.QtGui import QKeyEvent
+from PySide6.QtWidgets import QWidget
 
-from habito.ui.widgets import label, primary_button
+from habito.ui.prompt_dialog import PromptDialog
 
 
-class PhaseDialog(QDialog):
+class PhaseDialog(PromptDialog):
     def __init__(
         self,
         title: str,
@@ -30,75 +31,17 @@ class PhaseDialog(QDialog):
         gates_phase: bool = True,
         parent: QWidget | None = None,
     ) -> None:
-        super().__init__(parent)
+        super().__init__(title, body, parent)
         self._on_accept = on_accept
         # True when the session is parked behind this prompt, so the window knows to take
         # it down again if the session ends some other way (you press stop, say).
         self.gates_phase = gates_phase
-        self.setWindowTitle(title)
-        self.setMinimumWidth(320)
         # No close button: the point is that you answer it. Esc is swallowed below.
         self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, False)
         # Deliberately *not* modal: the timer window stays usable, so you can still stop
         # the session instead of taking the break you're being offered.
-        self._build(title, body, action)
-
-    def _build(self, title: str, body: str, action: str) -> None:
-        root = QVBoxLayout(self)
-        root.setContentsMargins(24, 22, 24, 20)
-        root.setSpacing(10)
-
-        heading = label(title, "heading")
-        heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        root.addWidget(heading)
-
-        message = label(body)
-        message.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        message.setWordWrap(True)
-        root.addWidget(message)
-
-        row = QHBoxLayout()
-        row.addStretch(1)
-        self.action_button = primary_button(action)
+        self._add_action_row(action)
         self.action_button.clicked.connect(self._accept)
-        row.addWidget(self.action_button)
-        row.addStretch(1)
-        root.addSpacing(4)
-        root.addLayout(row)
-
-    def present(self) -> None:
-        """Put it in front of whatever the user is looking at."""
-        self.set_always_on_top(True)  # before show(), so it opens above the foreground app
-        self.show()
-        self.raise_()
-        self.activateWindow()
-        self.action_button.setFocus(Qt.FocusReason.OtherFocusReason)
-        app = QApplication.instance()
-        if isinstance(app, QApplication):
-            app.alert(self, 0)  # flash the taskbar until it's noticed
-
-    def set_always_on_top(self, on: bool) -> None:
-        """Set or clear the topmost hint.
-
-        Once the window exists the change goes through :class:`QWindow`, which reorders the
-        native window in place. The ``QWidget`` setter would hide it and demand a second
-        ``show()`` — which re-raises and re-steals focus, the opposite of dropping topmost.
-        """
-        # Annotated because the stub types this non-optional; it is None until show().
-        handle: QWindow | None = self.windowHandle()
-        if handle is None:  # pyright: ignore[reportUnnecessaryComparison]
-            self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, on)
-        else:
-            handle.setFlag(Qt.WindowType.WindowStaysOnTopHint, on)
-
-    def is_always_on_top(self) -> bool:
-        handle: QWindow | None = self.windowHandle()
-        flags = (
-            self.windowFlags()
-            if handle is None  # pyright: ignore[reportUnnecessaryComparison]
-            else handle.flags()
-        )
-        return bool(flags & Qt.WindowType.WindowStaysOnTopHint)
 
     def event(self, event: QEvent) -> bool:
         """Drop topmost as soon as focus moves elsewhere."""

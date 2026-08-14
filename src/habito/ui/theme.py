@@ -159,21 +159,14 @@ def build_stylesheet(accent: str, palette: Palette = DARK) -> str:
     QPushButton:hover {{ background-color: {p.border}; }}
     QPushButton:pressed {{ background-color: {p.surface}; }}
     QPushButton:disabled {{ color: {p.text_disabled}; background-color: {p.surface}; }}
+    /* The one affirmative action in a dialog — Save, Done, Start round N. Same size as
+       every other button; only the colour marks it as the one that does the thing. */
     QPushButton#primary {{
         background-color: {accent};
         border-color: {accent};
         color: #ffffff;
-        font-size: 19px;
     }}
     QPushButton#primary:hover {{ background-color: {accent}; border-color: {p.text}; }}
-    /* Same accent colour as #primary, without its enlarged size — for an affirmative
-       action that should stand out among a row of ordinary buttons, not tower over it. */
-    QPushButton#accent {{
-        background-color: {accent};
-        border-color: {accent};
-        color: #ffffff;
-    }}
-    QPushButton#accent:hover {{ background-color: {accent}; border-color: {p.text}; }}
     QPushButton#transport {{ font-size: 19px; }}
     QPushButton#nudge {{ padding: 0px; font-size: 13px; border-radius: 5px; }}
     QPushButton#gear {{ font-size: 15px; padding: 2px 7px; }}

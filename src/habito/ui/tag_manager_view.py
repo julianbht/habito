@@ -100,7 +100,7 @@ class TagManagerDialog(QDialog):
         new_tag_btn.clicked.connect(self._on_new_tag)
         actions.addWidget(new_tag_btn)
         actions.addStretch(1)
-        self.save_btn = button("Save", "accent")
+        self.save_btn = button("Save", "primary")
         self.save_btn.setEnabled(False)
         self.save_btn.clicked.connect(self._on_save)
         actions.addWidget(self.save_btn)

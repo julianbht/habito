@@ -29,19 +29,12 @@ from collections.abc import Callable
 from typing import Final
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor, QWindow
-from PySide6.QtWidgets import (
-    QApplication,
-    QDialog,
-    QHBoxLayout,
-    QTreeWidget,
-    QTreeWidgetItem,
-    QVBoxLayout,
-    QWidget,
-)
+from PySide6.QtGui import QBrush, QColor
+from PySide6.QtWidgets import QHBoxLayout, QTreeWidget, QTreeWidgetItem, QWidget
 
 from habito.ui import theme
-from habito.ui.widgets import button, label, primary_button, prompt_new_tag
+from habito.ui.prompt_dialog import PromptDialog
+from habito.ui.widgets import button, prompt_new_tag
 
 _TAG_ROLE = Qt.ItemDataRole.UserRole + 1
 _NEW_TAG: Final = "__new_tag__"
@@ -50,7 +43,7 @@ _NEW_TAG: Final = "__new_tag__"
 _TAG_TREE_MIN_HEIGHT = 140
 
 
-class SessionCompleteDialog(QDialog):
+class SessionCompleteDialog(PromptDialog):
     # Never gates a phase — see the module docstring. HabitoApp checks this the same way
     # it checks PhaseDialog.gates_phase, so the two dialogs share one call site.
     gates_phase = False
@@ -65,33 +58,13 @@ class SessionCompleteDialog(QDialog):
         descriptions: dict[str, str] | None = None,
         parent: QWidget | None = None,
     ) -> None:
-        super().__init__(parent)
+        super().__init__(title, body, parent)
         self._on_accept = on_accept
-        self.setWindowTitle(title)
-        self.setMinimumWidth(320)
-        self._build(title, body, action, known_tags, descriptions or {})
+        self._build(known_tags, descriptions or {})
+        self._add_action_row(action)
+        self.action_button.clicked.connect(self._accept)
 
-    def _build(
-        self,
-        title: str,
-        body: str,
-        action: str,
-        known_tags: list[str],
-        descriptions: dict[str, str],
-    ) -> None:
-        root = QVBoxLayout(self)
-        root.setContentsMargins(24, 22, 24, 20)
-        root.setSpacing(10)
-
-        heading = label(title, "heading")
-        heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        root.addWidget(heading)
-
-        message = label(body)
-        message.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        message.setWordWrap(True)
-        root.addWidget(message)
-
+    def _build(self, known_tags: list[str], descriptions: dict[str, str]) -> None:
         # Shrink-wrapped and centred, like the action button below — not stretched to the
         # dialog's full width, which left its text pinned to the left edge under a centred
         # heading and message.
@@ -102,7 +75,7 @@ class SessionCompleteDialog(QDialog):
         self._attach_tag_link.clicked.connect(self._reveal_tag_tree)
         link_row.addWidget(self._attach_tag_link)
         link_row.addStretch(1)
-        root.addLayout(link_row)
+        self._root.addLayout(link_row)
 
         self._tag_tree = QTreeWidget()
         self._tag_tree.setColumnCount(2)
@@ -125,16 +98,7 @@ class SessionCompleteDialog(QDialog):
         new_item.setData(0, _TAG_ROLE, _NEW_TAG)
         self._tag_tree.itemClicked.connect(self._on_tag_item_clicked)
         self._tag_tree.resizeColumnToContents(0)
-        root.addWidget(self._tag_tree)
-
-        row = QHBoxLayout()
-        row.addStretch(1)
-        self.action_button = primary_button(action)
-        self.action_button.clicked.connect(self._accept)
-        row.addWidget(self.action_button)
-        row.addStretch(1)
-        root.addSpacing(4)
-        root.addLayout(row)
+        self._root.addWidget(self._tag_tree)
 
     def _reveal_tag_tree(self) -> None:
         self._attach_tag_link.setVisible(False)
@@ -169,24 +133,6 @@ class SessionCompleteDialog(QDialog):
             if item.checkState(0) == Qt.CheckState.Checked:
                 tags.append(item.text(0))
         return tags
-
-    def present(self) -> None:
-        """Put it in front of whatever the user is looking at."""
-        self.set_always_on_top(True)  # before show(), so it opens above the foreground app
-        self.show()
-        self.raise_()
-        self.activateWindow()
-        self.action_button.setFocus(Qt.FocusReason.OtherFocusReason)
-        app = QApplication.instance()
-        if isinstance(app, QApplication):
-            app.alert(self, 0)  # flash the taskbar until it's noticed
-
-    def set_always_on_top(self, on: bool) -> None:
-        handle: QWindow | None = self.windowHandle()
-        if handle is None:  # pyright: ignore[reportUnnecessaryComparison]
-            self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, on)
-        else:
-            handle.setFlag(Qt.WindowType.WindowStaysOnTopHint, on)
 
     def _accept(self) -> None:
         tags = self.selected_tags()

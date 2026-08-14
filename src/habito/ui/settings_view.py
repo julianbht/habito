@@ -128,7 +128,7 @@ class SettingsDialog(QDialog):
         root.addLayout(self._build_timezone_form())
 
         root.addWidget(_rule())
-        self._save_btn = button("Save", "accent")
+        self._save_btn = button("Save", "primary")
         self._save_btn.setDefault(True)  # Enter saves
         self._save_btn.clicked.connect(self._save)
         root.addWidget(self._save_btn)
