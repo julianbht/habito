@@ -32,6 +32,7 @@ logs/
 
 # Organization files
 TODO.md
+icon-inspiration
 
 # Personal --config override for fast --test-mode runs (see habito.app module docstring)
 config/test-settings.json

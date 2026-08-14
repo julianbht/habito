@@ -41,7 +41,7 @@ from PySide6.QtWidgets import (
 )
 
 from habito.ui import theme
-from habito.ui.widgets import button, label, prompt_new_tag
+from habito.ui.widgets import button, label, primary_button, prompt_new_tag
 
 _TAG_ROLE = Qt.ItemDataRole.UserRole + 1
 _NEW_TAG: Final = "__new_tag__"
@@ -129,9 +129,7 @@ class SessionCompleteDialog(QDialog):
 
         row = QHBoxLayout()
         row.addStretch(1)
-        self.action_button = button(action, "primary")
-        self.action_button.setMinimumHeight(38)
-        self.action_button.setDefault(True)
+        self.action_button = primary_button(action)
         self.action_button.clicked.connect(self._accept)
         row.addWidget(self.action_button)
         row.addStretch(1)

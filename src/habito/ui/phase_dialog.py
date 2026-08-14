@@ -17,7 +17,7 @@ from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QKeyEvent, QWindow
 from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QVBoxLayout, QWidget
 
-from habito.ui.widgets import button, label
+from habito.ui.widgets import label, primary_button
 
 
 class PhaseDialog(QDialog):
@@ -59,9 +59,7 @@ class PhaseDialog(QDialog):
 
         row = QHBoxLayout()
         row.addStretch(1)
-        self.action_button = button(action, "primary")
-        self.action_button.setMinimumHeight(38)
-        self.action_button.setDefault(True)
+        self.action_button = primary_button(action)
         self.action_button.clicked.connect(self._accept)
         row.addWidget(self.action_button)
         row.addStretch(1)
