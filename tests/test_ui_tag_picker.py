@@ -56,12 +56,14 @@ def drive_edit_dialog(monkeypatch, tag: str, description: str = "", accepted: bo
     monkeypatch.setattr(TagEditDialog, "exec", fake_exec)
 
 
-def test_tags_are_listed_alphabetically_with_their_descriptions(qtbot):
+def test_tags_are_listed_in_the_given_order_with_their_descriptions(qtbot):
+    """Order is the caller's choice (most-recent-first, from known_tags) — this widget
+    just preserves it rather than re-sorting."""
     picker = picker_for(qtbot, ["topology", "linear algebra"], {"topology": "point-set basics"})
 
-    assert row(picker, 0).text(0) == "linear algebra"
-    assert row(picker, 1).text(0) == "topology"
-    assert row(picker, 1).text(1) == "point-set basics"
+    assert row(picker, 0).text(0) == "topology"
+    assert row(picker, 0).text(1) == "point-set basics"
+    assert row(picker, 1).text(0) == "linear algebra"
 
 
 def test_not_checkable_has_no_check_state(qtbot):
@@ -137,6 +139,25 @@ def test_new_tag_that_already_exists_is_not_duplicated(qtbot, monkeypatch):
     assert picker.selected_tags() == ["topology"]
 
 
+def test_a_new_tag_appears_at_the_top(qtbot, monkeypatch):
+    picker = picker_for(qtbot, ["linear algebra", "topology"], checkable=False)
+    drive_edit_dialog(monkeypatch, "probability")
+
+    picker._on_new_tag()
+
+    assert row(picker, 0).text(0) == "probability"
+
+
+def test_retyping_an_existing_tag_moves_it_to_the_top(qtbot, monkeypatch):
+    picker = picker_for(qtbot, ["linear algebra", "topology"], checkable=False)
+    drive_edit_dialog(monkeypatch, "topology")
+
+    picker._on_new_tag()
+
+    assert row(picker, 0).text(0) == "topology"
+    assert picker.tree.topLevelItemCount() == 2
+
+
 def test_cancelling_new_tag_adds_nothing(qtbot, monkeypatch):
     picker = picker_for(qtbot, ["topology"], checkable=False)
     drive_edit_dialog(monkeypatch, "probability", accepted=False)
@@ -155,6 +176,27 @@ def test_double_clicking_a_row_can_update_its_description(qtbot, monkeypatch):
     assert row(picker, 0).text(1) == "chapters 1-3"
     # Editing a tag's description is not the same as selecting it for attachment.
     assert picker.selected_tags() == []
+
+
+def test_double_clicking_a_row_moves_it_to_the_top(qtbot, monkeypatch):
+    picker = picker_for(qtbot, ["linear algebra", "topology"], checkable=False)
+    drive_edit_dialog(monkeypatch, "topology", "chapters 1-3")
+
+    picker._on_row_double_clicked(row(picker, 1), 0)
+
+    assert row(picker, 0).text(0) == "topology"
+    assert row(picker, 1).text(0) == "linear algebra"
+
+
+def test_moving_a_row_to_the_top_keeps_its_check_state(qtbot, monkeypatch):
+    picker = picker_for(qtbot, ["linear algebra", "topology"], checkable=True)
+    row(picker, 1).setCheckState(0, Qt.CheckState.Checked)  # "topology"
+    drive_edit_dialog(monkeypatch, "topology", "chapters 1-3")
+
+    picker._on_row_double_clicked(row(picker, 1), 0)
+
+    assert row(picker, 0).text(0) == "topology"
+    assert picker.selected_tags() == ["topology"]
 
 
 def test_cancelling_the_edit_leaves_the_description_unchanged(qtbot, monkeypatch):

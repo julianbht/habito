@@ -88,7 +88,13 @@ an earlier day.
 folding `TagCreated` / `TagDescribed` / `SessionTagged` out of the log itself, the same
 shape as `find_resumable` and `summarize_sessions` — so the picker can't drift from what
 the log actually says, and skipping the prompt (the expected common case) leaves no trace
-at all rather than an empty tag.
+at all rather than an empty tag. Ordered most-recently-touched-first rather than
+alphabetically — a tag used again moves back to the front — which relies on nothing more
+than `events` already being chronological (as `read_all()` returns it): "touched last" is
+just "seen last" in the given order, no timestamp comparison needed. `TagPicker` preserves
+that order rather than re-sorting, and moves a row to the top itself when a tag is created
+or edited live, so an open picker doesn't need reopening to reflect the same ranking a
+fresh one would show.
 
 **Three tag events, one job each — never one event wearing two meanings.**
 `TagCreated` marks that a tag exists; `TagDescribed` sets or changes its description;
@@ -143,6 +149,16 @@ Three distinct things, easy to conflate:
 `local_datetime(event)` reads the wall clock off the event's own recorded offset, so
 changing the timezone setting never retroactively moves history — old entries keep the
 offset they had, only new ones follow the new zone.
+
+`stamp(local)` is the other direction — a timezone-aware local instant in, `(timestamp,
+tz_offset_minutes)` out, raising on a naive one. Every event-builder module (`tagging`,
+`backfill`, `retraction`) calls this rather than each computing `.utcoffset()` and
+`.astimezone(UTC)` itself: that computation used to be copied three times over, once per
+module, which is exactly the kind of duplication worth a shared helper rather than a
+fourth copy the next time an event needs building. It does *not* auto-fill these fields on
+`BaseEvent` itself, on purpose — see § Schema evolution on why nothing stamps the common
+fields on for you; this only removes the copy-pasted arithmetic, not the requirement that
+every construction site still spells out the result explicitly.
 
 `logical_day(local, rollover_hour)` and `logical_date(event, rollover_hour)` decide which
 day something counts toward. Default `rollover_hour = 3`: studying past midnight belongs to

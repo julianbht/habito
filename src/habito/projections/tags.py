@@ -12,18 +12,21 @@ from habito.domain.events import Event, SessionTagged, TagCreated, TagDescribed
 
 
 def known_tags(events: Iterable[Event], habit: str) -> list[str]:
-    """Every distinct tag on offer for this habit, alphabetically.
+    """Every distinct tag on offer for this habit, most recently touched first.
 
     A tag counts as known once it's been created, described, or put on a session — so a
     tag set up ahead of time, before it's ever used, still shows up in the session-end
-    picker.
+    picker. ``events`` is assumed chronological, the way ``read_all()`` returns it, so
+    "touched last" is just "seen last" in the given order — no timestamp comparison
+    needed, and a tag touched again moves back to the front rather than staying wherever
+    it first appeared.
     """
-    tags = {
-        e.tag
-        for e in events
-        if isinstance(e, (SessionTagged, TagCreated, TagDescribed)) and e.habit == habit
-    }
-    return sorted(tags)
+    order: dict[str, None] = {}
+    for e in events:
+        if isinstance(e, (SessionTagged, TagCreated, TagDescribed)) and e.habit == habit:
+            order.pop(e.tag, None)
+            order[e.tag] = None
+    return list(reversed(order))
 
 
 def tag_descriptions(events: Iterable[Event], habit: str) -> dict[str, str]:

@@ -39,9 +39,19 @@ def test_no_tags_yet():
     assert known_tags([], "study") == []
 
 
-def test_tags_come_back_sorted_and_deduplicated():
-    events = [tagged("linear algebra"), tagged("topology"), tagged("linear algebra")]
+def test_the_most_recently_touched_tag_comes_first():
+    events = [tagged("topology"), tagged("linear algebra")]
     assert known_tags(events, "study") == ["linear algebra", "topology"]
+
+
+def test_a_tag_touched_again_moves_back_to_the_front():
+    events = [tagged("topology"), tagged("linear algebra"), tagged("topology")]
+    assert known_tags(events, "study") == ["topology", "linear algebra"]
+
+
+def test_tags_are_deduplicated():
+    events = [tagged("linear algebra"), tagged("linear algebra")]
+    assert known_tags(events, "study") == ["linear algebra"]
 
 
 def test_a_different_habits_tags_are_not_offered():

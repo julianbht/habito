@@ -12,6 +12,11 @@ though, tied to ``checkable`` the same way everything else is: creating a tag is
 point of the tag manager (``checkable=False``), so it's the primary button there; in the
 session-end picker "Done" already is the primary action, so it stays plain.
 
+Rows are most-recently-touched first, not alphabetical — the caller hands ``tags`` over
+already in that order (see `projections.tags.known_tags`), and this widget preserves it: no
+sorting is enabled, and a tag just created or edited moves to the top rather than staying
+wherever it started, the same way the log itself would rank it if reopened fresh.
+
 A row's full description lives in ``Qt.ItemDataRole.UserRole`` — the second column only
 ever shows a single-line summary (the tree can't grow a row taller than its neighbours for
 one long entry), with the full text as the tooltip.
@@ -79,10 +84,8 @@ class TagPicker(QWidget):
             else QTreeWidget.SelectionMode.SingleSelection
         )
         self.tree.itemDoubleClicked.connect(self._on_row_double_clicked)
-        for tag in tags:
+        for tag in tags:  # already most-recent-first; appending preserves that order
             self._add_row(tag, descriptions.get(tag, ""))
-        self.tree.sortItems(0, Qt.SortOrder.AscendingOrder)
-        self.tree.setSortingEnabled(True)  # keeps rows alphabetical as new ones are added
         if tags and not checkable:
             first = self.tree.topLevelItem(0)
             assert first is not None  # just populated above, from a non-empty tags
@@ -95,14 +98,32 @@ class TagPicker(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.addWidget(self.tree)
 
-    def _add_row(self, tag: str, description: str) -> QTreeWidgetItem:
-        item = QTreeWidgetItem(self.tree, [tag, ""])
+    def _style_row(self, item: QTreeWidgetItem, description: str) -> None:
         item.setForeground(1, QBrush(QColor(theme.MUTED)))
-        self._set_description(item, description)
         if self._checkable:
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(0, Qt.CheckState.Unchecked)
+        self._set_description(item, description)
+
+    def _add_row(self, tag: str, description: str) -> QTreeWidgetItem:
+        item = QTreeWidgetItem(self.tree, [tag, ""])
+        self._style_row(item, description)
         return item
+
+    def _prepend_row(self, tag: str, description: str) -> QTreeWidgetItem:
+        """A tag just created goes straight to the top — it's the most recently touched
+        one there is."""
+        item = QTreeWidgetItem([tag, ""])
+        self.tree.insertTopLevelItem(0, item)
+        self._style_row(item, description)
+        return item
+
+    def _move_to_top(self, item: QTreeWidgetItem) -> None:
+        """``takeTopLevelItem``/``insertTopLevelItem`` relocate the same item object, so
+        its check state, flags and data travel with it — nothing is rebuilt."""
+        index = self.tree.indexOfTopLevelItem(item)
+        self.tree.takeTopLevelItem(index)
+        self.tree.insertTopLevelItem(0, item)
 
     def _description_of(self, item: QTreeWidgetItem) -> str:
         return item.data(0, Qt.ItemDataRole.UserRole) or ""
@@ -123,6 +144,7 @@ class TagPicker(QWidget):
         )
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self._set_description(item, dialog.description)
+            self._move_to_top(item)
 
     def _on_new_tag(self) -> None:
         dialog = TagEditDialog(None, "", self._on_submit, self._habit, self._now, self)
@@ -131,9 +153,10 @@ class TagPicker(QWidget):
         tag = dialog.tag_name
         item = self._find_row(tag)
         if item is None:
-            item = self._add_row(tag, dialog.description)
+            item = self._prepend_row(tag, dialog.description)
         else:
             self._set_description(item, dialog.description)
+            self._move_to_top(item)
         if self._checkable:
             item.setCheckState(0, Qt.CheckState.Checked)
         self.tree.setCurrentItem(item)
