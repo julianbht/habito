@@ -28,11 +28,10 @@ def build_retraction_events(
     ``now`` is a timezone-aware local datetime — when the correction is being made, which
     is what the retraction records as its own timestamp.
     """
+    timestamp, tz_offset_minutes = stamp(now)
     targets = sorted(set(days))
     if not targets:
         raise ValueError("a retraction needs at least one target day")
-
-    timestamp, tz_offset_minutes = stamp(now)
     return [
         SessionRetracted(
             timestamp=timestamp,
