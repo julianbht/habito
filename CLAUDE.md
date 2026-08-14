@@ -161,14 +161,6 @@ let the star trigger before the day would even read as met.
 exception, earned by a concrete reason (e.g. `paths.data_repo` and the git remote config are set
 once per machine) When in doubt, wire it up.
 
-`config/settings.json`, read by `config.loader.load_config` and written whole by
-`save_config`. **JSON, not TOML, and the file is not documentation** — the models are. Once
-comments stop being worth preserving, TOML costs a third-party writer (`tomllib` is
-read-only) to produce a file with no comments in it, while JSON is `json.loads` in and
-`model_dump_json` out. Every key the file can hold is on `Config`, so writing the whole
-thing round-trips the settings the UI can't reach as faithfully as the ones it can. The
-trade: a hand-edit made *while the app is running* is lost at the next save.
-
 Changing a setting is two jobs, split accordingly. `config.editor.ConfigEditor` validates
 it, puts it on the live `Config` and writes the file — no Qt, so what counts as a valid
 setting is testable without a window. `HabitoApp` keeps only what needs widgets, in
@@ -199,9 +191,6 @@ are separated on, across targets wider than they are tall; and grouped rather th
 the field because one cluster per row reads as one control. `TimerView` owns its own pair
 for the same reason, stacked because there it sits beside a 52px display.
 
-The stepper's buttons take **no focus**, so the spin box stays the single tab stop and the
-existing tab chains and Up/Down keys keep working — it wraps a control without becoming one.
-
 **Two button tiers, reused rather than rebuilt per view — same size either way, only the
 colour differs.** `widgets.button(text, object_name)` with no object name is the plain,
 unstyled case — Close, Cancel, "+ New tag" — anything that isn't the thing the dialog
@@ -214,17 +203,11 @@ elsewhere is a bug, not a new case.
 
 **A dialog's primary button is always also its default button** (`setDefault(True)`, or
 `widgets.primary_button(text)`, which bundles the two) — whether it was built with
-`widgets.button()` or pulled out of a `QDialogButtonBox`. Skipping this leaves Enter's
-behaviour to Qt's implicit-default guessing (whichever button last held focus), which is
-exactly the kind of per-dialog drift this section exists to rule out — every dialog's one
-affirmative action should respond to Enter the same deterministic way.
+`widgets.button()` or pulled out of a `QDialogButtonBox`.
 
 **Esc closes the dialog, full stop — that's native `QDialog` behaviour and no dialog should
 need to earn it.** The one exception is `PhaseDialog`, which swallows Esc because the
-session is genuinely parked behind it and closing without answering would strand it; that
-override is documented at the call site precisely because it's the exception, not the
-rule. A new dialog that wants different Esc behaviour needs the same kind of justification,
-not just an omission.
+session is genuinely parked behind it.
 
 ## Icons
 
