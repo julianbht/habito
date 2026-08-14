@@ -85,15 +85,50 @@ rather than an edit to what already stands. Filed under today like anything else
 an earlier day.
 
 **No tag list to maintain.** `projections.tags.known_tags` derives every tag on offer by
-folding `SessionTagged` out of the log itself, the same shape as `find_resumable` and
-`summarize_sessions` — so the picker can't drift from what the log actually says, and
-skipping the prompt (the expected common case) leaves no trace at all rather than an empty
-tag.
+folding `TagCreated` / `TagDescribed` / `SessionTagged` out of the log itself, the same
+shape as `find_resumable` and `summarize_sessions` — so the picker can't drift from what
+the log actually says, and skipping the prompt (the expected common case) leaves no trace
+at all rather than an empty tag.
 
-**The picker is a plain, non-editable combo**, not an editable one: large editable
-`QComboBox`es have caused hard Qt aborts elsewhere in this app (see Testing). A "New tag…"
-entry opens a one-line `QInputDialog` instead, the same shape Settings already uses for
-"choose a custom sound file."
+**Three tag events, one job each — never one event wearing two meanings.**
+`TagCreated` marks that a tag exists; `TagDescribed` sets or changes its description;
+`SessionTagged` puts one on a session. Creating a tag in the editor always writes
+`TagCreated` (that's the only event that can make a bare, undescribed, unattached name
+durable), plus a `TagDescribed` too if — and only if — a description was actually typed.
+An empty description never becomes a `TagDescribed`: that event's meaning is "this tag has
+this description," and a blank string on it would be a fake description standing in for
+"exists," not a real one. Editing an existing tag only ever writes `TagDescribed`, and only
+when the text actually changed, so reopening a tag and closing it again via Save is a
+no-op rather than a redundant log entry.
+
+**One tag list, one tag editor, reused everywhere a tag needs picking or setting up.**
+`ui.tag_picker.TagPicker` is the `Tag | Description` tree — used both by the ☰ tag manager
+and the session-end "+ Attach tag" prompt, with one constructor flag (`checkable`)
+distinguishing "browse/manage" from "pick which apply to this session." A `QTreeWidget`
+row, not `QComboBox`: large editable combo boxes have caused hard Qt aborts elsewhere in
+this app (see Testing). `ui.tag_edit_dialog.TagEditDialog` is the small "New tag" / "Edit
+tag" form both `TagPicker` call sites open (for "+ New tag" and for double-clicking a
+row) — name plus an optional multi-line description, name locked once a tag already
+exists (renaming would orphan every event already filed under the old name, which nothing
+here reconciles). Its "Save" always means the same thing regardless of who opened it —
+persist and close — so there's never a moment where "Save" secretly means "attach."
+Attaching stays entirely `TagPicker`'s checkboxes and the embedding dialog's own commit
+button (Done, in the session-end case): two different actions that were never at risk of
+being the same button, once the editor and the picker are the only two pieces of UI a tag
+ever needs.
+
+A tree row shows only the description's first line, clipped further if that line alone
+runs long — a paragraph doesn't fit next to a tag name in a table row — with the full text
+as the tooltip, never actually lost.
+
+`TagPicker` builds "+ New tag" (so both call sites open the same editor) but doesn't lay it
+into its own layout: what sits beside it is each embedding dialog's own choice, e.g. next
+to "Close" in the tag manager, exactly the same row shape as everywhere else a dialog pairs
+a primary action with a plain dismiss one — never a big button stretched to the container's
+width, stacked above another. Its styling is decided here, though, tied to the same
+`checkable` flag as everything else: creating a tag is the *point* of the tag manager, so
+it's the primary button there (`object_name="primary"`); in the session-end picker, "Done"
+already is the primary action, so "+ New tag" stays plain.
 
 ## Time
 

@@ -579,6 +579,9 @@ class HabitoApp(QMainWindow):
                 note.action,
                 known_tags(events, self._config.habit),
                 on_accept=self._on_session_complete_accepted,
+                on_describe_tag=lambda event: self._append_all([event]),
+                habit=self._config.habit,
+                now=self._clock.local_now(),
                 descriptions=tag_descriptions(events, self._config.habit),
                 parent=self,
             )

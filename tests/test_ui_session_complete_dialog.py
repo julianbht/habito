@@ -1,12 +1,23 @@
-"""SessionCompleteDialog on its own: the tag tree and the (unlike PhaseDialog)
+"""SessionCompleteDialog on its own: the tag picker's visibility and (unlike PhaseDialog)
 unrestricted ways to dismiss it.
+
+TagPicker's own mechanics (the tree, "+ New tag", double-click-to-edit) are covered once in
+test_ui_tag_picker.py — this file only checks what this dialog does with what's checked:
+report it through ``on_accept``, and treat Esc the same as pressing the button.
 """
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QDialog
 
 from habito.ui.session_complete_dialog import SessionCompleteDialog
+from habito.ui.tag_edit_dialog import TagEditDialog
+
+CEST = timezone(timedelta(hours=2))
+NOW = datetime(2026, 8, 7, 14, 23, tzinfo=CEST)
 
 
 def make_dialog(
@@ -15,28 +26,24 @@ def make_dialog(
     descriptions: dict[str, str] | None = None,
 ) -> SessionCompleteDialog:
     return SessionCompleteDialog(
-        "Session complete", "25 min of focus.", "Done", known, answers.append, descriptions
+        "Session complete",
+        "25 min of focus.",
+        "Done",
+        known,
+        on_accept=answers.append,
+        on_describe_tag=lambda event: None,
+        habit="study",
+        now=NOW,
+        descriptions=descriptions,
     )
 
 
 def check(dialog: SessionCompleteDialog, tag: str) -> None:
-    """Reveal the tree if needed, then check ``tag``'s box."""
-    if not dialog._tag_tree.isVisible():
-        dialog._reveal_tag_tree()
-    item = dialog._tag_tree.findItems(tag, Qt.MatchFlag.MatchExactly, 0)[0]
+    """Reveal the picker if needed, then check ``tag``'s box."""
+    if not dialog.tag_picker.isVisible():
+        dialog._reveal_tag_picker()
+    item = dialog.tag_picker.tree.findItems(tag, Qt.MatchFlag.MatchExactly, 0)[0]
     item.setCheckState(0, Qt.CheckState.Checked)
-
-
-def row(dialog: SessionCompleteDialog, index: int):
-    """``topLevelItem`` is stubbed as ``| None``; the index is always in range here."""
-    item = dialog._tag_tree.topLevelItem(index)
-    assert item is not None
-    return item
-
-
-def last_row(dialog: SessionCompleteDialog):
-    """The tree's last row — always "+ New tag…"."""
-    return row(dialog, dialog._tag_tree.topLevelItemCount() - 1)
 
 
 def test_no_tags_by_default(qtbot):
@@ -93,78 +100,34 @@ def test_escape_after_checking_a_tag_still_reports_it(qtbot):
     assert answers == [["topology"]]
 
 
-def test_the_tree_starts_hidden_behind_the_link(qtbot):
+def test_the_picker_starts_hidden_behind_the_link(qtbot):
     dialog = make_dialog(["topology"], [])
     qtbot.addWidget(dialog)
     dialog.show()  # isVisible() only reflects reality once the window is actually shown
 
-    assert not dialog._tag_tree.isVisible()
+    assert not dialog.tag_picker.isVisible()
     assert dialog._attach_tag_link.isVisible()
     qtbot.mouseClick(dialog._attach_tag_link, Qt.MouseButton.LeftButton)
-    assert dialog._tag_tree.isVisible()
+    assert dialog.tag_picker.isVisible()
     assert not dialog._attach_tag_link.isVisible()
 
 
-def test_known_tags_are_offered_alongside_new_tag(qtbot):
-    dialog = make_dialog(["linear algebra", "topology"], [])
-    qtbot.addWidget(dialog)
+def test_creating_a_new_tag_and_finishing_reports_it(qtbot, monkeypatch):
+    """End-to-end through the picker: TagPicker and TagEditDialog have their own
+    mechanics covered elsewhere — this just checks the pieces are wired together."""
 
-    labels = [row(dialog, i).text(0) for i in range(dialog._tag_tree.topLevelItemCount())]
-    assert labels == ["linear algebra", "topology", "+ New tag…"]
+    def fake_exec(self: TagEditDialog) -> int:
+        self.tag_name = "linear algebra"
+        self.description = ""
+        return QDialog.DialogCode.Accepted
 
-
-def test_a_known_description_shows_alongside_its_tag(qtbot):
-    dialog = make_dialog(["topology"], [], descriptions={"topology": "point-set basics"})
-    qtbot.addWidget(dialog)
-
-    assert row(dialog, 0).text(1) == "point-set basics"
-
-
-def test_choosing_new_tag_without_typing_anything_adds_nothing(qtbot, monkeypatch):
-    from PySide6.QtWidgets import QInputDialog
-
-    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **kw: ("", False)))
-    dialog = make_dialog([], [])
-    qtbot.addWidget(dialog)
-    dialog._reveal_tag_tree()
-
-    new_row = last_row(dialog)
-    dialog._on_tag_item_clicked(new_row, 0)
-
-    assert dialog._tag_tree.topLevelItemCount() == 1  # just "+ New tag…"
-    assert dialog.selected_tags() == []
-
-
-def test_typing_a_new_tag_adds_and_checks_it(qtbot, monkeypatch):
-    from PySide6.QtWidgets import QInputDialog
-
-    monkeypatch.setattr(
-        QInputDialog, "getText", staticmethod(lambda *a, **kw: ("linear algebra", True))
-    )
+    monkeypatch.setattr(TagEditDialog, "exec", fake_exec)
     answers: list[list[str]] = []
     dialog = make_dialog([], answers)
     qtbot.addWidget(dialog)
-    dialog._reveal_tag_tree()
+    dialog._reveal_tag_picker()
 
-    new_row = last_row(dialog)
-    dialog._on_tag_item_clicked(new_row, 0)
-
-    assert dialog.selected_tags() == ["linear algebra"]
+    dialog.tag_picker._on_new_tag()
     qtbot.mouseClick(dialog.action_button, Qt.MouseButton.LeftButton)
+
     assert answers == [["linear algebra"]]
-
-
-def test_typing_a_tag_that_already_exists_checks_rather_than_duplicates(qtbot, monkeypatch):
-    from PySide6.QtWidgets import QInputDialog
-
-    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **kw: ("topology", True)))
-    dialog = make_dialog(["topology"], [])
-    qtbot.addWidget(dialog)
-    dialog._reveal_tag_tree()
-    before = dialog._tag_tree.topLevelItemCount()
-
-    new_row = last_row(dialog)
-    dialog._on_tag_item_clicked(new_row, 0)
-
-    assert dialog._tag_tree.topLevelItemCount() == before  # no duplicate row
-    assert dialog.selected_tags() == ["topology"]

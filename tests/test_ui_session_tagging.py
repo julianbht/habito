@@ -1,21 +1,23 @@
 """Wiring between session completion and the tag prompt.
 
-SessionCompleteDialog's own behaviour (the picker, Esc, "New tag…") is covered in
-test_ui_session_complete_dialog.py — these tests are only about what the window does
-with the answer: HabitoApp._prompt and _on_session_complete_accepted.
+SessionCompleteDialog's own behaviour (the picker, Esc) is covered in
+test_ui_session_complete_dialog.py, and TagPicker/TagEditDialog's in their own files —
+these tests are only about what the window does with the answer: HabitoApp._prompt and
+_on_session_complete_accepted, including that a tag described mid-attach actually reaches
+the store (on_describe_tag), not just the checked-tags-become-SessionTagged path.
 """
 
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QInputDialog
 
 from habito.app import _build_engine_and_store
 from habito.config.models import Config
-from habito.domain.events import SessionTagged
+from habito.domain.events import SessionTagged, TagDescribed
 from habito.engine.pomodoro import State
 from habito.ui.app import HabitoApp
 from habito.ui.session_complete_dialog import SessionCompleteDialog
+from habito.ui.tag_edit_dialog import TagEditDialog
 
 
 def build(qtbot, tmp_path, *, rounds: int = 1):
@@ -44,17 +46,19 @@ def finish_the_session(window):
         window._repaint()
 
 
-def last_row(dialog: SessionCompleteDialog):
-    """``topLevelItem`` is stubbed as ``| None``; the "+ New tag…" row is always there."""
-    item = dialog._tag_tree.topLevelItem(dialog._tag_tree.topLevelItemCount() - 1)
-    assert item is not None
-    return item
+def pick_new_tag(
+    qtbot, monkeypatch, dialog: SessionCompleteDialog, tag: str, description: str = ""
+) -> None:
+    def fake_exec(self: TagEditDialog) -> int:
+        if not self._name.isReadOnly():
+            self._name.setText(tag)
+        self._description.setPlainText(description)
+        self._on_save()
+        return self.result()
 
-
-def pick_new_tag(qtbot, monkeypatch, dialog: SessionCompleteDialog, tag: str) -> None:
-    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **kw: (tag, True)))
-    dialog._reveal_tag_tree()
-    dialog._on_tag_item_clicked(last_row(dialog), 0)
+    monkeypatch.setattr(TagEditDialog, "exec", fake_exec)
+    dialog._reveal_tag_picker()
+    dialog.tag_picker._on_new_tag()
 
 
 def test_finishing_a_session_shows_the_tag_prompt_not_the_phase_prompt(qtbot, tmp_path):
@@ -97,6 +101,26 @@ def test_checking_two_tags_appends_one_session_tagged_event_each(qtbot, tmp_path
     tagged = [e for e in store.read_all() if isinstance(e, SessionTagged)]
     assert {e.tag for e in tagged} == {"linear algebra", "topology"}
     assert all(e.session_id == session_id for e in tagged)
+
+
+def test_describing_a_new_tag_while_attaching_reaches_the_store_immediately(
+    qtbot, tmp_path, monkeypatch
+):
+    """The description is a TagDescribed, written the moment TagEditDialog saves it — not
+    deferred until (or dependent on) the outer session-complete prompt being accepted."""
+    window, store = build(qtbot, tmp_path)
+    finish_the_session(window)
+
+    dialog = window._phase_dialog
+    assert isinstance(dialog, SessionCompleteDialog)
+    pick_new_tag(qtbot, monkeypatch, dialog, "linear algebra", description="Strang, ch. 1-3")
+
+    described = [e for e in store.read_all() if isinstance(e, TagDescribed)]
+    assert len(described) == 1
+    assert described[0].tag == "linear algebra"
+    assert described[0].description == "Strang, ch. 1-3"
+    # Not attached yet — that only happens once Done is pressed.
+    assert [e for e in store.read_all() if isinstance(e, SessionTagged)] == []
 
 
 def test_skipping_the_prompt_appends_nothing(qtbot, tmp_path):
@@ -156,7 +180,7 @@ def test_the_prompt_offers_a_tag_used_in_an_earlier_session(qtbot, tmp_path, mon
 
     dialog2 = window2._phase_dialog
     assert isinstance(dialog2, SessionCompleteDialog)
-    tree = dialog2._tag_tree
+    tree = dialog2.tag_picker.tree
     labels = []
     for i in range(tree.topLevelItemCount()):
         item = tree.topLevelItem(i)

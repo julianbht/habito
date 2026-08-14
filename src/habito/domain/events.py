@@ -131,6 +131,19 @@ class SessionTagged(BaseEvent):
     tag: str
 
 
+class TagCreated(BaseEvent):
+    """Marks that a tag exists, independent of whether it's ever been described or used.
+
+    Its own event rather than folding "exists" into a ``TagDescribed`` with an empty
+    description: a description is optional, so nothing should have to fake one just to
+    make a bare name durable, and an empty string on ``TagDescribed`` would stop meaning
+    what its name says. Written once, when a tag is first named in the tag editor.
+    """
+
+    type: Literal["tag_created"] = "tag_created"
+    tag: str
+
+
 class TagDescribed(BaseEvent):
     """Attaches or updates a tag's longer-form description — the tag manager, not the
     session-end prompt.
@@ -164,6 +177,7 @@ Event = Annotated[
     | SessionEnded
     | SessionRetracted
     | SessionTagged
+    | TagCreated
     | TagDescribed,
     Field(discriminator="type"),
 ]

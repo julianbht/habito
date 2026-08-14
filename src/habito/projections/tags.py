@@ -8,18 +8,20 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from habito.domain.events import Event, SessionTagged, TagDescribed
+from habito.domain.events import Event, SessionTagged, TagCreated, TagDescribed
 
 
 def known_tags(events: Iterable[Event], habit: str) -> list[str]:
     """Every distinct tag on offer for this habit, alphabetically.
 
-    A tag counts as known once it's either been put on a session or been given a
-    description in the tag manager — so a tag created ahead of time, before it's ever
-    used, still shows up in the session-end picker.
+    A tag counts as known once it's been created, described, or put on a session — so a
+    tag set up ahead of time, before it's ever used, still shows up in the session-end
+    picker.
     """
     tags = {
-        e.tag for e in events if isinstance(e, (SessionTagged, TagDescribed)) and e.habit == habit
+        e.tag
+        for e in events
+        if isinstance(e, (SessionTagged, TagCreated, TagDescribed)) and e.habit == habit
     }
     return sorted(tags)
 
