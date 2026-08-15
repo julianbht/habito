@@ -24,6 +24,56 @@ Only `habito.ui` imports Qt. Views are presentational and talk to a `Controller`
 protocol, so engine/storage/projections/evidence stay UI-agnostic. `habito.app` is the
 composition root and the only place that wires them together.
 
+## Events
+
+Everything in the log is one of the thirteen types below (`habito.domain.events.Event`,
+the discriminated union pyright and Pydantic both check against). Grouped by what they're
+about, not declaration order:
+
+**Session lifecycle** — one `session_id` shared by every event from `SessionStarted` to
+`SessionEnded`, minted once per `PomodoroEngine` session (or per backfill write) and never
+reused. A convention each producer has a test for, not something the type system enforces
+(see § Schema evolution).
+
+| Event | Fires when | Fields beyond the base five |
+|---|---|---|
+| `SessionStarted` | a session begins | `work_minutes`, `break_minutes`, `planned_rounds`, `resumed_from` (the interrupted session's id, only when continuing one — see `projections.resume`) |
+| `RoundStarted` | a work round begins | `round_index` |
+| `RoundEnded` | a work round ends, full-length or cut short | `round_index`, `work_seconds` (exact elapsed, so a resume never has to estimate) |
+| `BreakStarted` | a break begins | `round_index` |
+| `BreakEnded` | a break ends, full-length or cut short | `round_index`, `break_seconds` |
+| `SessionPaused` | the timer is paused mid-phase | — |
+| `SessionResumed` | the timer resumes from a pause | — |
+| `TimeAdjusted` | a manual +N-minute nudge to the phase in flight | `round_index`, `delta_seconds` |
+| `SessionEnded` | the session closes gracefully (never written on a crash — see `projections.resume`) | `total_work_seconds` |
+
+**Corrections** (see § Corrections for the full rationale):
+
+| Event | Fires when | Fields beyond the base five |
+|---|---|---|
+| `SessionRetracted` | a mistake is withdrawn, by session id | `target_date` (the day it corrects, not the day it was written), `reason` |
+
+**Tags** (see § Tags for the full rationale):
+
+| Event | Fires when | Fields beyond the base five |
+|---|---|---|
+| `SessionTagged` | a session is labelled after the fact, at the session-end prompt | `tag` |
+| `TagCreated` | a tag is first named, in the tag editor | `tag` |
+| `TagDescribed` | a tag's description is set or changed, in the tag editor | `tag`, `description` |
+
+**Conventions that hold for every event, not just one family:**
+
+- The base five (`event_id`, `timestamp`, `tz_offset_minutes`, `origin`, `habit`,
+  `session_id`) are on every event and every one is required — no defaults, so nothing
+  stamps them on for you and each construction site spells them out in full (see §
+  Schema evolution).
+- Evolution is additive-only: a new event type or a new field with a default is fine;
+  removing, renaming, or repurposing a field is not (see § Schema evolution).
+- An event not really "about" a session still carries `session_id`, because the field is
+  mandatory — `TagDescribed` mints a fresh one it never uses for anything.
+- Nothing is ever rewritten. A correction, a retraction, a changed description — all of
+  these are a later event appended, never an edit to one already written.
+
 ## The log
 
 Append-only JSONL, partitioned by habit, then year, then month, one file per day:
@@ -76,56 +126,18 @@ dialog, which lists sessions to pick from.
 A session may be labelled with a free-form tag — what you were studying, not a setting —
 via `SessionTagged`, offered once at session end and always optional.
 
-**Its own event, not a field on `SessionStarted`**: the tag is only known once the session
-is over, and `SessionStarted` is long since written (and probably already committed) by
-then. Nothing is ever rewritten to add it — `SessionTagged` carries the session's
-`session_id` the same way `SessionRetracted` does, an annotation appended after the fact
-rather than an edit to what already stands. Filed under today like anything else;
-`target_date` doesn't apply here, since this describes the session rather than correcting
-an earlier day.
-
 **No tag list to maintain.** `projections.tags.known_tags` derives every tag on offer by
 folding `TagCreated` / `TagDescribed` / `SessionTagged` out of the log itself, the same
-shape as `find_resumable` and `summarize_sessions` — so the picker can't drift from what
-the log actually says, and skipping the prompt (the expected common case) leaves no trace
-at all rather than an empty tag. Ordered most-recently-touched-first rather than
-alphabetically — a tag used again moves back to the front — which relies on nothing more
-than `events` already being chronological (as `read_all()` returns it): "touched last" is
-just "seen last" in the given order, no timestamp comparison needed. `TagPicker` preserves
-that order rather than re-sorting, and moves a row to the top itself when a tag is created
-or edited live, so an open picker doesn't need reopening to reflect the same ranking a
-fresh one would show.
+shape as `find_resumable` and `summarize_sessions`.
 
 **Three tag events, one job each — never one event wearing two meanings.**
 `TagCreated` marks that a tag exists; `TagDescribed` sets or changes its description;
-`SessionTagged` puts one on a session. Creating a tag in the editor always writes
-`TagCreated` (that's the only event that can make a bare, undescribed, unattached name
-durable), plus a `TagDescribed` too if — and only if — a description was actually typed.
-An empty description never becomes a `TagDescribed`: that event's meaning is "this tag has
-this description," and a blank string on it would be a fake description standing in for
-"exists," not a real one. Editing an existing tag only ever writes `TagDescribed`, and only
-when the text actually changed, so reopening a tag and closing it again via Save is a
-no-op rather than a redundant log entry.
+`SessionTagged` puts one on a session.
 
 **One tag list, one tag editor, reused everywhere a tag needs picking or setting up.**
 `ui.tag_picker.TagPicker` is the `Tag | Description` tree — used both by the ☰ tag manager
 and the session-end "+ Attach tag" prompt, with one constructor flag (`checkable`)
-distinguishing "browse/manage" from "pick which apply to this session." A `QTreeWidget`
-row, not `QComboBox`: large editable combo boxes have caused hard Qt aborts elsewhere in
-this app (see Testing). `ui.tag_edit_dialog.TagEditDialog` is the small "New tag" / "Edit
-tag" form both `TagPicker` call sites open (for "+ New tag" and for double-clicking a
-row) — name plus an optional multi-line description, name locked once a tag already
-exists (renaming would orphan every event already filed under the old name, which nothing
-here reconciles). Its "Save" always means the same thing regardless of who opened it —
-persist and close — so there's never a moment where "Save" secretly means "attach."
-Attaching stays entirely `TagPicker`'s checkboxes and the embedding dialog's own commit
-button (Done, in the session-end case): two different actions that were never at risk of
-being the same button, once the editor and the picker are the only two pieces of UI a tag
-ever needs.
-
-A tree row shows only the description's first line, clipped further if that line alone
-runs long — a paragraph doesn't fit next to a tag name in a table row — with the full text
-as the tooltip, never actually lost.
+distinguishing "browse/manage" from "pick which apply to this session."
 
 `TagPicker` builds "+ New tag" (so both call sites open the same editor) but doesn't lay it
 into its own layout: what sits beside it is each embedding dialog's own choice, e.g. next
@@ -212,45 +224,25 @@ let the star trigger before the day would even read as met.
 exception, earned by a concrete reason (e.g. `paths.data_repo` and the git remote config are set
 once per machine) When in doubt, wire it up.
 
-Changing a setting is two jobs, split accordingly. `config.editor.ConfigEditor` validates
-it, puts it on the live `Config` and writes the file — no Qt, so what counts as a valid
-setting is testable without a window. `HabitoApp` keeps only what needs widgets, in
-`_retune_clock` / `_retune_goals` / `_retune_sound`.
-
 Two entry points, because there are two ways to change a setting: `apply_work_minutes` for
 the timer's duration field, and `apply_settings` for the whole dialog. The dialog's values
 are validated **as one config and rejected as one** — applying section by section could
 leave the goals saved and the timezone refused, with the file disagreeing with the dialog
 still on screen. It also makes a Save one write instead of four.
 
-`Applied` distinguishes **rejected** from **applied-but-unsaved** because the two look the
-same to the status line but must not behave the same: a rejection changed nothing, so the
-side effects have to be skipped, while a failed write still leaves the change in force for
-the session. Check `outcome.ok` before the side effects; return `outcome.message` either
-way. `ConfigEditor` mutates the same `Config` object the window holds, so the side effects
-read the new values straight off `self._config`.
-
 ## Controls
 
 **Never use Qt's built-in spin arrows.** They are two ~14×13px targets stacked in one
 corner: because they touch, the pointer that just pressed one is resting *inside* it, so a
 small nudge toward the other still lands on the first and the control reads as "the up
-button stopped working". Wrap the spin in `widgets.Stepper` instead — `NoButtons` on the
-spin, and `−`/`+` at 30×28 **side by side** at the right-hand end, where the native arrows
-were. Side by side rather than stacked because the pointer then travels along the axis they
-are separated on, across targets wider than they are tall; and grouped rather than flanking
-the field because one cluster per row reads as one control. `TimerView` owns its own pair
-for the same reason, stacked because there it sits beside a 52px display.
+button stopped working".
 
 **Two button tiers, reused rather than rebuilt per view — same size either way, only the
 colour differs.** `widgets.button(text, object_name)` with no object name is the plain,
 unstyled case — Close, Cancel, "+ New tag" — anything that isn't the thing the dialog
 exists to do. `object_name="primary"` is the accent colour, for whichever button *is* the
 thing the dialog exists to do — Save, Retract & commit, Add & commit, Resume, Done, Start
-round N — one per dialog, never a size bump, so it reads as "this is the one that commits"
-without visually outweighing its neighbours. Reach for whichever tier matches the button's
-*role* before writing a one-off `QPushButton` — a same-role button styled differently
-elsewhere is a bug, not a new case.
+round N
 
 **A dialog's primary button is always also its default button** (`setDefault(True)`, or
 `widgets.primary_button(text)`, which bundles the two) — whether it was built with
