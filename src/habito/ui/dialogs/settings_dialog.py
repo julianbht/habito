@@ -17,7 +17,6 @@ from typing import Protocol
 
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
-    QComboBox,
     QDialog,
     QFileDialog,
     QFormLayout,
@@ -34,6 +33,7 @@ from habito.ui.svg_icons import icon
 from habito.ui.widgets.controls import (
     LARGE_DIALOG_HEIGHT,
     LARGE_DIALOG_WIDTH,
+    NoWheelComboBox,
     Stepper,
     StepSpinBox,
     button,
@@ -237,7 +237,7 @@ class SettingsDialog(QDialog):
         row = QHBoxLayout()
         row.setSpacing(8)
 
-        self._sound_box = QComboBox()
+        self._sound_box = NoWheelComboBox()
         for entry in sounds.CATALOGUE:
             self._sound_box.addItem(entry.label, entry.key)
         self._sound_box.insertSeparator(self._sound_box.count())
@@ -282,7 +282,7 @@ class SettingsDialog(QDialog):
             "running past midnight isn't split in two"
         )
 
-        self._tz_box = QComboBox()
+        self._tz_box = NoWheelComboBox()
         self._tz_box.addItem(_SYSTEM_LABEL, SYSTEM_TZ)
         self._tz_box.insertSeparator(self._tz_box.count())
         for name in self._time.choices():
