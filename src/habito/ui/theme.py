@@ -167,6 +167,13 @@ def build_stylesheet(accent: str, palette: Palette = DARK) -> str:
         color: #ffffff;
     }}
     QPushButton#primary:hover {{ background-color: {accent}; border-color: {p.text}; }}
+    /* The general :focus rule below never wins here — an ID selector beats a pseudo-class
+       one, so #primary's own border-color would otherwise stay put on focus, same accent
+       both ways, and the ring goes invisible on exactly the button most likely to be
+       tabbed to. White reads clearly against the accent fill in both palettes; width stays
+       at the resting 1px rather than the general rule's 2px, so focus reads as a colour
+       change, not a thicker border. */
+    QPushButton#primary:focus {{ border: 1px solid #ffffff; }}
     QPushButton#transport {{ font-size: 19px; }}
     QPushButton#nudge {{ padding: 0px; font-size: 13px; border-radius: 5px; }}
     QPushButton#gear {{ font-size: 15px; padding: 2px 7px; }}

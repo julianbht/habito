@@ -44,19 +44,25 @@ def dialog_for(qtbot, sessions, captured=None):
     return dialog
 
 
+def row(dialog, index):
+    item = dialog.list.topLevelItem(index)
+    assert item is not None  # the test already knows this row exists
+    return item
+
+
 def test_sessions_are_listed_newest_first(qtbot):
     sessions = sessions_from(session_on(3), session_on(5))
     dialog = dialog_for(qtbot, sessions)
 
-    assert dialog.list.count() == 2
-    assert "2026-08-05" in dialog.list.item(0).text()
-    assert "2026-08-03" in dialog.list.item(1).text()
+    assert dialog.list.topLevelItemCount() == 2
+    assert "2026-08-05" in row(dialog, 0).text(0)
+    assert "2026-08-03" in row(dialog, 1).text(0)
 
 
 def test_the_newest_session_is_preselected(qtbot):
     """A correction usually follows the mistake straight away."""
     dialog = dialog_for(qtbot, sessions_from(session_on(3), session_on(5)))
-    assert dialog.list.currentRow() == 0
+    assert dialog.list.currentItem() is row(dialog, 0)
     picked = dialog._selected()
     assert picked is not None
     assert picked.started.day == 5
@@ -75,7 +81,7 @@ def test_submitting_emits_a_retraction_for_the_picked_session(qtbot):
     sessions = sessions_from(session_on(3), session_on(5))
     dialog = dialog_for(qtbot, sessions, captured)
 
-    dialog.list.setCurrentRow(1)  # the 3rd
+    dialog.list.setCurrentItem(row(dialog, 1))  # the 3rd
     dialog.reason.setText("  wrong date  ")
     dialog._submit()
 
@@ -94,8 +100,8 @@ def test_an_already_retracted_session_is_not_offered(qtbot):
 
     dialog = dialog_for(qtbot, summarize_sessions(events))
 
-    assert dialog.list.count() == 1
-    assert "2026-08-03" in dialog.list.item(0).text()
+    assert dialog.list.topLevelItemCount() == 1
+    assert "2026-08-03" in row(dialog, 0).text(0)
 
 
 def test_an_empty_log_disables_the_button_rather_than_failing(qtbot):

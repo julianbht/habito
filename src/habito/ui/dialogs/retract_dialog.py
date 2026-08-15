@@ -20,8 +20,8 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -80,15 +80,26 @@ class RetractDialog(QDialog):
         hint = "Pick the session to void. It stays in the log, struck through."
         root.addWidget(label(hint, "muted"))
 
-        # A plain non-editable list: large editable combo boxes have aborted the Qt suite.
-        self.list = QListWidget()
-        self.list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
-        self.list.setEditTriggers(QListWidget.EditTrigger.NoEditTriggers)
+        # A one-column QTreeWidget rather than QListWidget — same widget every other list
+        # in the app uses (log view, tag pickers, shortcuts), so it picks up the theme's
+        # tree styling (row height, font size, accent-coloured selection) for free instead
+        # of falling back to whatever the native list style draws. A plain non-editable
+        # list either way: large editable combo boxes have aborted the Qt suite.
+        self.list = QTreeWidget()
+        self.list.setHeaderHidden(True)
+        self.list.setIndentation(0)
+        self.list.setRootIsDecorated(False)
+        self.list.setAlternatingRowColors(True)
+        self.list.setSelectionMode(QTreeWidget.SelectionMode.SingleSelection)
+        self.list.setEditTriggers(QTreeWidget.EditTrigger.NoEditTriggers)
         for session in self._sessions:
-            item = QListWidgetItem(describe_session(session), self.list)
-            item.setData(_SESSION_ROLE, session.session_id)
+            item = QTreeWidgetItem(self.list, [describe_session(session)])
+            item.setData(0, _SESSION_ROLE, session.session_id)
         if self._sessions:
-            self.list.setCurrentRow(0)  # newest, the one a fresh mistake will be
+            # Newest first, the one a fresh mistake will be.
+            first = self.list.topLevelItem(0)
+            assert first is not None  # just populated above, from a non-empty _sessions
+            self.list.setCurrentItem(first)
         root.addWidget(self.list, 1)
 
         self.reason = QLineEdit()
@@ -116,7 +127,11 @@ class RetractDialog(QDialog):
         root.addWidget(self._buttons)
 
     def _selected(self) -> SessionSummary | None:
-        row = self.list.currentRow()
+        item = self.list.currentItem()
+        # Stubbed as always returning QTreeWidgetItem; nothing selected returns None.
+        if item is None:  # pyright: ignore[reportUnnecessaryComparison]
+            return None
+        row = self.list.indexOfTopLevelItem(item)
         if 0 <= row < len(self._sessions):
             return self._sessions[row]
         return None
