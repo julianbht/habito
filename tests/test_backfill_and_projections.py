@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
-from habito.backfill import build_backfill_events
+from habito.actions.backfill import build_backfill_events
 from habito.domain.events import (
     BreakStarted,
     Origin,

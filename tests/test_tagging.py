@@ -6,8 +6,8 @@ from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
+from habito.actions.tagging import build_tag_described_event
 from habito.domain.events import Origin
-from habito.tagging import build_tag_described_event
 
 CEST = timezone(timedelta(hours=2))
 WHEN = datetime(2026, 8, 4, 14, 0, tzinfo=CEST)

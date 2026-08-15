@@ -375,8 +375,8 @@ def test_a_view_opened_after_a_settings_change_is_born_with_it(qtbot, tmp_path):
 
 def test_opening_the_calendar_reads_the_log(qtbot, tmp_path):
     """Whatever is in the store shows up without needing a restart."""
+    from habito.actions.backfill import build_backfill_events
     from habito.app import _build_engine_and_store
-    from habito.backfill import build_backfill_events
     from habito.config.models import Config
     from habito.ui.app import _CALENDAR_PAGE, HabitoApp
 

@@ -8,11 +8,11 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from habito.backfill import build_backfill_events
+from habito.actions.backfill import build_backfill_events
+from habito.actions.retraction import build_retraction_events
 from habito.domain.events import Origin, SessionRetracted
 from habito.projections.sessions import summarize_sessions
-from habito.retraction import build_retraction_events
-from habito.ui.retract_view import RetractDialog, describe_session
+from habito.ui.dialogs.retract_dialog import RetractDialog, describe_session
 
 CEST = timezone(timedelta(hours=2))
 NOW = datetime(2026, 8, 7, 14, 23, tzinfo=CEST)

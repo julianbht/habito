@@ -12,7 +12,8 @@ from uuid import uuid4
 
 import pytest
 
-from habito.backfill import build_backfill_events
+from habito.actions.backfill import build_backfill_events
+from habito.actions.retraction import build_retraction_events
 from habito.domain.events import (
     Origin,
     RoundEnded,
@@ -23,7 +24,6 @@ from habito.domain.events import (
 )
 from habito.projections.daily import summarize_by_day
 from habito.projections.sessions import summarize_sessions
-from habito.retraction import build_retraction_events
 from habito.storage.event_store import EventStore
 
 CEST = timezone(timedelta(hours=2))
