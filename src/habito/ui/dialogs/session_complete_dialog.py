@@ -15,11 +15,13 @@ this dialog embeds the same as the tag manager does — see CLAUDE.md § Tags.
 The bottom row is one control on the left, the action button on the right — the same shape
 as the tag manager's "+ New tag" / "Close", not a row of its own: the left slot holds
 "+ Attach tag" until it's clicked, then swaps to "+ New tag" once the tree is showing,
-rather than stacking a second row underneath. The dialog widens to
-:data:`~habito.ui.widgets.tag_picker.DIALOG_MIN_WIDTH` from the start (so nothing jumps
-when the tree appears) but only grows to the tag manager's height once there's a tree to
-fill it — the common case is skipping the prompt, and an empty dialog sized for a tree it
-isn't showing would be exactly the clutter the link was there to avoid.
+rather than stacking a second row underneath. Sized like every other press-OK prompt
+(:class:`~habito.ui.dialogs.phase_dialog.PhaseDialog`'s width, from `PromptDialog`) until
+that click, and only then grows to the tag manager's own
+:data:`~habito.ui.widgets.tag_picker.DIALOG_MIN_WIDTH` / `DIALOG_MIN_HEIGHT` — the common
+case is skipping the prompt, and a dialog pre-widened for a tree it isn't showing would
+read as a different, bigger kind of prompt than "Round complete" or "Break over" for no
+reason.
 
 Only ``selected_tags()`` (which tags end up attached) is this dialog's own concern —
 everything about what tags exist and what they're named is `TagPicker`'s, tested once
@@ -71,8 +73,6 @@ class SessionCompleteDialog(PromptDialog):
         now: datetime,
         action: str,
     ) -> None:
-        self.setMinimumWidth(DIALOG_MIN_WIDTH)
-
         self.tag_picker = TagPicker(
             known_tags, descriptions, on_describe_tag, habit, now, checkable=True
         )
@@ -101,6 +101,7 @@ class SessionCompleteDialog(PromptDialog):
         self._attach_tag_link.setVisible(False)
         self.tag_picker.new_tag_button.setVisible(True)
         self._tag_section.setVisible(True)
+        self.setMinimumWidth(DIALOG_MIN_WIDTH)
         self.setMinimumHeight(DIALOG_MIN_HEIGHT)
 
     def selected_tags(self) -> list[str]:
