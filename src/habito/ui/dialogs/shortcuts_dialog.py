@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from habito.ui.widgets import BROWSE_DIALOG_HEIGHT, BROWSE_DIALOG_WIDTH
+
 # The single source for the app's keyboard shortcuts: shown here, and what
 # HabitoApp._install_shortcuts binds against (zipped with its slots there, in this
 # order) — so a key combo only ever needs to be written once.
@@ -40,8 +42,8 @@ class ShortcutsDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Keyboard shortcuts")
-        self.setMinimumSize(420, 320)
-        self.resize(460, 360)
+        self.setMinimumWidth(BROWSE_DIALOG_WIDTH)
+        self.setMinimumHeight(BROWSE_DIALOG_HEIGHT)
         self._build()
 
     def _build(self) -> None:

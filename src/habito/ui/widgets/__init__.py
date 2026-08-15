@@ -19,6 +19,21 @@ from PySide6.QtWidgets import (
 
 _DURATION_RE = re.compile(r"\d{0,3}(:\d{0,2})?")
 
+# Standard dialog sizes, so a dialog picks whichever shape matches its job rather than
+# choosing its own numbers (Settings' is still unsettled — see CLAUDE.md's ## Controls
+# section):
+# - COMPACT: a single ask or a short form — PhaseDialog, SessionCompleteDialog (collapsed),
+#   TagEditDialog, BackfillDialog, ResumePromptDialog. Width only; height follows content.
+# - BROWSE: pick one thing from a short, bounded list — RetractDialog, ShortcutsDialog,
+#   SessionCompleteDialog once its tag picker is showing.
+# - MANAGE: a surface of its own to return to and grow over time, not just pick from —
+#   currently only TagManagerDialog, which is why it's a size no other dialog shares.
+COMPACT_DIALOG_WIDTH = 320
+BROWSE_DIALOG_WIDTH = 440
+BROWSE_DIALOG_HEIGHT = 360
+MANAGE_DIALOG_WIDTH = 480
+MANAGE_DIALOG_HEIGHT = 440
+
 
 def format_timer(seconds: int) -> str:
     """``MM:SS`` (or ``H:MM:SS`` past an hour) for the big countdown."""

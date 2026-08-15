@@ -16,12 +16,11 @@ The bottom row is one control on the left, the action button on the right — th
 as the tag manager's "+ New tag" / "Close", not a row of its own: the left slot holds
 "+ Attach tag" until it's clicked, then swaps to "+ New tag" once the tree is showing,
 rather than stacking a second row underneath. Sized like every other press-OK prompt
-(:class:`~habito.ui.dialogs.phase_dialog.PhaseDialog`'s width, from `PromptDialog`) until
-that click, and only then grows to the tag manager's own
-:data:`~habito.ui.widgets.tag_picker.DIALOG_MIN_WIDTH` / `DIALOG_MIN_HEIGHT` — the common
-case is skipping the prompt, and a dialog pre-widened for a tree it isn't showing would
-read as a different, bigger kind of prompt than "Round complete" or "Break over" for no
-reason.
+(:data:`~habito.ui.widgets.COMPACT_DIALOG_WIDTH`, same as `PhaseDialog`) until that click,
+and only then grows to the "browse a list" size the tag manager uses
+(:data:`~habito.ui.widgets.BROWSE_DIALOG_WIDTH` / `BROWSE_DIALOG_HEIGHT`) — the common case
+is skipping the prompt, and a dialog pre-widened for a tree it isn't showing would read as
+a different, bigger kind of prompt than "Round complete" or "Break over" for no reason.
 
 Only ``selected_tags()`` (which tags end up attached) is this dialog's own concern —
 everything about what tags exist and what they're named is `TagPicker`'s, tested once
@@ -37,8 +36,8 @@ from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from habito.ui.dialogs.prompt_dialog import PromptDialog
 from habito.ui.dialogs.tag_edit_dialog import SubmitCallback
-from habito.ui.widgets import button, primary_button
-from habito.ui.widgets.tag_picker import DIALOG_MIN_HEIGHT, DIALOG_MIN_WIDTH, TagPicker
+from habito.ui.widgets import BROWSE_DIALOG_HEIGHT, BROWSE_DIALOG_WIDTH, button, primary_button
+from habito.ui.widgets.tag_picker import TagPicker
 
 
 class SessionCompleteDialog(PromptDialog):
@@ -101,8 +100,8 @@ class SessionCompleteDialog(PromptDialog):
         self._attach_tag_link.setVisible(False)
         self.tag_picker.new_tag_button.setVisible(True)
         self._tag_section.setVisible(True)
-        self.setMinimumWidth(DIALOG_MIN_WIDTH)
-        self.setMinimumHeight(DIALOG_MIN_HEIGHT)
+        self.setMinimumWidth(BROWSE_DIALOG_WIDTH)
+        self.setMinimumHeight(BROWSE_DIALOG_HEIGHT)
 
     def selected_tags(self) -> list[str]:
         return self.tag_picker.selected_tags()

@@ -10,7 +10,7 @@ from __future__ import annotations
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QVBoxLayout, QWidget
 
 from habito.projections.resume import ResumableSession, ResumePhase
-from habito.ui.widgets import format_duration, label
+from habito.ui.widgets import COMPACT_DIALOG_WIDTH, format_duration, label
 
 
 def describe_resumable(resumable: ResumableSession) -> str:
@@ -25,7 +25,7 @@ class ResumePromptDialog(QDialog):
     def __init__(self, resumable: ResumableSession, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Resume last session?")
-        self.setMinimumWidth(360)
+        self.setMinimumWidth(COMPACT_DIALOG_WIDTH)
         self.setModal(True)
         self._build(resumable)
 

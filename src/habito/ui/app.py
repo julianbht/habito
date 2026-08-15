@@ -65,17 +65,19 @@ _TIMER_PAGE = 0
 _CALENDAR_PAGE = 1
 _LOG_PAGE = 2
 
-# Each view wants a different amount of room — the timer is a widget, the log is a table.
-# Whatever you resize a view to is remembered and restored when you come back to it.
+# The timer is a widget and wants less room than the other two, which are both scrollable
+# lists of days and share a size rather than each picking its own — the log's rows are
+# short enough that a table-sized window just left most of its width empty. Whatever you
+# resize a view to is remembered and restored when you come back to it.
 _PAGE_SIZES = {
     _TIMER_PAGE: QSize(380, 500),
     _CALENDAR_PAGE: QSize(460, 580),
-    _LOG_PAGE: QSize(820, 660),
+    _LOG_PAGE: QSize(460, 580),
 }
 _PAGE_MINIMUMS = {
     _TIMER_PAGE: QSize(340, 470),
     _CALENDAR_PAGE: QSize(340, 470),
-    _LOG_PAGE: QSize(520, 380),
+    _LOG_PAGE: QSize(340, 470),
 }
 
 

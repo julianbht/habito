@@ -39,7 +39,7 @@ from PySide6.QtWidgets import (
 
 from habito.actions.tagging import build_tag_created_event, build_tag_described_event
 from habito.domain.events import Event
-from habito.ui.widgets import button, primary_button
+from habito.ui.widgets import COMPACT_DIALOG_WIDTH, button, primary_button
 
 SubmitCallback = Callable[[Event], None]
 
@@ -68,7 +68,7 @@ class TagEditDialog(QDialog):
         self.tag_name = ""
         self.description = ""
         self.setWindowTitle("New tag" if tag is None else "Edit tag")
-        self.setMinimumWidth(320)
+        self.setMinimumWidth(COMPACT_DIALOG_WIDTH)
         self._build(tag, description)
 
     def _build(self, tag: str | None, description: str) -> None:

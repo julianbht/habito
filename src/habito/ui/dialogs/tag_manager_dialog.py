@@ -22,8 +22,8 @@ from datetime import datetime
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QWidget
 
 from habito.ui.dialogs.tag_edit_dialog import SubmitCallback
-from habito.ui.widgets import button, label
-from habito.ui.widgets.tag_picker import DIALOG_MIN_HEIGHT, DIALOG_MIN_WIDTH, TagPicker
+from habito.ui.widgets import MANAGE_DIALOG_HEIGHT, MANAGE_DIALOG_WIDTH, button, label
+from habito.ui.widgets.tag_picker import TagPicker
 
 
 class TagManagerDialog(QDialog):
@@ -38,8 +38,8 @@ class TagManagerDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Manage tags")
-        self.setMinimumWidth(DIALOG_MIN_WIDTH)
-        self.setMinimumHeight(DIALOG_MIN_HEIGHT)
+        self.setMinimumWidth(MANAGE_DIALOG_WIDTH)
+        self.setMinimumHeight(MANAGE_DIALOG_HEIGHT)
         self._build(tags, descriptions, on_submit, habit, now)
 
     def _build(

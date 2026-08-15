@@ -240,6 +240,16 @@ still on screen. It also makes a Save one write instead of four.
 
 ## Controls
 
+**Dialogs pick one of three sizes rather than their own numbers** (`ui.widgets`:
+`COMPACT_DIALOG_WIDTH`, `BROWSE_DIALOG_WIDTH`/`_HEIGHT`, `MANAGE_DIALOG_WIDTH`/`_HEIGHT`).
+Compact is a single ask or short form (`PhaseDialog`, `SessionCompleteDialog` collapsed,
+`TagEditDialog`, `BackfillDialog`, `ResumePromptDialog`) — width only, height follows
+content. Browse is picking one thing from a short list (`RetractDialog`,
+`ShortcutsDialog`, `SessionCompleteDialog` once its tag picker is showing). Manage is a
+surface you return to and that grows over time, not just pick from — currently only
+`TagManagerDialog`, sized a step above Browse rather than sharing it. Settings' size is
+still unsettled.
+
 **Never use Qt's built-in spin arrows.** They are two ~14×13px targets stacked in one
 corner: because they touch, the pointer that just pressed one is resting *inside* it, so a
 small nudge toward the other still lands on the first and the control reads as "the up
@@ -280,6 +290,8 @@ The window is a `QStackedWidget` of three pages, but only the **timer** is built
 startup. `CalendarView` and `LogView` are built the first time they're opened
 (`_calendar_view()` / `_log_view()`) — a `QCalendarWidget` and a table were ~130ms of
 construction and first paint, spent before the one page you actually land on could show.
+`_PAGE_SIZES`/`_PAGE_MINIMUMS` give the log the calendar's own size rather than its own —
+its rows are short enough that a wider window just left space empty.
 
 `_TIMER_PAGE` / `_CALENDAR_PAGE` / `_LOG_PAGE` are therefore **page identities, not stack
 indices**: a page's position in the stack now depends on what you've visited. `self._page`

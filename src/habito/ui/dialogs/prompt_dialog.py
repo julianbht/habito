@@ -14,7 +14,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QWindow
 from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QVBoxLayout, QWidget
 
-from habito.ui.widgets import Button, label, primary_button
+from habito.ui.widgets import COMPACT_DIALOG_WIDTH, Button, label, primary_button
 
 
 class PromptDialog(QDialog):
@@ -25,7 +25,7 @@ class PromptDialog(QDialog):
     def __init__(self, title: str, body: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle(title)
-        self.setMinimumWidth(320)
+        self.setMinimumWidth(COMPACT_DIALOG_WIDTH)
 
         self._root = QVBoxLayout(self)
         self._root.setContentsMargins(24, 22, 24, 20)

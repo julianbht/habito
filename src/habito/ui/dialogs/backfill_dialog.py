@@ -30,7 +30,7 @@ from habito.actions.backfill import build_backfill_events
 from habito.config.models import TimeConfig
 from habito.domain.events import Event
 from habito.ui import theme
-from habito.ui.widgets import Stepper, StepSpinBox
+from habito.ui.widgets import COMPACT_DIALOG_WIDTH, Stepper, StepSpinBox
 
 SubmitCallback = Callable[[list[Event]], None]
 
@@ -53,7 +53,7 @@ class BackfillDialog(QDialog):
         self._tz = time_config or TimeConfig()
         self._today = today or date.today()
         self.setWindowTitle("Backfill")
-        self.setMinimumWidth(320)
+        self.setMinimumWidth(COMPACT_DIALOG_WIDTH)
         self.setModal(True)
         self._build(default_work, default_break, default_rounds)
 
