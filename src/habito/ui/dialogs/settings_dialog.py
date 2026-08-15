@@ -163,7 +163,15 @@ class SettingsDialog(QDialog):
         self._save_btn = button("Save", "primary")
         self._save_btn.setDefault(True)  # Enter saves
         self._save_btn.clicked.connect(self._save)
-        footer.addWidget(self._save_btn)
+        # Shrink-wrapped and centred, not stretched to the dialog's width — see CLAUDE.md
+        # § Controls. A bare addWidget(button) into a QVBoxLayout stretches it full-width,
+        # unlike every other single-action row in the app, which wraps it in an QHBoxLayout
+        # with a stretch either side.
+        save_row = QHBoxLayout()
+        save_row.addStretch(1)
+        save_row.addWidget(self._save_btn)
+        save_row.addStretch(1)
+        footer.addLayout(save_row)
 
         self._status = label("")
         self._status.setAlignment(Qt.AlignmentFlag.AlignCenter)
