@@ -41,6 +41,12 @@ SubmitCallback = Callable[[Event], None]
 # Tall enough to show a handful of tags before scrolling, not just the one that fit before.
 _TAG_TREE_MIN_HEIGHT = 140
 
+# A dialog built around this widget — the tag manager always, the session-end prompt once
+# its tag section is revealed — sizes itself to these, so the same tree reads the same size
+# everywhere it appears rather than each embedding dialog picking its own.
+DIALOG_MIN_WIDTH = 440
+DIALOG_MIN_HEIGHT = 360
+
 # A description can run to a paragraph; a tree row can't. Past this, the row shows a clipped
 # first line — the full text is never lost, it's the tooltip.
 _SUMMARY_MAX_CHARS = 60

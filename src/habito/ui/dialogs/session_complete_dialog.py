@@ -12,6 +12,15 @@ ever links an existing or freshly-typed tag to *this session* (``SessionTagged``
 defines what a tag itself means, that's `TagPicker`'s "+ New tag" / double-click, which
 this dialog embeds the same as the tag manager does — see CLAUDE.md § Tags.
 
+The bottom row is one control on the left, the action button on the right — the same shape
+as the tag manager's "+ New tag" / "Close", not a row of its own: the left slot holds
+"+ Attach tag" until it's clicked, then swaps to "+ New tag" once the tree is showing,
+rather than stacking a second row underneath. The dialog widens to
+:data:`~habito.ui.widgets.tag_picker.DIALOG_MIN_WIDTH` from the start (so nothing jumps
+when the tree appears) but only grows to the tag manager's height once there's a tree to
+fill it — the common case is skipping the prompt, and an empty dialog sized for a tree it
+isn't showing would be exactly the clutter the link was there to avoid.
+
 Only ``selected_tags()`` (which tags end up attached) is this dialog's own concern —
 everything about what tags exist and what they're named is `TagPicker`'s, tested once
 there.
@@ -26,8 +35,8 @@ from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from habito.ui.dialogs.prompt_dialog import PromptDialog
 from habito.ui.dialogs.tag_edit_dialog import SubmitCallback
-from habito.ui.widgets import button
-from habito.ui.widgets.tag_picker import TagPicker
+from habito.ui.widgets import button, primary_button
+from habito.ui.widgets.tag_picker import DIALOG_MIN_HEIGHT, DIALOG_MIN_WIDTH, TagPicker
 
 
 class SessionCompleteDialog(PromptDialog):
@@ -50,8 +59,7 @@ class SessionCompleteDialog(PromptDialog):
     ) -> None:
         super().__init__(title, body, parent)
         self._on_accept = on_accept
-        self._build(known_tags, descriptions or {}, on_describe_tag, habit, now)
-        self._add_action_row(action)
+        self._build(known_tags, descriptions or {}, on_describe_tag, habit, now, action)
         self.action_button.clicked.connect(self._accept)
 
     def _build(
@@ -61,41 +69,39 @@ class SessionCompleteDialog(PromptDialog):
         on_describe_tag: SubmitCallback,
         habit: str,
         now: datetime,
+        action: str,
     ) -> None:
-        # Shrink-wrapped and centred, like the action button below — not stretched to the
-        # dialog's full width, which left its text pinned to the left edge under a centred
-        # heading and message.
-        link_row = QHBoxLayout()
-        link_row.addStretch(1)
-        self._attach_tag_link = button("+ Attach tag", "link")
-        self._attach_tag_link.setToolTip("Optional — attach a tag for what you were working on")
-        self._attach_tag_link.clicked.connect(self._reveal_tag_picker)
-        link_row.addWidget(self._attach_tag_link)
-        link_row.addStretch(1)
-        self._root.addLayout(link_row)
+        self.setMinimumWidth(DIALOG_MIN_WIDTH)
 
         self.tag_picker = TagPicker(
             known_tags, descriptions, on_describe_tag, habit, now, checkable=True
         )
-        new_tag_row = QHBoxLayout()
-        new_tag_row.addWidget(self.tag_picker.new_tag_button)
-        new_tag_row.addStretch(1)
-
-        # One container so the tree and its "+ New tag" row show/hide together — the
-        # picker itself doesn't lay the button out (see its module docstring), so without
-        # this the button would stay put while the link hid only the tree.
         self._tag_section = QWidget()
         section = QVBoxLayout(self._tag_section)
         section.setContentsMargins(0, 0, 0, 0)
-        section.setSpacing(8)
         section.addWidget(self.tag_picker)
-        section.addLayout(new_tag_row)
         self._tag_section.setVisible(False)
-        self._root.addWidget(self._tag_section)
+        self._root.addWidget(self._tag_section, 1)
+
+        self._attach_tag_link = button("+ Attach tag", "link")
+        self._attach_tag_link.setToolTip("Optional — attach a tag for what you were working on")
+        self._attach_tag_link.clicked.connect(self._reveal_tag_picker)
+        self.tag_picker.new_tag_button.setVisible(False)
+        self.action_button = primary_button(action)
+
+        bottom_row = QHBoxLayout()
+        bottom_row.addWidget(self._attach_tag_link)
+        bottom_row.addWidget(self.tag_picker.new_tag_button)
+        bottom_row.addStretch(1)
+        bottom_row.addWidget(self.action_button)
+        self._root.addSpacing(4)
+        self._root.addLayout(bottom_row)
 
     def _reveal_tag_picker(self) -> None:
         self._attach_tag_link.setVisible(False)
+        self.tag_picker.new_tag_button.setVisible(True)
         self._tag_section.setVisible(True)
+        self.setMinimumHeight(DIALOG_MIN_HEIGHT)
 
     def selected_tags(self) -> list[str]:
         return self.tag_picker.selected_tags()
