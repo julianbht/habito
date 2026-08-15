@@ -10,8 +10,8 @@ import pytest
 
 from habito.engine.pomodoro import EngineState, State
 from habito.ui import theme
-from habito.ui.progress_background import ProgressBackground
-from habito.ui.timer_view import progress_for
+from habito.ui.pages.timer_view import progress_for
+from habito.ui.widgets.progress_background import ProgressBackground
 
 DARK = theme.Theme(accent=theme.ACCENT_LIVE, palette=theme.DARK)
 

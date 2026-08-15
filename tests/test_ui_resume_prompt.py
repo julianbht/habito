@@ -17,7 +17,7 @@ from habito.config.models import Config
 from habito.domain.events import Origin, RoundEnded, RoundStarted, SessionEnded, SessionStarted
 from habito.engine.pomodoro import State
 from habito.ui.app import HabitoApp
-from habito.ui.resume_dialog import ResumePromptDialog
+from habito.ui.dialogs.resume_dialog import ResumePromptDialog
 
 
 def _config(tmp_path, resume_window_minutes=30):

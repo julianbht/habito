@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QSpinBox, QToolButton, QWidget
 from habito.config.models import GoalsConfig
 from habito.projections.daily import DailySummary, longest_run
 from habito.ui import theme
-from habito.ui.calendar_view import CalendarView, StudyCalendar
+from habito.ui.pages.calendar_view import CalendarView, StudyCalendar
 
 DARK = theme.Theme(accent=theme.ACCENT_LIVE, palette=theme.DARK)
 GOAL = GoalsConfig()
@@ -352,7 +352,7 @@ def test_the_derived_views_are_not_built_until_they_are_opened(qtbot, tmp_path):
 def test_a_view_opened_after_a_settings_change_is_born_with_it(qtbot, tmp_path):
     """The apply paths skip a view that doesn't exist yet, which is only safe because a
     view built later reads the config as it stands then."""
-    from habito.ui.settings_view import SettingsValues
+    from habito.ui.dialogs.settings_dialog import SettingsValues
 
     app, _ = build_app(qtbot, tmp_path)
     app.on_save_settings(
@@ -545,7 +545,7 @@ def build_app(qtbot, tmp_path):
 
 
 def test_changing_the_goal_recolours_the_calendar_without_a_restart(qtbot, tmp_path):
-    from habito.ui.settings_view import SettingsValues
+    from habito.ui.dialogs.settings_dialog import SettingsValues
 
     app, _ = build_app(qtbot, tmp_path)
     day = summary(ANCHOR, verified=70 * 60)  # short of the default 95-minute threshold
@@ -566,7 +566,7 @@ def test_changing_the_goal_recolours_the_calendar_without_a_restart(qtbot, tmp_p
 
 
 def test_the_goal_is_written_back_to_the_settings_file(qtbot, tmp_path):
-    from habito.ui.settings_view import SettingsValues
+    from habito.ui.dialogs.settings_dialog import SettingsValues
 
     app, config = build_app(qtbot, tmp_path)
     app.on_save_settings(
@@ -585,7 +585,7 @@ def test_the_goal_is_written_back_to_the_settings_file(qtbot, tmp_path):
 
 
 def test_setting_a_stretch_goal_stars_days_without_a_restart(qtbot, tmp_path):
-    from habito.ui.settings_view import SettingsValues
+    from habito.ui.dialogs.settings_dialog import SettingsValues
 
     app, _ = build_app(qtbot, tmp_path)
     great = summary(ANCHOR, verified=200 * 60)
@@ -607,7 +607,7 @@ def test_setting_a_stretch_goal_stars_days_without_a_restart(qtbot, tmp_path):
 
 
 def test_turning_the_stretch_goal_off_again_removes_the_star(qtbot, tmp_path):
-    from habito.ui.settings_view import SettingsValues
+    from habito.ui.dialogs.settings_dialog import SettingsValues
 
     app, config = build_app(qtbot, tmp_path)
 
@@ -633,7 +633,7 @@ def test_turning_the_stretch_goal_off_again_removes_the_star(qtbot, tmp_path):
 
 
 def test_a_stretch_goal_under_the_daily_goal_is_reported_not_applied(qtbot, tmp_path):
-    from habito.ui.settings_view import SettingsValues
+    from habito.ui.dialogs.settings_dialog import SettingsValues
 
     app, _ = build_app(qtbot, tmp_path)
     error = app.on_save_settings(
@@ -654,7 +654,7 @@ def test_a_stretch_goal_under_the_daily_goal_is_reported_not_applied(qtbot, tmp_
 
 def test_the_stretch_goal_round_trips_through_the_settings_file(qtbot, tmp_path):
     from habito.config.loader import load_config
-    from habito.ui.settings_view import SettingsValues
+    from habito.ui.dialogs.settings_dialog import SettingsValues
 
     app, config = build_app(qtbot, tmp_path)
     app.on_save_settings(

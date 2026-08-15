@@ -6,7 +6,7 @@ A minimalist, keyboard-navigable cross-platform Pomodoro tracker for developers.
 
 - **[All data on your Github repository](#tamper-evident-log)** — every event is appended
   to an immutable, machine-readable log and pushed to a separate GitHub repo the moment it happens.
-  As a result, you have complete record of all study activity saved securely and completely under
+  You and only you have complete record of all study activity saved securely and entirely under
   your control. Server-recorded push times also stand as third-party proof of when you actually
   studied.
 - **[Fully keyboard-driven](#keyboard)** — Tab reaches every control, with shortcuts for
@@ -105,18 +105,24 @@ to quietly remove the evidence.
 
 ## Layout
 
-`src/` layout, one concern per package:
+`src/` layout, one concern per package, dependencies pointing inward toward `domain`:
 
-| Package | Responsibility |
-|---|---|
-| `habito.domain` | Pydantic event models (append-only log entries) |
-| `habito.config` | TOML settings + validation |
-| `habito.storage` | Append-only JSONL event store (Repository) |
-| `habito.engine` | Pomodoro state machine (incl. the between-phase hold) + injectable Clock |
-| `habito.projections` | Fold events → daily summaries (verified vs backfilled) |
-| `habito.evidence` | git wrapper, background commit+push worker, Observer recorder |
-| `habito.ui` | PySide6/Qt timer + calendar + log, dialogs (settings, backfill, phase prompt), window/controller, theme, progress background, notifications + sounds |
-| `habito.backfill` | Synthesize events for a past session |
+```
+src/habito/
+├── domain/        Pydantic event models — the append-only log's entries
+├── config/        settings.json loading + validation
+├── storage/       append-only JSONL event store
+├── engine/        Pomodoro state machine + injectable Clock
+├── projections/   fold events → daily summaries, resumability, known tags
+├── actions/       event-builders for corrections/annotations: tagging, backfill, retraction
+├── evidence/      git wrapper + background commit/push worker
+├── ui/            PySide6/Qt — the only package that imports Qt
+│   ├── pages/     the 3 QStackedWidget pages: timer, calendar, log
+│   ├── dialogs/   modal QDialogs: settings, backfill, retract, tag manager, ...
+│   ├── widgets/   reusable pieces: buttons/steppers, tag picker, progress background
+│   └── app.py     the main window, and the controller the views talk to
+└── app.py         composition root — wires the above together; CLI entry point
+```
 
 Only `habito.ui` knows about Qt. The views are purely presentational and talk to a
 `Controller` protocol, so the engine, storage, projection and evidence layers are entirely

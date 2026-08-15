@@ -1,6 +1,6 @@
 """TagPicker on its own: the tag list shared by the tag manager and the session-end
 prompt. ``checkable`` is the only thing that varies between call sites — see the module
-docstring on habito.ui.tag_picker.
+docstring on habito.ui.widgets.tag_picker.
 
 "+ New tag" and double-click both hand off to TagEditDialog; here that dialog is driven
 through its own real Save/Cancel (not just stubbed at the boundary) so this file also
@@ -13,8 +13,8 @@ from datetime import datetime, timedelta, timezone
 
 from PySide6.QtCore import Qt
 
-from habito.ui.tag_edit_dialog import TagEditDialog
-from habito.ui.tag_picker import TagPicker
+from habito.ui.dialogs.tag_edit_dialog import TagEditDialog
+from habito.ui.widgets.tag_picker import TagPicker
 
 CEST = timezone(timedelta(hours=2))
 NOW = datetime(2026, 8, 7, 14, 23, tzinfo=CEST)

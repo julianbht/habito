@@ -12,7 +12,7 @@ from habito.app import _build_engine_and_store, _log_root
 from habito.config.models import Config
 from habito.ui import theme
 from habito.ui.app import HabitoApp
-from habito.ui.settings_view import SettingsValues
+from habito.ui.dialogs.settings_dialog import SettingsValues
 
 SETTINGS = """\
 {"pomodoro": {"work_minutes": 25, "break_minutes": 5, "rounds": 4}}

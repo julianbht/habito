@@ -16,8 +16,8 @@ from habito.config.models import Config
 from habito.domain.events import SessionTagged, TagDescribed
 from habito.engine.pomodoro import State
 from habito.ui.app import HabitoApp
-from habito.ui.session_complete_dialog import SessionCompleteDialog
-from habito.ui.tag_edit_dialog import TagEditDialog
+from habito.ui.dialogs.session_complete_dialog import SessionCompleteDialog
+from habito.ui.dialogs.tag_edit_dialog import TagEditDialog
 
 
 def build(qtbot, tmp_path, *, rounds: int = 1):

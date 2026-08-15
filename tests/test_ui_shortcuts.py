@@ -37,7 +37,7 @@ def press(qtbot, window, key, modifier=Qt.KeyboardModifier.ControlModifier):
 
 def press_space(qtbot, window):
     """Start/pause/resume is the one shortcut that's deliberately bare — see
-    TimerView.focus_first and the SHORTCUTS comment in settings_view.py."""
+    TimerView.focus_first and the SHORTCUTS comment in shortcuts_dialog.py."""
     qtbot.keyClick(window, Qt.Key.Key_Space, Qt.KeyboardModifier.NoModifier)
 
 
@@ -120,7 +120,7 @@ def test_tab_from_the_timer_reaches_the_menu(qtbot, app):
 
 
 def test_shortcuts_menu_entry_opens_the_dialog(qtbot, app, monkeypatch):
-    from habito.ui.shortcuts_view import ShortcutsDialog
+    from habito.ui.dialogs.shortcuts_dialog import ShortcutsDialog
 
     opened = []
     monkeypatch.setattr(ShortcutsDialog, "exec", lambda self: opened.append(self) or 0)

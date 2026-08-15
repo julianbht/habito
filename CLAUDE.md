@@ -18,11 +18,19 @@ uv run habito doctor   # config + data-repo readiness
 
 One concern per package, dependencies point inward toward `habito.domain`:
 
-`domain` ← `storage`, `projections`, `engine`, `backfill` ← `evidence`, `ui`
+`domain` ← `storage`, `projections`, `engine`, `actions` ← `evidence`, `ui`
+
+`habito.actions` (`tagging`, `backfill`, `retraction`) holds the event-builder modules —
+one per correction/annotation kind, each turning a user action into an event via `stamp()`
+in `domain.events` rather than recomputing the timestamp arithmetic itself.
 
 Only `habito.ui` imports Qt. Views are presentational and talk to a `Controller`
 protocol, so engine/storage/projections/evidence stay UI-agnostic. `habito.app` is the
-composition root and the only place that wires them together.
+composition root and the only place that wires them together. Inside `ui`: `pages/` holds
+the three `QStackedWidget` pages (see § Pages), `dialogs/` the modal `QDialog`s (named
+`*_dialog.py` for what they are, not what opens them), and `widgets/` the reusable pieces
+embedded in either. `app.py`, `theme.py`, `svg_icons.py`, `sounds.py` and `notifier.py`
+stay at the package root as the window's own shared infrastructure, alongside `icons/`.
 
 ## Events
 
@@ -135,7 +143,7 @@ shape as `find_resumable` and `summarize_sessions`.
 `SessionTagged` puts one on a session.
 
 **One tag list, one tag editor, reused everywhere a tag needs picking or setting up.**
-`ui.tag_picker.TagPicker` is the `Tag | Description` tree — used both by the ☰ tag manager
+`ui.widgets.tag_picker.TagPicker` is the `Tag | Description` tree — used both by the ☰ tag manager
 and the session-end "+ Attach tag" prompt, with one constructor flag (`checkable`)
 distinguishing "browse/manage" from "pick which apply to this session."
 

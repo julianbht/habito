@@ -13,8 +13,8 @@ from datetime import datetime, timedelta, timezone
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog
 
-from habito.ui.session_complete_dialog import SessionCompleteDialog
-from habito.ui.tag_edit_dialog import TagEditDialog
+from habito.ui.dialogs.session_complete_dialog import SessionCompleteDialog
+from habito.ui.dialogs.tag_edit_dialog import TagEditDialog
 
 CEST = timezone(timedelta(hours=2))
 NOW = datetime(2026, 8, 7, 14, 23, tzinfo=CEST)

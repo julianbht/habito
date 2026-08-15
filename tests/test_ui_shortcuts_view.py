@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import QTreeWidget
 
-from habito.ui.shortcuts_view import SHORTCUTS, ShortcutsDialog
+from habito.ui.dialogs.shortcuts_dialog import SHORTCUTS, ShortcutsDialog
 
 
 def test_every_shortcut_is_listed(qtbot):

@@ -14,7 +14,7 @@ from habito.app import _build_engine_and_store
 from habito.config.models import Config
 from habito.engine.pomodoro import State
 from habito.ui.app import HabitoApp
-from habito.ui.phase_dialog import PhaseDialog
+from habito.ui.dialogs.phase_dialog import PhaseDialog
 
 
 @pytest.fixture

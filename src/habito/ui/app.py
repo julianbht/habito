@@ -33,9 +33,14 @@ from habito.projections.sessions import summarize_sessions
 from habito.projections.tags import known_tags, tag_descriptions
 from habito.storage.event_store import EventStore
 from habito.ui import theme
-from habito.ui.backfill_view import BackfillDialog
-from habito.ui.calendar_view import CalendarView
-from habito.ui.log_view import LogView
+from habito.ui.dialogs.backfill_dialog import BackfillDialog
+from habito.ui.dialogs.phase_dialog import PhaseDialog
+from habito.ui.dialogs.resume_dialog import ResumePromptDialog
+from habito.ui.dialogs.retract_dialog import RetractDialog
+from habito.ui.dialogs.session_complete_dialog import SessionCompleteDialog
+from habito.ui.dialogs.settings_dialog import SettingsDialog, SettingsValues
+from habito.ui.dialogs.shortcuts_dialog import SHORTCUTS, ShortcutsDialog
+from habito.ui.dialogs.tag_manager_dialog import TagManagerDialog
 from habito.ui.notifier import (
     DesktopNotifier,
     Notification,
@@ -43,18 +48,13 @@ from habito.ui.notifier import (
     break_over_reminder,
     notification_for,
 )
-from habito.ui.phase_dialog import PhaseDialog
-from habito.ui.progress_background import ProgressBackground
-from habito.ui.resume_dialog import ResumePromptDialog
-from habito.ui.retract_view import RetractDialog
-from habito.ui.session_complete_dialog import SessionCompleteDialog
-from habito.ui.settings_view import SettingsDialog, SettingsValues
-from habito.ui.shortcuts_view import SHORTCUTS, ShortcutsDialog
+from habito.ui.pages.calendar_view import CalendarView
+from habito.ui.pages.log_view import LogView
+from habito.ui.pages.timer_view import TimerView, progress_for
 from habito.ui.sounds import SoundPlayer
 from habito.ui.svg_icons import icon
-from habito.ui.tag_manager_view import TagManagerDialog
-from habito.ui.timer_view import TimerView, progress_for
 from habito.ui.widgets import button
+from habito.ui.widgets.progress_background import ProgressBackground
 
 _TICK_MS = 250
 
@@ -270,7 +270,7 @@ class HabitoApp(QMainWindow):
     def _install_shortcuts(self) -> None:
         """Keyboard equivalents for the transport controls.
 
-        Bound off SHORTCUTS (see shortcuts_view.py for why each one is or isn't
+        Bound off SHORTCUTS (see shortcuts_dialog.py for why each one is or isn't
         Ctrl-prefixed) — zipped against the slots below in that same order, so a
         mismatched length fails loudly here rather than silently binding the wrong slot
         to the wrong key.

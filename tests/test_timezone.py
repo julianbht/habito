@@ -158,7 +158,7 @@ def test_changing_the_zone_moves_which_day_new_events_belong_to():
 # --- the pickers ----------------------------------------------------------
 def test_the_settings_picker_reports_the_chosen_zone(qtbot):
     from habito.config.models import PomodoroConfig
-    from habito.ui.settings_view import SettingsDialog
+    from habito.ui.dialogs.settings_dialog import SettingsDialog
 
     dialog = SettingsDialog(controller=_NoopController(), pomodoro=PomodoroConfig())
     qtbot.addWidget(dialog)
@@ -170,7 +170,7 @@ def test_the_settings_picker_reports_the_chosen_zone(qtbot):
 
 def test_the_picker_opens_on_a_hand_edited_zone_outside_the_shortlist(qtbot):
     from habito.config.models import PomodoroConfig
-    from habito.ui.settings_view import SettingsDialog
+    from habito.ui.dialogs.settings_dialog import SettingsDialog
 
     dialog = SettingsDialog(
         controller=_NoopController(),
@@ -184,7 +184,7 @@ def test_the_picker_opens_on_a_hand_edited_zone_outside_the_shortlist(qtbot):
 
 def test_the_backfill_dialog_stamps_the_configured_zone(qtbot):
     """A time typed here is Berlin wall-clock, however the computer is set."""
-    from habito.ui.backfill_view import BackfillDialog
+    from habito.ui.dialogs.backfill_dialog import BackfillDialog
 
     captured = []
     dialog = BackfillDialog(

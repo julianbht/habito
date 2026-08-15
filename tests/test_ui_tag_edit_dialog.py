@@ -2,7 +2,7 @@
 
 Creating always writes a TagCreated (plus a TagDescribed too, but only with a real
 description); editing only ever writes a TagDescribed, and only on a real change. See the
-module docstring on habito.ui.tag_edit_dialog for why.
+module docstring on habito.ui.dialogs.tag_edit_dialog for why.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from PySide6.QtCore import Qt
 
 from habito.domain.events import Event, TagCreated, TagDescribed
-from habito.ui.tag_edit_dialog import TagEditDialog
+from habito.ui.dialogs.tag_edit_dialog import TagEditDialog
 
 CEST = timezone(timedelta(hours=2))
 NOW = datetime(2026, 8, 7, 14, 23, tzinfo=CEST)

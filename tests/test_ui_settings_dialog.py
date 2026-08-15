@@ -11,7 +11,7 @@ import pytest
 from PySide6.QtCore import Qt
 
 from habito.config.models import GoalsConfig, PomodoroConfig
-from habito.ui.settings_view import SettingsDialog, SettingsValues
+from habito.ui.dialogs.settings_dialog import SettingsDialog, SettingsValues
 from habito.ui.widgets import Stepper
 
 

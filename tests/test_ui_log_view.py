@@ -26,7 +26,7 @@ from habito.domain.events import (
     TimeAdjusted,
 )
 from habito.ui import theme
-from habito.ui.log_view import LogView, day_heading, describe, group_by_day
+from habito.ui.pages.log_view import LogView, day_heading, describe, group_by_day
 
 DARK = theme.Theme(accent=theme.ACCENT_LIVE, palette=theme.DARK)
 SESSION = uuid4()

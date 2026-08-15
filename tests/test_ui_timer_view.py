@@ -13,7 +13,7 @@ from PySide6.QtCore import Qt
 
 from habito.engine.pomodoro import EngineState, State
 from habito.ui import theme
-from habito.ui.timer_view import TimerView
+from habito.ui.pages.timer_view import TimerView
 from habito.ui.widgets import DurationSpinBox, parse_seconds
 
 
