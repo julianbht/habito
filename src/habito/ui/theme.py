@@ -301,4 +301,43 @@ def build_stylesheet(accent: str, palette: Palette = DARK) -> str:
         font-size: 13px;
         font-weight: bold;
     }}
+
+    /* A plain pill, not the native scrollbar's arrow buttons and boxed track — the
+       Settings dialog's scroll area, and every QTreeWidget/QListWidget's own. Track is
+       transparent so only the handle reads, and every sub-control below has to be
+       restated: leaving one at its native default draws that piece the old way. */
+    QScrollBar:vertical {{
+        background: transparent;
+        width: 10px;
+        margin: 2px 1px;
+    }}
+    QScrollBar::handle:vertical {{
+        background-color: {p.border};
+        border-radius: 4px;
+        min-height: 24px;
+    }}
+    QScrollBar::handle:vertical:hover {{ background-color: {MUTED}; }}
+    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+        height: 0px;
+        background: none;
+        border: none;
+    }}
+    QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: none; }}
+    QScrollBar:horizontal {{
+        background: transparent;
+        height: 10px;
+        margin: 1px 2px;
+    }}
+    QScrollBar::handle:horizontal {{
+        background-color: {p.border};
+        border-radius: 4px;
+        min-width: 24px;
+    }}
+    QScrollBar::handle:horizontal:hover {{ background-color: {MUTED}; }}
+    QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
+        width: 0px;
+        background: none;
+        border: none;
+    }}
+    QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{ background: none; }}
     """

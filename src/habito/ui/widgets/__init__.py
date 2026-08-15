@@ -19,20 +19,22 @@ from PySide6.QtWidgets import (
 
 _DURATION_RE = re.compile(r"\d{0,3}(:\d{0,2})?")
 
-# Standard dialog sizes, so a dialog picks whichever shape matches its job rather than
-# choosing its own numbers (Settings' is still unsettled — see CLAUDE.md's ## Controls
-# section):
+# The app's three standard sizes, so a dialog (or page — HabitoApp's own _PAGE_SIZES reuses
+# LARGE_DIALOG_WIDTH/_HEIGHT for the calendar and log) picks whichever shape matches its job
+# rather than choosing its own numbers:
 # - COMPACT: a single ask or a short form — PhaseDialog, SessionCompleteDialog (collapsed),
 #   TagEditDialog, BackfillDialog, ResumePromptDialog. Width only; height follows content.
-# - BROWSE: pick one thing from a short, bounded list — RetractDialog, ShortcutsDialog,
-#   SessionCompleteDialog once its tag picker is showing.
-# - MANAGE: a surface of its own to return to and grow over time, not just pick from —
-#   currently only TagManagerDialog, which is why it's a size no other dialog shares.
+#   A list here scrolls rather than growing the dialog to fit it — that's what a scrollbar
+#   is for — so a size tier is about a dialog's *job*, not how much content it could hold.
+# - BROWSE: pick one thing from a list, or manage a small growing one — RetractDialog,
+#   ShortcutsDialog, TagManagerDialog, SessionCompleteDialog once its tag picker is showing.
+# - LARGE: everything at once — currently only SettingsDialog, scrolled internally rather
+#   than left to grow taller than the window that opened it.
 COMPACT_DIALOG_WIDTH = 320
 BROWSE_DIALOG_WIDTH = 440
 BROWSE_DIALOG_HEIGHT = 360
-MANAGE_DIALOG_WIDTH = 480
-MANAGE_DIALOG_HEIGHT = 440
+LARGE_DIALOG_WIDTH = 460
+LARGE_DIALOG_HEIGHT = 580
 
 
 def format_timer(seconds: int) -> str:

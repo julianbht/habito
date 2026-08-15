@@ -241,14 +241,19 @@ still on screen. It also makes a Save one write instead of four.
 ## Controls
 
 **Dialogs pick one of three sizes rather than their own numbers** (`ui.widgets`:
-`COMPACT_DIALOG_WIDTH`, `BROWSE_DIALOG_WIDTH`/`_HEIGHT`, `MANAGE_DIALOG_WIDTH`/`_HEIGHT`).
-Compact is a single ask or short form (`PhaseDialog`, `SessionCompleteDialog` collapsed,
-`TagEditDialog`, `BackfillDialog`, `ResumePromptDialog`) — width only, height follows
-content. Browse is picking one thing from a short list (`RetractDialog`,
-`ShortcutsDialog`, `SessionCompleteDialog` once its tag picker is showing). Manage is a
-surface you return to and that grows over time, not just pick from — currently only
-`TagManagerDialog`, sized a step above Browse rather than sharing it. Settings' size is
-still unsettled.
+`COMPACT_DIALOG_WIDTH`, `BROWSE_DIALOG_WIDTH`/`_HEIGHT`, `LARGE_DIALOG_WIDTH`/`_HEIGHT`). A
+size is about a dialog's *job*, not how much it could ever hold — unbounded content (a
+growing tag list) scrolls rather than earning its dialog a bigger window:
+
+| Tier | Width | Height | Job | Dialogs |
+|---|---|---|---|---|
+| Compact | 320 | content-driven | one ask, or a short form | `PhaseDialog`, `SessionCompleteDialog` (collapsed), `TagEditDialog`, `BackfillDialog`, `ResumePromptDialog` |
+| Browse | 440 | 360 | pick one thing from a list, or manage a small growing one | `RetractDialog`, `ShortcutsDialog`, `TagManagerDialog`, `SessionCompleteDialog` (tag picker showing) |
+| Large | 460 | 580 | everything at once | `SettingsDialog` only — reuses the size `HabitoApp` already gives the calendar/log pages (`_PAGE_SIZES`) rather than a fourth number, and scrolls its form internally (see its own module docstring) instead of growing past it |
+
+Compact is the one tier that isn't a fixed box: nothing sets a minimum height, so it's the
+same width every time but not the same pixel size — a longer message is a taller dialog,
+not a scrollbar.
 
 **Never use Qt's built-in spin arrows.** They are two ~14×13px targets stacked in one
 corner: because they touch, the pointer that just pressed one is resting *inside* it, so a
@@ -265,10 +270,6 @@ round N
 **A dialog's primary button is always also its default button** (`setDefault(True)`, or
 `widgets.primary_button(text)`, which bundles the two) — whether it was built with
 `widgets.button()` or pulled out of a `QDialogButtonBox`.
-
-**Esc closes the dialog, full stop — that's native `QDialog` behaviour and no dialog should
-need to earn it.** The one exception is `PhaseDialog`, which swallows Esc because the
-session is genuinely parked behind it.
 
 ## Icons
 

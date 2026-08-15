@@ -3,6 +3,11 @@
 Kept off the main timer window so the timer stays uncluttered. Saving validates through the
 controller (which persists to settings.json and applies to the engine) and reports back a
 short confirmation or error.
+
+The most sections of any dialog in the app, so it's the one sized to `LARGE_DIALOG_WIDTH`/
+`_HEIGHT` (see `ui.widgets`) rather than growing past the window that opened it — the form
+scrolls inside that fixed size, with Save pinned below the scroll area rather than
+somewhere you might have to scroll to find.
 """
 
 from __future__ import annotations
@@ -18,6 +23,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QFrame,
     QHBoxLayout,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -25,7 +31,14 @@ from PySide6.QtWidgets import (
 from habito.config.models import SYSTEM_TZ, GoalsConfig, PomodoroConfig, TimeConfig
 from habito.ui import sounds, theme
 from habito.ui.svg_icons import icon
-from habito.ui.widgets import Stepper, StepSpinBox, button, label
+from habito.ui.widgets import (
+    LARGE_DIALOG_HEIGHT,
+    LARGE_DIALOG_WIDTH,
+    Stepper,
+    StepSpinBox,
+    button,
+    label,
+)
 
 
 @dataclass(frozen=True)
@@ -86,14 +99,28 @@ class SettingsDialog(QDialog):
         self._time = time_config or TimeConfig()
         self._last_timezone = self._time.timezone
         self.setWindowTitle("Settings")
-        self.setMinimumWidth(340)
+        self.setMinimumWidth(LARGE_DIALOG_WIDTH)
+        self.setMinimumHeight(LARGE_DIALOG_HEIGHT)
         self._build(pomodoro, goals or GoalsConfig(), sound, break_reminder_minutes)
 
     def _build(
         self, pomodoro: PomodoroConfig, goals: GoalsConfig, sound: str, break_reminder_minutes: int
     ) -> None:
-        root = QVBoxLayout(self)
-        root.setContentsMargins(20, 18, 20, 18)
+        # Save stays outside the scroll area, pinned at the bottom — the thing the dialog
+        # exists to do shouldn't need scrolling down to find, however long the form above
+        # it grows.
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        outer.addWidget(scroll, 1)
+
+        content = QWidget()
+        root = QVBoxLayout(content)
+        root.setContentsMargins(20, 18, 20, 12)
         root.setSpacing(8)
 
         root.addWidget(label("Session format", "heading"))
@@ -127,15 +154,21 @@ class SettingsDialog(QDialog):
         root.addWidget(label("Timezone", "heading"))
         root.addLayout(self._build_timezone_form())
 
-        root.addWidget(_rule())
+        scroll.setWidget(content)
+
+        footer = QVBoxLayout()
+        footer.setContentsMargins(20, 8, 20, 14)
+        footer.setSpacing(8)
+        footer.addWidget(_rule())
         self._save_btn = button("Save", "primary")
         self._save_btn.setDefault(True)  # Enter saves
         self._save_btn.clicked.connect(self._save)
-        root.addWidget(self._save_btn)
+        footer.addWidget(self._save_btn)
 
         self._status = label("")
         self._status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        root.addWidget(self._status)
+        footer.addWidget(self._status)
+        outer.addLayout(footer)
 
         chain = [
             self._break_spin,

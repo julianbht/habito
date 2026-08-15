@@ -53,7 +53,7 @@ from habito.ui.pages.log_view import LogView
 from habito.ui.pages.timer_view import TimerView, progress_for
 from habito.ui.sounds import SoundPlayer
 from habito.ui.svg_icons import icon
-from habito.ui.widgets import button
+from habito.ui.widgets import LARGE_DIALOG_HEIGHT, LARGE_DIALOG_WIDTH, button
 from habito.ui.widgets.progress_background import ProgressBackground
 
 _TICK_MS = 250
@@ -67,12 +67,14 @@ _LOG_PAGE = 2
 
 # The timer is a widget and wants less room than the other two, which are both scrollable
 # lists of days and share a size rather than each picking its own — the log's rows are
-# short enough that a table-sized window just left most of its width empty. Whatever you
-# resize a view to is remembered and restored when you come back to it.
+# short enough that a table-sized window just left most of its width empty. LARGE_DIALOG_*
+# is the same size Settings uses, for the same reason: one "biggest" size, not two numbers
+# that happen to agree. Whatever you resize a view to is remembered and restored when you
+# come back to it.
 _PAGE_SIZES = {
     _TIMER_PAGE: QSize(380, 500),
-    _CALENDAR_PAGE: QSize(460, 580),
-    _LOG_PAGE: QSize(460, 580),
+    _CALENDAR_PAGE: QSize(LARGE_DIALOG_WIDTH, LARGE_DIALOG_HEIGHT),
+    _LOG_PAGE: QSize(LARGE_DIALOG_WIDTH, LARGE_DIALOG_HEIGHT),
 }
 _PAGE_MINIMUMS = {
     _TIMER_PAGE: QSize(340, 470),
