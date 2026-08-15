@@ -5,9 +5,10 @@ from __future__ import annotations
 import re
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QKeyEvent, QValidator
+from PySide6.QtGui import QKeyEvent, QValidator, QWheelEvent
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
+    QComboBox,
     QDateTimeEdit,
     QHBoxLayout,
     QInputDialog,
@@ -127,7 +128,22 @@ def primary_button(text: str) -> Button:
     return widget
 
 
-class StepSpinBox(QSpinBox):
+class _NoWheelMixin:
+    """Mouse wheel never changes the value.
+
+    A field like this always sits next to a :class:`Stepper` (or, for a combo box, is
+    reachable by click), so wheel-scroll was never the only way to change it — but it *is*
+    the only widget in a scrollable form that steals a scroll gesture passing over it
+    instead of letting the page scroll. Ignoring the event here (rather than overriding it
+    with a no-op) is what lets Qt's normal propagation hand it up to the parent — the
+    ``QScrollArea`` it's sitting in, most of the time.
+    """
+
+    def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802 (Qt override)
+        event.ignore()
+
+
+class StepSpinBox(_NoWheelMixin, QSpinBox):
     """A spin box whose stepping snaps onto multiples of the step size.
 
     ``QSpinBox`` adds the step to whatever is already there, so a value that is off the
@@ -226,7 +242,7 @@ class Stepper(QWidget):
         self._up.setEnabled(bool(enabled & step.StepUpEnabled))
 
 
-class DurationSpinBox(QSpinBox):
+class DurationSpinBox(_NoWheelMixin, QSpinBox):
     """Duration input measured in **seconds**, displayed as ``MM:SS``.
 
     Counting seconds rather than minutes is what lets you type ``0:10`` — handy for
@@ -273,3 +289,9 @@ class DurationSpinBox(QSpinBox):
         if seconds is None or not (self.minimum() <= seconds <= self.maximum()):
             return (QValidator.State.Intermediate, text, pos)
         return (QValidator.State.Acceptable, text, pos)
+
+
+class NoWheelComboBox(_NoWheelMixin, QComboBox):
+    """A combo box that only changes on a deliberate click — see :class:`_NoWheelMixin`.
+    Worse than a spin box left un-wrapped: scrolling past it can silently swap your
+    timezone or notification sound rather than just nudge a number."""
