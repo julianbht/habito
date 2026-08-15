@@ -14,7 +14,7 @@ from PySide6.QtCore import QTime
 
 from habito.domain.events import Event, SessionStarted
 from habito.ui.dialogs.backfill_dialog import BackfillDialog
-from habito.ui.widgets import Stepper
+from habito.ui.widgets.controls import Stepper
 
 
 @pytest.fixture

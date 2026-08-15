@@ -44,7 +44,7 @@ from habito.domain.events import (
     retracted_session_ids,
 )
 from habito.ui import theme
-from habito.ui.widgets import format_duration, label
+from habito.ui.widgets.controls import format_duration, label
 
 # Where a day row keeps its heading text, so the ▾/▸ prefix can be rewritten without
 # having to parse it back out of the label.

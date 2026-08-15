@@ -1,4 +1,4 @@
-"""The shared widgets in :mod:`habito.ui.widgets`, tested once and only here.
+"""The shared widgets in :mod:`habito.ui.widgets.controls`, tested once and only here.
 
 Everything a `Stepper` or a `StepSpinBox` does is a property of the widget, not of the
 dialog that happens to hold one — so it is proved here against a bare instance. A dialog's
@@ -12,7 +12,7 @@ import pytest
 from PySide6.QtCore import Qt, QTime
 from PySide6.QtWidgets import QAbstractSpinBox, QTimeEdit
 
-from habito.ui.widgets import Stepper, StepSpinBox
+from habito.ui.widgets.controls import Stepper, StepSpinBox
 
 
 @pytest.fixture

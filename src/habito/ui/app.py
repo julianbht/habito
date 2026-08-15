@@ -53,7 +53,7 @@ from habito.ui.pages.log_view import LogView
 from habito.ui.pages.timer_view import TimerView, progress_for
 from habito.ui.sounds import SoundPlayer
 from habito.ui.svg_icons import icon
-from habito.ui.widgets import LARGE_DIALOG_HEIGHT, LARGE_DIALOG_WIDTH, button
+from habito.ui.widgets.controls import LARGE_DIALOG_HEIGHT, LARGE_DIALOG_WIDTH, button
 from habito.ui.widgets.progress_background import ProgressBackground
 
 _TICK_MS = 250

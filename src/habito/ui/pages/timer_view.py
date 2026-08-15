@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
 from habito.engine.pomodoro import EngineState, State
 from habito.ui import theme
 from habito.ui.svg_icons import icon
-from habito.ui.widgets import DurationSpinBox, button, format_duration, format_timer, label
+from habito.ui.widgets.controls import DurationSpinBox, button, format_duration, format_timer, label
 
 _STATE_LABEL = {
     State.idle: "Ready",

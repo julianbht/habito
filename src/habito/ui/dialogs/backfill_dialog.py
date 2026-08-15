@@ -30,7 +30,7 @@ from habito.actions.backfill import build_backfill_events
 from habito.config.models import TimeConfig
 from habito.domain.events import Event
 from habito.ui import theme
-from habito.ui.widgets import COMPACT_DIALOG_WIDTH, Stepper, StepSpinBox
+from habito.ui.widgets.controls import COMPACT_DIALOG_WIDTH, Stepper, StepSpinBox
 
 SubmitCallback = Callable[[list[Event]], None]
 

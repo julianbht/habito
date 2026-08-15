@@ -5,7 +5,7 @@ controller (which persists to settings.json and applies to the engine) and repor
 short confirmation or error.
 
 The most sections of any dialog in the app, so it's the one sized to `LARGE_DIALOG_WIDTH`/
-`_HEIGHT` (see `ui.widgets`) rather than growing past the window that opened it — the form
+`_HEIGHT` (see `ui.widgets.controls`) rather than growing past the window that opened it — the form
 scrolls inside that fixed size, with Save pinned below the scroll area rather than
 somewhere you might have to scroll to find.
 """
@@ -31,7 +31,7 @@ from PySide6.QtWidgets import (
 from habito.config.models import SYSTEM_TZ, GoalsConfig, PomodoroConfig, TimeConfig
 from habito.ui import sounds, theme
 from habito.ui.svg_icons import icon
-from habito.ui.widgets import (
+from habito.ui.widgets.controls import (
     LARGE_DIALOG_HEIGHT,
     LARGE_DIALOG_WIDTH,
     Stepper,

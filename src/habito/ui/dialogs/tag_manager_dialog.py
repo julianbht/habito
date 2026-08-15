@@ -22,7 +22,7 @@ from datetime import datetime
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QWidget
 
 from habito.ui.dialogs.tag_edit_dialog import SubmitCallback
-from habito.ui.widgets import BROWSE_DIALOG_HEIGHT, BROWSE_DIALOG_WIDTH, button, label
+from habito.ui.widgets.controls import BROWSE_DIALOG_HEIGHT, BROWSE_DIALOG_WIDTH, button, label
 from habito.ui.widgets.tag_picker import TagPicker
 
 

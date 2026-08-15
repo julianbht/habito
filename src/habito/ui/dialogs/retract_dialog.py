@@ -30,7 +30,12 @@ from habito.actions.retraction import build_retraction_events
 from habito.domain.events import Event, Origin
 from habito.projections.sessions import SessionSummary
 from habito.ui import theme
-from habito.ui.widgets import BROWSE_DIALOG_HEIGHT, BROWSE_DIALOG_WIDTH, format_duration, label
+from habito.ui.widgets.controls import (
+    BROWSE_DIALOG_HEIGHT,
+    BROWSE_DIALOG_WIDTH,
+    format_duration,
+    label,
+)
 
 SubmitCallback = Callable[[list[Event]], None]
 

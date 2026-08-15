@@ -19,7 +19,7 @@ from PySide6.QtWidgets import QApplication, QStyle, QSystemTrayIcon, QWidget
 from habito.engine.pomodoro import EngineState, State
 from habito.ui.sounds import DEFAULT as DEFAULT_SOUND
 from habito.ui.sounds import SoundPlayer
-from habito.ui.widgets import format_duration
+from habito.ui.widgets.controls import format_duration
 
 _MESSAGE_MS = 6000
 

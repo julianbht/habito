@@ -10,7 +10,7 @@ from __future__ import annotations
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QVBoxLayout, QWidget
 
 from habito.projections.resume import ResumableSession, ResumePhase
-from habito.ui.widgets import COMPACT_DIALOG_WIDTH, format_duration, label
+from habito.ui.widgets.controls import COMPACT_DIALOG_WIDTH, format_duration, label
 
 
 def describe_resumable(resumable: ResumableSession) -> str:

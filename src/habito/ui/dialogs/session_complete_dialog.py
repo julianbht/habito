@@ -16,9 +16,9 @@ The bottom row is one control on the left, the action button on the right — th
 as the tag manager's "+ New tag" / "Close", not a row of its own: the left slot holds
 "+ Attach tag" until it's clicked, then swaps to "+ New tag" once the tree is showing,
 rather than stacking a second row underneath. Sized like every other press-OK prompt
-(:data:`~habito.ui.widgets.COMPACT_DIALOG_WIDTH`, same as `PhaseDialog`) until that click,
-and only then grows to the "browse a list" size the tag manager uses
-(:data:`~habito.ui.widgets.BROWSE_DIALOG_WIDTH` / `BROWSE_DIALOG_HEIGHT`) — the common case
+(:data:`~habito.ui.widgets.controls.COMPACT_DIALOG_WIDTH`, same as `PhaseDialog`) until that
+click, and only then grows to the "browse a list" size the tag manager uses
+(:data:`~habito.ui.widgets.controls.BROWSE_DIALOG_WIDTH` / `BROWSE_DIALOG_HEIGHT`) — the common case
 is skipping the prompt, and a dialog pre-widened for a tree it isn't showing would read as
 a different, bigger kind of prompt than "Round complete" or "Break over" for no reason.
 
@@ -36,7 +36,12 @@ from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from habito.ui.dialogs.prompt_dialog import PromptDialog
 from habito.ui.dialogs.tag_edit_dialog import SubmitCallback
-from habito.ui.widgets import BROWSE_DIALOG_HEIGHT, BROWSE_DIALOG_WIDTH, button, primary_button
+from habito.ui.widgets.controls import (
+    BROWSE_DIALOG_HEIGHT,
+    BROWSE_DIALOG_WIDTH,
+    button,
+    primary_button,
+)
 from habito.ui.widgets.tag_picker import TagPicker
 
 

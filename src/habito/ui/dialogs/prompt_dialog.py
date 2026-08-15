@@ -14,7 +14,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QWindow
 from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QVBoxLayout, QWidget
 
-from habito.ui.widgets import COMPACT_DIALOG_WIDTH, Button, label, primary_button
+from habito.ui.widgets.controls import COMPACT_DIALOG_WIDTH, Button, label, primary_button
 
 
 class PromptDialog(QDialog):

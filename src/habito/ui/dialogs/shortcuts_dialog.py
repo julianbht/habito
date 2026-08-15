@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from habito.ui.widgets import BROWSE_DIALOG_HEIGHT, BROWSE_DIALOG_WIDTH
+from habito.ui.widgets.controls import BROWSE_DIALOG_HEIGHT, BROWSE_DIALOG_WIDTH
 
 # The single source for the app's keyboard shortcuts: shown here, and what
 # HabitoApp._install_shortcuts binds against (zipped with its slots there, in this

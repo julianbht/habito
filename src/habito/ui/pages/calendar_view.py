@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QCalendarWidget, QVBoxLayout, QWidget
 
 from habito.projections.daily import DailySummary, longest_run
 from habito.ui import theme
-from habito.ui.widgets import format_duration, label
+from habito.ui.widgets.controls import format_duration, label
 
 _MET_FILL = 0.30  # how strongly a met day is tinted toward green
 _STAR_RADIUS = 4.5  # small: it shares the cell with the day number and the duration

@@ -34,7 +34,7 @@ from PySide6.QtWidgets import QDialog, QTreeWidget, QTreeWidgetItem, QVBoxLayout
 from habito.domain.events import Event
 from habito.ui import theme
 from habito.ui.dialogs.tag_edit_dialog import TagEditDialog
-from habito.ui.widgets import button, primary_button
+from habito.ui.widgets.controls import button, primary_button
 
 SubmitCallback = Callable[[Event], None]
 

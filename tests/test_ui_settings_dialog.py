@@ -1,7 +1,7 @@
 """The Settings dialog, driven by keyboard.
 
 Dialogs get Enter handling from Qt's ``autoDefault`` mechanism rather than our
-:class:`~habito.ui.widgets.Button`, so it's worth proving the focused button is the one
+:class:`~habito.ui.widgets.controls.Button`, so it's worth proving the focused button is the one
 that fires — not whichever button happens to be the dialog's default.
 """
 
@@ -12,7 +12,7 @@ from PySide6.QtCore import Qt
 
 from habito.config.models import GoalsConfig, PomodoroConfig
 from habito.ui.dialogs.settings_dialog import SettingsDialog, SettingsValues
-from habito.ui.widgets import Stepper
+from habito.ui.widgets.controls import Stepper
 
 
 class FakeController:

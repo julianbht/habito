@@ -39,7 +39,7 @@ from PySide6.QtWidgets import (
 
 from habito.actions.tagging import build_tag_created_event, build_tag_described_event
 from habito.domain.events import Event
-from habito.ui.widgets import COMPACT_DIALOG_WIDTH, button, primary_button
+from habito.ui.widgets.controls import COMPACT_DIALOG_WIDTH, button, primary_button
 
 SubmitCallback = Callable[[Event], None]
 
