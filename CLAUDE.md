@@ -133,6 +133,37 @@ Don't quietly reuse `session_id` for something it was never meant to mean, and d
 second ad-hoc id field to route around this. If either is starting to feel necessary,
 that's the point to stop and reconsider the split itself instead.
 
+## Origin
+
+`origin` (`domain.events.Origin`) answers one precise question: **is `timestamp` the
+moment this event was actually recorded, or a claimed moment typed in some time after?**
+`live` for the former, `backfilled` for the latter. Everything else it might look like it's
+answering — how old the thing the event is *about* is, how much you trust it, whether it
+counts as "real work" — is a consequence of that one question, not a separate judgement
+call to make per event type.
+
+**It is not a judgement about the age of what's being described.** A tag attached to a
+session from three days ago, via ☰ "Manage sessions…", is still `live`: attaching a tag is
+an act that happens the instant you do it, so `timestamp` genuinely *is* "now" when
+`actions.tagging.build_session_tagged_event` builds it — not some earlier instant you
+typed in. `TagCreated`/`TagDescribed` are `live` for the identical reason. Contrast a
+backfilled Pomodoro session (`actions.backfill`) or a wake-up (`actions.wakeup`): there,
+`timestamp` is a *claimed* instant — the round you say you worked, the moment you say you
+woke — that provably differs from when the event was actually written, because you're
+describing something that already happened by the time you open the dialog.
+
+**`WakeUpLogged` is always `backfilled`, and that's correct, not merely constant.** There's
+no possible "live" wake-up short of a future sensor pinging the app the instant you wake —
+the entire workflow is "write down, later, what already happened." A field being the same
+value on every instance of an event type isn't a code smell by itself (unlike `session_id`
+minting a fresh, meaningless value per event — see § Session identity); it's only worth
+revisiting if some consumer reads it for information it doesn't actually carry, which
+isn't the case here.
+
+**For any new event type:** ask whether `timestamp` will be "now" at the moment you
+construct it, or a moment you're reconstructing/claiming. That answer is `origin` — it
+isn't a free choice made per instance the way `habit` or a tag name is.
+
 ## The log
 
 Append-only JSONL, partitioned by habit, then year, then month, one file per day:

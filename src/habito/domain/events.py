@@ -2,8 +2,9 @@
 
 Every event is timestamped in UTC and carries the local ``tz_offset_minutes`` so the
 exact wall-clock time can be reconstructed unambiguously. ``origin`` distinguishes
-live (committed-in-the-moment, evidentially strong) events from backfilled ones, and
-``habit`` says which habit the event is evidence of.
+live (``timestamp`` is the recording moment itself, evidentially strong) events from
+backfilled ones (``timestamp`` is a claimed moment typed in after the fact) — see
+:class:`Origin`. ``habit`` says which habit the event is evidence of.
 
 A mistake is corrected by appending :class:`SessionRetracted`, so the record shows both
 what was claimed and that it was withdrawn.
@@ -25,6 +26,19 @@ Windows filesystems are case-insensitive: ``Study`` and ``study`` would be one d
 
 
 class Origin(StrEnum):
+    """Whether ``timestamp`` *is* the moment this event was recorded, or a claimed moment
+    typed in some time after.
+
+    Not a judgement about how old the thing the event is *about* is — a tag attached to a
+    session from days ago is still ``live``, because attaching it is an act that happens
+    the instant you do it: ``timestamp`` is genuinely "now" when it's built (see
+    ``actions.tagging``). ``backfilled`` is for the opposite case, where ``timestamp`` is a
+    *claimed* instant that differs from when the event was actually written — a Pomodoro
+    session logged after the fact (``actions.backfill``), or a wake-up, which is always
+    backfilled by nature: the fact being recorded (when you woke) necessarily predates the
+    moment you sit down to log it (``actions.wakeup``).
+    """
+
     live = "live"
     backfilled = "backfilled"
 
