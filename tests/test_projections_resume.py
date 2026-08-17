@@ -115,6 +115,45 @@ def test_closed_mid_final_round_is_still_resumable():
     assert resumable.remaining_seconds == 15 * 60
 
 
+def test_a_round_deliberately_shortened_and_finished_in_full_is_not_resumable():
+    """Regression: nudging a round down (Ctrl+down, ``add_time(-1)``) while it's running
+    shrinks the live target via ``TimeAdjusted``. A round that then runs out at that
+    adjusted target finished in full — it must not read as cut short against the
+    original, unadjusted ``SessionStarted.work_minutes``."""
+    engine, clock, events = build(work=25, brk=5, rounds=4)
+    engine.start()
+    clock.advance(23 * 60)
+    engine.add_time(-1)  # round 1 now targets 24 minutes, not 25
+    clock.advance(1 * 60)
+    engine.tick()  # round 1 -> awaiting break, right at its adjusted target
+    engine.stop()
+
+    resumable = find_resumable(events, "study", current_rounds=4)
+    assert resumable is not None
+    assert resumable.round_index == 1
+    assert resumable.phase is ResumePhase.break_
+    assert resumable.remaining_seconds == 5 * 60  # the break, not a sliver of round 1
+
+
+def test_a_break_deliberately_lengthened_and_finished_in_full_is_not_resumable():
+    """Same regression, for a break stretched with ``add_time`` instead of shortened."""
+    engine, clock, events = build(work=25, brk=5, rounds=4)
+    engine.start()
+    clock.advance(25 * 60)
+    engine.tick()
+    engine.acknowledge()  # -> break 1
+    engine.add_time(2)  # break 1 now targets 7 minutes, not 5
+    clock.advance(7 * 60)
+    engine.tick()  # break 1 -> awaiting round 2, right at its adjusted target
+    engine.stop()
+
+    resumable = find_resumable(events, "study", current_rounds=4)
+    assert resumable is not None
+    assert resumable.round_index == 2
+    assert resumable.phase is ResumePhase.work
+    assert resumable.remaining_seconds == 25 * 60  # the next round, not a sliver of the break
+
+
 def test_closing_while_idle_leaves_nothing_to_resume():
     engine, clock, events = build()
     engine.stop()  # what closeEvent calls unconditionally; a no-op while idle

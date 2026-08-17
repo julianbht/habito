@@ -19,11 +19,14 @@ from uuid import UUID
 
 from habito.domain.events import (
     BreakEnded,
+    BreakStarted,
     Event,
     Origin,
     RoundEnded,
+    RoundStarted,
     SessionEnded,
     SessionStarted,
+    TimeAdjusted,
 )
 
 
@@ -43,6 +46,24 @@ class ResumableSession:
     phase: ResumePhase
     remaining_seconds: int
     interrupted_at: datetime  # the cut-short session's SessionEnded timestamp
+
+
+def _with_adjustments(
+    own: list[Event], round_index: int, start: Event, end: Event, base_seconds: int
+) -> int:
+    """``base_seconds`` plus every ``TimeAdjusted`` delta emitted for this phase — between
+    its own ``start`` and ``end`` events — so a phase that finished exactly on a
+    deliberately nudged (e.g. Ctrl+down) target doesn't read as cut short against the
+    original, unadjusted length ``SessionStarted`` still carries.
+    """
+    delta = sum(
+        e.delta_seconds
+        for e in own
+        if isinstance(e, TimeAdjusted)
+        and e.round_index == round_index
+        and start.timestamp <= e.timestamp <= end.timestamp
+    )
+    return base_seconds + delta
 
 
 def find_resumable(events: list[Event], habit: str, current_rounds: int) -> ResumableSession | None:
@@ -81,10 +102,16 @@ def find_resumable(events: list[Event], habit: str, current_rounds: int) -> Resu
     interrupted_at = own[-1].timestamp
 
     if isinstance(last, RoundEnded):
-        if last.work_seconds < work_target:
+        round_start = next(
+            e for e in own if isinstance(e, RoundStarted) and e.round_index == last.round_index
+        )
+        adjusted_work_target = _with_adjustments(
+            own, last.round_index, round_start, last, work_target
+        )
+        if last.work_seconds < adjusted_work_target:
             round_index = last.round_index
             phase = ResumePhase.work
-            remaining_seconds = work_target - last.work_seconds
+            remaining_seconds = adjusted_work_target - last.work_seconds
         elif last.round_index >= planned_rounds:
             return None  # the final round ran its full length — nothing left to resume
         else:
@@ -92,10 +119,16 @@ def find_resumable(events: list[Event], habit: str, current_rounds: int) -> Resu
             phase = ResumePhase.break_
             remaining_seconds = break_target
     else:  # last is a BreakEnded
-        if last.break_seconds < break_target:
+        break_start = next(
+            e for e in own if isinstance(e, BreakStarted) and e.round_index == last.round_index
+        )
+        adjusted_break_target = _with_adjustments(
+            own, last.round_index, break_start, last, break_target
+        )
+        if last.break_seconds < adjusted_break_target:
             round_index = last.round_index
             phase = ResumePhase.break_
-            remaining_seconds = break_target - last.break_seconds
+            remaining_seconds = adjusted_break_target - last.break_seconds
         else:
             round_index = last.round_index + 1
             phase = ResumePhase.work
