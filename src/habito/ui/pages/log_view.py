@@ -8,6 +8,11 @@ This is the one view fed the raw stream, retractions included: a retracted sessi
 on screen struck through, under the day it was filed on, with the retraction line beneath
 it. Day totals count only what still stands, so they agree with the calendar.
 
+When the wake-up extra is enabled, its stream is merged in alongside the study habit's
+(see `HabitoApp.show_page`) — day-grouping is habit-agnostic already (`partition_date`
+doesn't care which habit an event belongs to), so nothing here needed to change to show
+both. Wake-up logs have no retraction UI yet, so that stream is read plain.
+
 Turning an event into a line of text is a pure function (:func:`describe`), kept apart from
 the widget so it can be read and tested on its own.
 """
@@ -16,7 +21,7 @@ from __future__ import annotations
 
 from collections.abc import Container, Iterable
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from uuid import UUID
 
 from PySide6.QtCore import Qt
@@ -40,6 +45,7 @@ from habito.domain.events import (
     TagCreated,
     TagDescribed,
     TimeAdjusted,
+    WakeUpLogged,
     local_datetime,
     partition_date,
     retracted_session_ids,
@@ -127,9 +133,18 @@ def describe(event: Event, tag_description: str | None = None) -> Line:
         # and its time column would otherwise read as that day's.
         made = local_datetime(event).strftime("%Y-%m-%d")
         detail = f"{event.reason} · retracted {made}" if event.reason else f"retracted {made}"
-    # Anything else (e.g. a wake-up log) falls back to the "Event"/event.type default set
-    # above — this view is only ever fed the study habit's own stream, so it never actually
-    # sees one, but the fallback keeps this function total over `Event` as the union grows.
+    elif isinstance(event, WakeUpLogged):  # pyright: ignore[reportUnnecessaryIsInstance]
+        # Exhaustive today (pyright can prove it), but spelled as isinstance rather than a
+        # bare `else` on purpose: a future event type added to the union should fall
+        # through to the "Event"/event.type default above rather than be mis-rendered as
+        # a wake-up log — same defensive-but-currently-unreachable trade as
+        # `_mark_expanded`'s `reportUnnecessaryComparison` below.
+        what = "Woke up"
+        # `bedtime` shares `timestamp`'s offset (see WakeUpLogged's docstring), so the same
+        # arithmetic `local_datetime` does for `timestamp` applies here by hand.
+        bedtime_local = event.bedtime + timedelta(minutes=event.tz_offset_minutes)
+        asleep = format_duration(int((event.timestamp - event.bedtime).total_seconds()))
+        detail = f"bedtime {bedtime_local:%H:%M} · {asleep} asleep"
 
     return Line(
         time=_local_time(event),

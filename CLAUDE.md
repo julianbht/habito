@@ -226,6 +226,21 @@ Unlike the flag itself, **the wake/bedtime defaults do get a Settings-dialog sec
 shown only when extras are enabled — since those are values worth tweaking occasionally,
 not a one-time install choice.
 
+**The log view merges both streams**, unlike the calendar (which stays study-only —
+`WakeUpLogged` has no `RoundEnded`s for the goal math to count, so there's nothing for it to
+show). `HabitoApp.show_page` reads `wakeup_store.read_all()` alongside the study store's and
+hands `LogView` the combined list — day-grouping (`partition_date`) is already habit-agnostic,
+so nothing there needed to change, only `describe()` gained a `WakeUpLogged` case ("Woke up",
+bedtime + duration). "Manage sessions…" stays study-only on purpose: `WakeUpLogged` isn't a
+session.
+
+**Known rough edge:** every event that mints its own throwaway `session_id` rather than
+inheriting one from a real session — `TagCreated`, `TagDescribed`, and now `WakeUpLogged` —
+shows up as its own bogus zero-length row in "Manage sessions…", because
+`projections.sessions.summarize_sessions` groups by `session_id` with nothing to tell those
+apart from a real session. Not fixed yet; the intended fix is the `session_id` cleanup
+covered separately, not a patch local to `summarize_sessions`.
+
 ## Time
 
 Three distinct things, easy to conflate:

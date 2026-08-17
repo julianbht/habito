@@ -25,6 +25,7 @@ from habito.domain.events import (
     SessionUntagged,
     TagDescribed,
     TimeAdjusted,
+    WakeUpLogged,
 )
 from habito.ui import theme
 from habito.ui.pages.log_view import LogView, day_heading, describe, group_by_day
@@ -123,6 +124,21 @@ def test_a_tag_described_event_shows_what_it_means():
 def test_a_tag_described_event_without_text_still_reads():
     line = describe(at(11, cls=TagDescribed, tag="LinAlg-S", description=""))
     assert line.detail == "LinAlg-S"
+
+
+def test_a_wakeup_shows_bedtime_and_duration():
+    line = describe(at(7, cls=WakeUpLogged, bedtime=datetime(2026, 8, 3, 23, 15, tzinfo=UTC)))
+    assert line.what == "Woke up"
+    assert line.detail == "bedtime 23:15 · 7h 45m asleep"
+
+
+def test_a_wakeups_bedtime_reads_in_the_events_own_offset():
+    """`bedtime` is UTC on the wire, like `timestamp` — it's converted with the same
+    offset the event carries, not shown raw."""
+    line = describe(
+        at(5, cls=WakeUpLogged, offset=120, bedtime=datetime(2026, 8, 3, 21, 15, tzinfo=UTC))
+    )
+    assert line.detail == "bedtime 23:15 · 7h 45m asleep"
 
 
 def test_events_without_detail_still_read_cleanly():
@@ -258,6 +274,24 @@ def test_the_view_shows_a_tags_description_alongside_its_tag(view):
     assert "Strang's book" in day.child(0).text(2)
 
 
+def test_a_wakeup_event_renders_alongside_study_events(view):
+    """Day-grouping is habit-agnostic, so a merged stream (see HabitoApp.show_page) just
+    lands the wake-up row under its own day like anything else."""
+    wakeup = WakeUpLogged(
+        timestamp=NOON,
+        tz_offset_minutes=0,
+        origin=Origin.backfilled,
+        habit="sleep",
+        session_id=uuid4(),
+        bedtime=NOON - timedelta(hours=8),
+    )
+    view.set_events([make_day(0, 0), wakeup])
+    day = view.tree.topLevelItem(0)
+
+    assert day.childCount() == 2
+    assert any(day.child(i).text(1) == "Woke up" for i in range(day.childCount()))
+
+
 def test_the_view_cannot_edit_the_log(view):
     """It's a window onto an append-only log; there is nothing here that writes."""
     view.set_events([make_day(0, 0)])
@@ -298,6 +332,52 @@ def test_the_store_is_never_written_to(qtbot, tmp_path):
 
     assert app._log_view().tree.topLevelItemCount() == 1
     assert {p: p.read_bytes() for p in store.files()} == before
+
+
+def test_the_log_page_merges_the_wakeup_store_when_extras_are_enabled(qtbot, tmp_path):
+    from habito.actions.wakeup import build_wakeup_event
+    from habito.app import _build_engine_and_store, _build_wakeup_store
+    from habito.config.models import Config
+    from habito.ui.app import _LOG_PAGE, HabitoApp
+
+    config = Config.model_validate(
+        {
+            "paths": {"data_repo": str(tmp_path)},
+            "project_root": tmp_path,
+            "extras": {"enabled": True, "wakeup": {"habit": "sleep"}},
+        }
+    )
+    engine, store = _build_engine_and_store(config, test_mode=False)
+    wakeup_store = _build_wakeup_store(config, test_mode=False)
+    assert wakeup_store is not None
+    wake = datetime(2026, 8, 4, 7, 0, tzinfo=UTC)
+    wakeup_store.append(build_wakeup_event(wake, wake - timedelta(hours=8), habit="sleep"))
+
+    app = HabitoApp(config, engine, store, wakeup_store, test_mode=True)
+    qtbot.addWidget(app)
+    app.show_page(_LOG_PAGE)
+
+    day = app._log_view().tree.topLevelItem(0)
+    assert day is not None
+    assert any(day.child(i).text(1) == "Woke up" for i in range(day.childCount()))
+
+
+def test_the_log_page_is_study_only_when_extras_are_disabled(qtbot, tmp_path):
+    """No wakeup_store at all — nothing to merge, and nothing crashes reaching for one."""
+    from habito.app import _build_engine_and_store
+    from habito.config.models import Config
+    from habito.ui.app import _LOG_PAGE, HabitoApp
+
+    config = Config.model_validate(
+        {"paths": {"data_repo": str(tmp_path)}, "project_root": tmp_path}
+    )
+    engine, store = _build_engine_and_store(config, test_mode=False)
+    app = HabitoApp(config, engine, store, test_mode=True)
+    qtbot.addWidget(app)
+
+    app.show_page(_LOG_PAGE)  # must not raise
+
+    assert app._log_view().tree.topLevelItemCount() == 0
 
 
 def test_day_rows_span_the_columns_and_children_do_not_indent(view):

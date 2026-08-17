@@ -248,8 +248,12 @@ class HabitoApp(QMainWindow):
             widget, focus = calendar, calendar.calendar
         elif page == _LOG_PAGE:
             log = self._log_view()
-            # The one view showing retractions, so it reads the stream unfiltered.
-            log.set_events(self._store.read_all(include_retracted=True))
+            # The one view showing retractions, so it reads the study stream unfiltered.
+            # The wake-up habit has no retraction UI yet, so its own stream is read plain.
+            events = self._store.read_all(include_retracted=True)
+            if self._wakeup_store is not None:
+                events += self._wakeup_store.read_all()
+            log.set_events(events)
             widget, focus = log, log.tree
         else:
             widget = self._view
