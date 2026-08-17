@@ -131,6 +131,21 @@ class SessionTagged(BaseEvent):
     tag: str
 
 
+class SessionUntagged(BaseEvent):
+    """Removes a tag a session was previously given — the mirror of ``SessionTagged``.
+
+    Its own event rather than an edit to the ``SessionTagged`` it reverses: nothing is
+    ever rewritten, so "no longer applies" is a later fact appended, not the earlier one
+    erased. A session's current tags are whatever folding ``SessionTagged``/
+    ``SessionUntagged`` in order leaves standing (see
+    ``habito.projections.tags.session_tags``), the same shape as a tag's description
+    being whichever ``TagDescribed`` came last.
+    """
+
+    type: Literal["session_untagged"] = "session_untagged"
+    tag: str
+
+
 class TagCreated(BaseEvent):
     """Marks that a tag exists, independent of whether it's ever been described or used.
 
@@ -177,6 +192,7 @@ Event = Annotated[
     | SessionEnded
     | SessionRetracted
     | SessionTagged
+    | SessionUntagged
     | TagCreated
     | TagDescribed,
     Field(discriminator="type"),

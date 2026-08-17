@@ -1,24 +1,38 @@
-"""known_tags/tag_descriptions: what the session-end picker offers and what each tag
-means, both derived from the log itself."""
+"""known_tags/tag_descriptions/session_tags: what the session-end picker offers, what
+each tag means, and which tags currently stand on a given session — all derived from the
+log itself."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
-from habito.domain.events import Origin, SessionTagged, TagDescribed
-from habito.projections.tags import known_tags, tag_descriptions
+from habito.domain.events import Origin, SessionTagged, SessionUntagged, TagDescribed
+from habito.projections.tags import known_tags, session_tags, tag_descriptions
 
 WHEN = datetime(2026, 8, 4, 9, 0, tzinfo=UTC)
 
 
-def tagged(tag: str, habit: str = "study", origin: Origin = Origin.live) -> SessionTagged:
+def tagged(
+    tag: str, habit: str = "study", origin: Origin = Origin.live, session_id: UUID | None = None
+) -> SessionTagged:
     return SessionTagged(
         timestamp=WHEN,
         tz_offset_minutes=0,
         origin=origin,
         habit=habit,
-        session_id=uuid4(),
+        session_id=session_id or uuid4(),
+        tag=tag,
+    )
+
+
+def untagged(tag: str, session_id: UUID, habit: str = "study") -> SessionUntagged:
+    return SessionUntagged(
+        timestamp=WHEN,
+        tz_offset_minutes=0,
+        origin=Origin.live,
+        habit=habit,
+        session_id=session_id,
         tag=tag,
     )
 
@@ -82,3 +96,38 @@ def test_the_latest_description_wins():
 def test_descriptions_are_scoped_to_their_habit():
     events = [described("running shoes", "Nike", habit="exercise")]
     assert tag_descriptions(events, "study") == {}
+
+
+def test_a_session_with_no_tags_has_none():
+    assert session_tags([], uuid4()) == set()
+
+
+def test_a_tagged_session_shows_its_tags():
+    session_id = uuid4()
+    events = [
+        tagged("topology", session_id=session_id),
+        tagged("linear algebra", session_id=session_id),
+    ]
+    assert session_tags(events, session_id) == {"topology", "linear algebra"}
+
+
+def test_untagging_removes_it():
+    session_id = uuid4()
+    events = [tagged("topology", session_id=session_id), untagged("topology", session_id)]
+    assert session_tags(events, session_id) == set()
+
+
+def test_untagging_then_retagging_leaves_it_standing():
+    session_id = uuid4()
+    events = [
+        tagged("topology", session_id=session_id),
+        untagged("topology", session_id),
+        tagged("topology", session_id=session_id),
+    ]
+    assert session_tags(events, session_id) == {"topology"}
+
+
+def test_only_the_named_sessions_tags_count():
+    session_id, other = uuid4(), uuid4()
+    events = [tagged("topology", session_id=session_id), tagged("linear algebra", session_id=other)]
+    assert session_tags(events, session_id) == {"topology"}

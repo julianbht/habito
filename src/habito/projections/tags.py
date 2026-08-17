@@ -7,8 +7,9 @@ or described before is what gets offered again, and nothing needs to stay in syn
 from __future__ import annotations
 
 from collections.abc import Iterable
+from uuid import UUID
 
-from habito.domain.events import Event, SessionTagged, TagCreated, TagDescribed
+from habito.domain.events import Event, SessionTagged, SessionUntagged, TagCreated, TagDescribed
 
 
 def known_tags(events: Iterable[Event], habit: str) -> list[str]:
@@ -27,6 +28,24 @@ def known_tags(events: Iterable[Event], habit: str) -> list[str]:
             order.pop(e.tag, None)
             order[e.tag] = None
     return list(reversed(order))
+
+
+def session_tags(events: Iterable[Event], session_id: UUID) -> set[str]:
+    """Whichever tags currently stand on ``session_id`` — ``SessionTagged`` folded with
+    later ``SessionUntagged`` for the same tag removing it, the same "later event wins"
+    shape as :func:`tag_descriptions`. Order doesn't matter here (unlike
+    :func:`known_tags`): this is only ever used to pre-check/lock rows in a picker, not to
+    rank anything.
+    """
+    tags: set[str] = set()
+    for e in events:
+        if e.session_id != session_id:
+            continue
+        if isinstance(e, SessionTagged):
+            tags.add(e.tag)
+        elif isinstance(e, SessionUntagged):
+            tags.discard(e.tag)
+    return tags
 
 
 def tag_descriptions(events: Iterable[Event], habit: str) -> dict[str, str]:

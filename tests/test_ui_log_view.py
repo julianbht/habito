@@ -22,6 +22,7 @@ from habito.domain.events import (
     SessionRetracted,
     SessionStarted,
     SessionTagged,
+    SessionUntagged,
     TagDescribed,
     TimeAdjusted,
 )
@@ -105,6 +106,12 @@ def test_a_tagged_session_shows_its_description_when_known():
         tag_description="Strang — Linear Algebra and Its Applications",
     )
     assert line.detail == "LinAlg-S — Strang — Linear Algebra and Its Applications"
+
+
+def test_an_untagged_session_shows_which_tag_was_removed():
+    line = describe(at(11, cls=SessionUntagged, tag="linear algebra"))
+    assert line.what == "Untagged"
+    assert line.detail == "linear algebra"
 
 
 def test_a_tag_described_event_shows_what_it_means():

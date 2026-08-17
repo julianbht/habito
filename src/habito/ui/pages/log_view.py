@@ -36,6 +36,7 @@ from habito.domain.events import (
     SessionRetracted,
     SessionStarted,
     SessionTagged,
+    SessionUntagged,
     TagCreated,
     TagDescribed,
     TimeAdjusted,
@@ -113,6 +114,8 @@ def describe(event: Event, tag_description: str | None = None) -> Line:
         what, detail = "Tagged", event.tag
         if tag_description:
             detail = f"{event.tag} — {tag_description}"
+    elif isinstance(event, SessionUntagged):
+        what, detail = "Untagged", event.tag
     elif isinstance(event, TagCreated):
         what, detail = "Tag created", event.tag
     elif isinstance(event, TagDescribed):

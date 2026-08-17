@@ -34,7 +34,7 @@ stay at the package root as the window's own shared infrastructure, alongside `i
 
 ## Events
 
-Everything in the log is one of the thirteen types below (`habito.domain.events.Event`,
+Everything in the log is one of the fourteen types below (`habito.domain.events.Event`,
 the discriminated union pyright and Pydantic both check against). Grouped by what they're
 about, not declaration order:
 
@@ -65,7 +65,8 @@ reused. A convention each producer has a test for, not something the type system
 
 | Event | Fires when | Fields beyond the base five |
 |---|---|---|
-| `SessionTagged` | a session is labelled after the fact, at the session-end prompt | `tag` |
+| `SessionTagged` | a session is labelled after the fact, at the session-end prompt or in the ☰ sessions dialog | `tag` |
+| `SessionUntagged` | a tag is removed from a session, in the ☰ sessions dialog | `tag` |
 | `TagCreated` | a tag is first named, in the tag editor | `tag` |
 | `TagDescribed` | a tag's description is set or changed, in the tag editor | `tag`, `description` |
 
@@ -132,15 +133,22 @@ dialog, which lists sessions to pick from.
 ## Tags
 
 A session may be labelled with a free-form tag — what you were studying, not a setting —
-via `SessionTagged`, offered once at session end and always optional.
+via `SessionTagged`, offered once at session end and always optional. Tags can also be
+added or removed well after the fact — retroactive tagging needs `SessionUntagged` as much
+as `SessionTagged`, since undoing an accidental or outdated tag is an append too, never an
+edit to the original.
 
 **No tag list to maintain.** `projections.tags.known_tags` derives every tag on offer by
 folding `TagCreated` / `TagDescribed` / `SessionTagged` out of the log itself, the same
-shape as `find_resumable` and `summarize_sessions`.
+shape as `find_resumable` and `summarize_sessions`. `projections.tags.session_tags` folds
+the same way for one session's *current* tags — `SessionTagged` adds, a later
+`SessionUntagged` for the same tag removes it, "later wins" the same shape as
+`tag_descriptions`.
 
-**Three tag events, one job each — never one event wearing two meanings.**
+**Four tag events, one job each — never one event wearing two meanings.**
 `TagCreated` marks that a tag exists; `TagDescribed` sets or changes its description;
-`SessionTagged` puts one on a session.
+`SessionTagged` puts one on a session; `SessionUntagged` takes it back off — a later,
+appended fact, never an edit to the `SessionTagged` it reverses.
 
 **One tag list, one tag editor, reused everywhere a tag needs picking or setting up.**
 `ui.widgets.tag_picker.TagPicker` is the `Tag | Description` tree — used both by the ☰ tag manager
