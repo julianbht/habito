@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from PySide6.QtCore import Qt
 
-from habito.app import _build_engine_and_store
+from habito.app import _build_engine_and_store, _build_wakeup_store
 from habito.config.models import Config
 from habito.engine.pomodoro import State
 from habito.ui import theme
@@ -168,6 +168,52 @@ def test_the_two_corrections_are_grouped(qtbot, app):
     together."""
     listed = entries(app)
     assert listed.index("Manage sessions…") == listed.index("Backfill…") + 1
+
+
+def test_log_wakeup_is_absent_when_extras_are_disabled(qtbot, app):
+    """Off by default — the whole point of the flag (see CLAUDE.md § Extras)."""
+    assert "Log wake-up…" not in entries(app)
+
+
+def test_log_wakeup_appears_grouped_with_the_other_corrections_when_enabled(qtbot, tmp_path):
+    config = Config.model_validate(
+        {
+            "paths": {"data_repo": str(tmp_path)},
+            "project_root": tmp_path,
+            "extras": {"enabled": True, "wakeup": {"habit": "sleep"}},
+        }
+    )
+    engine, store = _build_engine_and_store(config, test_mode=False)
+    wakeup_store = _build_wakeup_store(config, test_mode=False)
+    window = HabitoApp(config, engine, store, wakeup_store, test_mode=True)
+    qtbot.addWidget(window)
+
+    listed = entries(window)
+    assert "Log wake-up…" in listed
+    assert listed.index("Manage tags…") < listed.index("Log wake-up…") < listed.index("Shortcuts…")
+
+
+def test_opening_wakeup_launches_the_dialog(qtbot, tmp_path, monkeypatch):
+    from habito.ui.dialogs.wakeup_dialog import WakeUpDialog
+
+    config = Config.model_validate(
+        {
+            "paths": {"data_repo": str(tmp_path)},
+            "project_root": tmp_path,
+            "extras": {"enabled": True, "wakeup": {"habit": "sleep"}},
+        }
+    )
+    engine, store = _build_engine_and_store(config, test_mode=False)
+    wakeup_store = _build_wakeup_store(config, test_mode=False)
+    window = HabitoApp(config, engine, store, wakeup_store, test_mode=True)
+    qtbot.addWidget(window)
+
+    opened = []
+    monkeypatch.setattr(WakeUpDialog, "exec", lambda self: opened.append(self) or 0)
+
+    window.on_open_wakeup()
+
+    assert len(opened) == 1
 
 
 def test_the_current_view_is_ticked_in_the_menu(qtbot, app):

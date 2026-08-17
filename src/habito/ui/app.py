@@ -41,6 +41,7 @@ from habito.ui.dialogs.session_complete_dialog import SessionCompleteDialog
 from habito.ui.dialogs.settings_dialog import SettingsDialog, SettingsValues
 from habito.ui.dialogs.shortcuts_dialog import SHORTCUTS, ShortcutsDialog
 from habito.ui.dialogs.tag_manager_dialog import TagManagerDialog
+from habito.ui.dialogs.wakeup_dialog import WakeUpDialog
 from habito.ui.notifier import (
     DesktopNotifier,
     Notification,
@@ -92,6 +93,7 @@ class HabitoApp(QMainWindow):
         config: Config,
         engine: PomodoroEngine,
         store: EventStore,
+        wakeup_store: EventStore | None = None,
         test_mode: bool = False,
     ) -> None:
         super().__init__()
@@ -101,6 +103,9 @@ class HabitoApp(QMainWindow):
         self._config_editor = ConfigEditor(config, test_mode)
         self._engine = engine
         self._store = store
+        # Only set when `config.extras.enabled` — the composition root builds it
+        # conditionally (see `habito.app._build_wakeup_store`).
+        self._wakeup_store = wakeup_store
         # Borrowed rather than built: one clock means a timezone change from Settings
         # reaches the events the engine stamps, not just the views.
         self._clock = engine.clock
@@ -226,6 +231,8 @@ class HabitoApp(QMainWindow):
         menu.addAction(icon("calendar_add_on"), "Backfill…", self.on_open_backfill)
         menu.addAction(icon("undo"), "Manage sessions…", self.on_open_manage_sessions)
         menu.addAction(icon("sell"), "Manage tags…", self.on_open_manage_tags)
+        if self._wakeup_store is not None:
+            menu.addAction(icon("alarm"), "Log wake-up…", self.on_open_wakeup)
         menu.addAction(icon("keyboard"), "Shortcuts…", self.on_open_shortcuts)
         menu.addAction(icon("settings"), "Settings…", self._open_settings)
         return menu
@@ -317,6 +324,7 @@ class HabitoApp(QMainWindow):
             sound=self._config.ui.sound,
             break_reminder_minutes=self._config.ui.break_reminder_minutes,
             time_config=self._config.time,
+            wakeup=self._config.extras.wakeup if self._config.extras.enabled else None,
             parent=self,
         )
         self._settings_dialog.show()
@@ -415,6 +423,8 @@ class HabitoApp(QMainWindow):
             sound=values.sound,
             timezone=values.timezone,
             rollover_hour=values.rollover_hour,
+            default_wake_time=values.default_wake_time,
+            default_bedtime=values.default_bedtime,
         )
         if outcome.ok:
             self._engine.update_config(self._config.pomodoro)
@@ -456,6 +466,19 @@ class HabitoApp(QMainWindow):
             default_break=self._config.pomodoro.break_minutes,
             default_rounds=self._config.pomodoro.rounds,
             habit=self._config.habit,
+            time_config=self._config.time,
+            today=self._today(),
+            parent=self._settings_dialog or self,
+        ).exec()
+
+    def on_open_wakeup(self) -> None:
+        assert self._wakeup_store is not None  # menu action only exists when this is set
+        wakeup = self._config.extras.wakeup
+        WakeUpDialog(
+            on_submit=self._append_wakeup,
+            default_wake_time=wakeup.default_wake_time,
+            default_bedtime=wakeup.default_bedtime,
+            habit=wakeup.habit,
             time_config=self._config.time,
             today=self._today(),
             parent=self._settings_dialog or self,
@@ -504,6 +527,14 @@ class HabitoApp(QMainWindow):
             self._store.append(event)
         self._today_baseline = self._compute_today_baseline()
         self._refresh_calendar()
+
+    def _append_wakeup(self, events: Iterable[Event]) -> None:
+        """Land a wake-up log. Its own habit's store, not `_store` — a wake-up event has
+        no bearing on the study habit's "today" baseline or calendar, so unlike
+        `_append_all` there's nothing here to recompute."""
+        assert self._wakeup_store is not None  # only called from a dialog gated on this
+        for event in events:
+            self._wakeup_store.append(event)
 
     def _today(self) -> date:
         """The habit-day in progress — which before the rollover hour is still yesterday."""

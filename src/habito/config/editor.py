@@ -22,11 +22,19 @@ holding a reference to it sees the change.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import time
 
 from pydantic import ValidationError
 
 from habito.config.loader import save_config
-from habito.config.models import Config, GoalsConfig, PomodoroConfig, TimeConfig, UIConfig
+from habito.config.models import (
+    Config,
+    GoalsConfig,
+    PomodoroConfig,
+    TimeConfig,
+    UIConfig,
+    WakeUpConfig,
+)
 
 
 @dataclass(frozen=True)
@@ -87,8 +95,15 @@ class ConfigEditor:
         sound: str,
         timezone: str,
         rollover_hour: int,
+        default_wake_time: time | None = None,
+        default_bedtime: time | None = None,
     ) -> Applied:
-        """Everything the Settings dialog can change, accepted or rejected as one piece."""
+        """Everything the Settings dialog can change, accepted or rejected as one piece.
+
+        ``default_wake_time``/``default_bedtime`` are ``None`` when the wake-up section
+        wasn't on screen (extras disabled) — that leaves ``extras.wakeup`` exactly as it
+        was rather than validating fields nobody had a chance to edit.
+        """
         try:
             pomodoro = PomodoroConfig(
                 work_minutes=self._config.pomodoro.work_minutes,
@@ -109,14 +124,25 @@ class ConfigEditor:
                 update={"sound": sound, "break_reminder_minutes": break_reminder_minutes}
             )
             UIConfig.model_validate(ui.model_dump())
-            time = TimeConfig(timezone=timezone, rollover_hour=rollover_hour)
+            time_config = TimeConfig(timezone=timezone, rollover_hour=rollover_hour)
+            extras = self._config.extras
+            if default_wake_time is not None and default_bedtime is not None:
+                wakeup = extras.wakeup.model_copy(
+                    update={
+                        "default_wake_time": default_wake_time,
+                        "default_bedtime": default_bedtime,
+                    }
+                )
+                WakeUpConfig.model_validate(wakeup.model_dump())
+                extras = extras.model_copy(update={"wakeup": wakeup})
         except ValidationError as exc:
             return _rejected(exc)
 
         self._config.pomodoro = pomodoro
         self._config.goals = goals
         self._config.ui = ui
-        self._config.time = time
+        self._config.time = time_config
+        self._config.extras = extras
         return self._save()
 
     def _save(self) -> Applied:

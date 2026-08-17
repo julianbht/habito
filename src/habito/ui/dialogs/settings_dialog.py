@@ -13,9 +13,10 @@ somewhere you might have to scroll to find.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import time
 from typing import Protocol
 
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QSize, Qt, QTime
 from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
@@ -23,11 +24,12 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QScrollArea,
+    QTimeEdit,
     QVBoxLayout,
     QWidget,
 )
 
-from habito.config.models import SYSTEM_TZ, GoalsConfig, PomodoroConfig, TimeConfig
+from habito.config.models import SYSTEM_TZ, GoalsConfig, PomodoroConfig, TimeConfig, WakeUpConfig
 from habito.ui import sounds, theme
 from habito.ui.svg_icons import icon
 from habito.ui.widgets.controls import (
@@ -60,6 +62,10 @@ class SettingsValues:
     resume_window_minutes: int = 10
     timezone: str = SYSTEM_TZ
     rollover_hour: int = 3
+    # None when the wake-up section wasn't shown (extras disabled) — leaves the config's
+    # current value alone rather than asserting a value nobody had a chance to edit.
+    default_wake_time: time | None = None
+    default_bedtime: time | None = None
 
 
 class Controller(Protocol):
@@ -91,6 +97,7 @@ class SettingsDialog(QDialog):
         sound: str = sounds.DEFAULT,
         break_reminder_minutes: int = 3,
         time_config: TimeConfig | None = None,
+        wakeup: WakeUpConfig | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -101,10 +108,15 @@ class SettingsDialog(QDialog):
         self.setWindowTitle("Settings")
         self.setMinimumWidth(LARGE_DIALOG_WIDTH)
         self.setMinimumHeight(LARGE_DIALOG_HEIGHT)
-        self._build(pomodoro, goals or GoalsConfig(), sound, break_reminder_minutes)
+        self._build(pomodoro, goals or GoalsConfig(), sound, break_reminder_minutes, wakeup)
 
     def _build(
-        self, pomodoro: PomodoroConfig, goals: GoalsConfig, sound: str, break_reminder_minutes: int
+        self,
+        pomodoro: PomodoroConfig,
+        goals: GoalsConfig,
+        sound: str,
+        break_reminder_minutes: int,
+        wakeup: WakeUpConfig | None,
     ) -> None:
         # Save stays outside the scroll area, pinned at the bottom — the thing the dialog
         # exists to do shouldn't need scrolling down to find, however long the form above
@@ -154,6 +166,13 @@ class SettingsDialog(QDialog):
         root.addWidget(label("Timezone", "heading"))
         root.addLayout(self._build_timezone_form())
 
+        self._wake_time_edit: QTimeEdit | None = None
+        self._bedtime_edit: QTimeEdit | None = None
+        if wakeup is not None:
+            root.addWidget(_rule())
+            root.addWidget(label("Wake-up defaults", "heading"))
+            root.addLayout(self._build_wakeup_form(wakeup))
+
         scroll.setWidget(content)
 
         footer = QVBoxLayout()
@@ -178,7 +197,7 @@ class SettingsDialog(QDialog):
         footer.addWidget(self._status)
         outer.addLayout(footer)
 
-        chain = [
+        chain: list[QWidget] = [
             self._break_spin,
             self._rounds_spin,
             self._resume_window_spin,
@@ -191,10 +210,29 @@ class SettingsDialog(QDialog):
             self._reminder_spin,
             self._tz_box,
             self._rollover_spin,
-            self._save_btn,
         ]
+        if self._wake_time_edit is not None and self._bedtime_edit is not None:
+            chain += [self._wake_time_edit, self._bedtime_edit]
+        chain.append(self._save_btn)
         for earlier, later in zip(chain, chain[1:], strict=False):
             self.setTabOrder(earlier, later)
+
+    def _build_wakeup_form(self, wakeup: WakeUpConfig) -> QFormLayout:
+        """Defaults the Log-wake-up dialog opens with, so most days are just a click."""
+        form = QFormLayout()
+        form.setSpacing(8)
+
+        wake = wakeup.default_wake_time
+        self._wake_time_edit = QTimeEdit(QTime(wake.hour, wake.minute))
+        self._wake_time_edit.setDisplayFormat("HH:mm")
+
+        bed = wakeup.default_bedtime
+        self._bedtime_edit = QTimeEdit(QTime(bed.hour, bed.minute))
+        self._bedtime_edit.setDisplayFormat("HH:mm")
+
+        form.addRow("Wake time", Stepper(self._wake_time_edit))
+        form.addRow("Bedtime", Stepper(self._bedtime_edit))
+        return form
 
     def _build_goal_form(self, goals: GoalsConfig) -> QFormLayout:
         """How much study time earns a green day on the calendar."""
@@ -355,7 +393,16 @@ class SettingsDialog(QDialog):
             sound=self.selected_sound(),
             timezone=self.selected_timezone(),
             rollover_hour=self._rollover_spin.value(),
+            default_wake_time=self._qtime(self._wake_time_edit),
+            default_bedtime=self._qtime(self._bedtime_edit),
         )
+
+    @staticmethod
+    def _qtime(edit: QTimeEdit | None) -> time | None:
+        if edit is None:
+            return None
+        qt = edit.time()
+        return time(qt.hour(), qt.minute())
 
     def _preview(self) -> None:
         self._last_sound = self.selected_sound()

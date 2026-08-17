@@ -7,6 +7,8 @@ window's, and are tested where they live — in the calendar, timer and test-mod
 
 from __future__ import annotations
 
+from datetime import time
+
 from habito.config.editor import ConfigEditor
 from habito.config.models import Config
 
@@ -97,3 +99,28 @@ def test_the_timer_rejects_a_zero_length_round(tmp_path):
     assert outcome.message is not None
     assert outcome.message.startswith("work_minutes: ")
     assert config.pomodoro.work_minutes == 25
+
+
+def test_omitting_the_wakeup_defaults_leaves_them_unchanged(tmp_path):
+    """None means the section wasn't on screen (extras disabled) — not "clear it"."""
+    config = build_config(tmp_path)
+    before = config.extras.wakeup
+
+    outcome = ConfigEditor(config).apply_settings(**_VALID)
+
+    assert outcome.ok
+    assert config.extras.wakeup == before
+
+
+def test_the_wakeup_defaults_apply_when_both_are_given(tmp_path):
+    config = build_config(tmp_path)
+
+    outcome = ConfigEditor(config).apply_settings(
+        **_VALID, default_wake_time=time(6, 30), default_bedtime=time(22, 45)
+    )
+
+    assert outcome.ok
+    assert config.extras.wakeup.default_wake_time == time(6, 30)
+    assert config.extras.wakeup.default_bedtime == time(22, 45)
+    # Untouched by an edit that has nothing to do with it.
+    assert config.extras.wakeup.habit == "sleep"

@@ -57,3 +57,28 @@ def test_a_missing_file_loads_the_defaults(tmp_path):
 
     assert config.pomodoro.rounds == 4
     assert config.goals.daily_minutes == 100
+
+
+def test_extras_defaults_off_and_missing_key_falls_back(tmp_path):
+    """No `extras` key at all in the file — old settings.json files predate it."""
+    config = load_config(project_root=tmp_path, config_path=tmp_path / "nope.json")
+
+    assert config.extras.enabled is False
+    assert config.extras.wakeup.habit == "sleep"
+
+
+def test_saving_preserves_a_hand_set_extras_flag(tmp_path):
+    """`extras.enabled` has no Settings-dialog widget — only the round-trip keeps it."""
+    cfg_file = tmp_path / "config" / "settings.json"
+    cfg_file.parent.mkdir(parents=True)
+    cfg_file.write_text(
+        json.dumps({"extras": {"enabled": True, "wakeup": {"habit": "sleep"}}}),
+        encoding="utf-8",
+    )
+
+    config = load_config(project_root=tmp_path, config_path=cfg_file)
+    save_config(config)
+
+    reloaded = load_config(project_root=tmp_path, config_path=cfg_file)
+    assert reloaded.extras.enabled is True
+    assert reloaded.extras.wakeup.habit == "sleep"

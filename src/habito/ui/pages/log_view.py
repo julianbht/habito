@@ -121,12 +121,15 @@ def describe(event: Event, tag_description: str | None = None) -> Line:
     elif isinstance(event, TagDescribed):
         what = "Tag described"
         detail = f"{event.tag} — {event.description}" if event.description else event.tag
-    else:
+    elif isinstance(event, SessionRetracted):
         what = "Session retracted"
         # Says when the correction was made, since the row sits under the day it corrects
         # and its time column would otherwise read as that day's.
         made = local_datetime(event).strftime("%Y-%m-%d")
         detail = f"{event.reason} · retracted {made}" if event.reason else f"retracted {made}"
+    # Anything else (e.g. a wake-up log) falls back to the "Event"/event.type default set
+    # above — this view is only ever fed the study habit's own stream, so it never actually
+    # sees one, but the fallback keeps this function total over `Event` as the union grows.
 
     return Line(
         time=_local_time(event),

@@ -34,7 +34,7 @@ stay at the package root as the window's own shared infrastructure, alongside `i
 
 ## Events
 
-Everything in the log is one of the fourteen types below (`habito.domain.events.Event`,
+Everything in the log is one of the fifteen types below (`habito.domain.events.Event`,
 the discriminated union pyright and Pydantic both check against). Grouped by what they're
 about, not declaration order:
 
@@ -69,6 +69,12 @@ reused. A convention each producer has a test for, not something the type system
 | `SessionUntagged` | a tag is removed from a session, in the ☰ sessions dialog | `tag` |
 | `TagCreated` | a tag is first named, in the tag editor | `tag` |
 | `TagDescribed` | a tag's description is set or changed, in the tag editor | `tag`, `description` |
+
+**Extras** (see § Extras for the full rationale):
+
+| Event | Fires when | Fields beyond the base five |
+|---|---|---|
+| `WakeUpLogged` | a wake-up is logged, later at the PC | `bedtime` (roughly when you went to bed — `timestamp` is the wake instant itself) |
 
 **Conventions that hold for every event, not just one family:**
 
@@ -171,6 +177,53 @@ width, stacked above another. Its styling is decided here, though, tied to the s
 it's the primary button there (`object_name="primary"`); in the session-end picker, "Done"
 already is the primary action, so "+ New tag" stays plain.
 
+## Extras
+
+Personal, non-Pomodoro habits — logging when you woke up so far, a workout tracker planned
+later — live behind `config.extras.enabled`, off by default. The flag is **hand-edit-only**
+in `settings.json`, deliberately with no Settings-dialog widget: it's a once-per-install
+"which build am I running" choice, like `paths.data_repo`, not something you'd revisit (see
+§ Settings for the general "default to a widget" rule this is the documented exception to).
+When it's off, the whole feature is invisible — no ☰ menu entry, no Settings section, no
+second `EventStore` even gets constructed.
+
+**A second, unrelated habit, not a second app.** Wake-up logging reuses every piece of
+existing infrastructure rather than inventing a parallel one: the same `EventStore` (already
+parameterized by habit name — nothing habit-specific to generalize), the same JSONL/day-file
+layout, the same evidence mechanism. It's filed under its own habit directory
+(`config.extras.wakeup.habit`, default `sleep`) alongside `study`, so `habito.app` builds a
+*second* `EventStore` when extras are enabled and hands both to `HabitoApp`.
+
+**One `EvidenceWorker` still, not one per habit.** Two threads issuing git commands against
+the same repo would race, so the composition root keeps a single worker whose pathspec is
+`"."` — the whole data repo — rather than one habit's subtree. Safe because the data repo
+holds nothing but habit directories and a `.gitignore`. Both the study store and (when
+present) the wake-up store `.subscribe()` the same `EvidenceRecorder`.
+
+**`WakeUpLogged` is a single fact, not a session.** It doesn't fit the
+`SessionStarted…SessionEnded` family — there are no rounds or breaks to a wake-up — so it's
+its own event, following the same shape a backfilled event already uses: `timestamp` is the
+actual wake instant (a real historical fact, not "when you clicked the button"), and
+`bedtime` is the one thing worth recording alongside it — roughly when you went to bed the
+evening before. Named `bedtime`, not "asleep at": you can attest to when you went to bed,
+not the moment you actually fell asleep. `origin` is always `backfilled` — you're always at
+the PC logging this after the fact, typically well after actually waking, so unlike a live
+Pomodoro session there's no "in the moment" case to distinguish it from.
+
+**`WakeUpDialog` is modeled on `BackfillDialog`**, right down to reusing
+`TimeConfig.localize()` for both times you type — the wake instant and the bedtime — so a
+machine set to the wrong zone still stamps events in *your* zone, never the machine's (see §
+Time's documented gotcha). The dialog asks for exactly three things — date, wake time,
+bedtime — and infers which calendar day the bedtime falls on: if the picked bedtime clock
+value would land on or after the wake instant (the normal case — you went to bed the evening
+before), it's dated the day before; a bedtime after midnight (asleep 01:00, woke 08:00 the
+same day) needs no adjustment. `config.extras.wakeup.default_wake_time` /
+`default_bedtime` seed the dialog's fields, so a normal day is one click.
+
+Unlike the flag itself, **the wake/bedtime defaults do get a Settings-dialog section** —
+shown only when extras are enabled — since those are values worth tweaking occasionally,
+not a one-time install choice.
+
 ## Time
 
 Three distinct things, easy to conflate:
@@ -244,8 +297,9 @@ let the star trigger before the day would even read as met.
 ## Settings
 
 **Default to a widget.** Most settings belong in the Settings dialog; hand-edit-only is the
-exception, earned by a concrete reason (e.g. `paths.data_repo` and the git remote config are set
-once per machine) When in doubt, wire it up.
+exception, earned by a concrete reason (e.g. `paths.data_repo` and the git remote config are
+set once per machine, and `extras.enabled` is a which-build-is-this choice — see § Extras).
+When in doubt, wire it up.
 
 Two entry points, because there are two ways to change a setting: `apply_work_minutes` for
 the timer's duration field, and `apply_settings` for the whole dialog. The dialog's values
@@ -262,7 +316,7 @@ growing tag list) scrolls rather than earning its dialog a bigger window:
 
 | Tier | Width | Height | Job | Dialogs |
 |---|---|---|---|---|
-| Compact | 320 | content-driven | one ask, or a short form | `PhaseDialog`, `SessionCompleteDialog` (collapsed), `TagEditDialog`, `BackfillDialog`, `ResumePromptDialog`, `RetractConfirmDialog` |
+| Compact | 320 | content-driven | one ask, or a short form | `PhaseDialog`, `SessionCompleteDialog` (collapsed), `TagEditDialog`, `BackfillDialog`, `WakeUpDialog`, `ResumePromptDialog`, `RetractConfirmDialog` |
 | Browse | 440 | 360 | pick one thing from a list, or manage a small growing one | `ManageSessionsDialog`, `ShortcutsDialog`, `TagManagerDialog`, `SessionTagDialog`, `SessionCompleteDialog` (tag picker showing) |
 | Large | 460 | 580 | everything at once | `SettingsDialog` only — reuses the size `HabitoApp` already gives the calendar/log pages (`_PAGE_SIZES`) rather than a fourth number, and scrolls its form internally (see its own module docstring) instead of growing past it |
 
@@ -279,8 +333,8 @@ button stopped working".
 colour differs.** `widgets.button(text, object_name)` with no object name is the plain,
 unstyled case — Close, Cancel, "+ New tag" — anything that isn't the thing the dialog
 exists to do. `object_name="primary"` is the accent colour, for whichever button *is* the
-thing the dialog exists to do — Save, Retract & commit, Add & commit, Resume, Done, Start
-round N
+thing the dialog exists to do — Save, Retract & commit, Add & commit, Log & commit, Resume,
+Done, Start round N
 
 **A dialog's primary button is always also its default button** (`setDefault(True)`, or
 `widgets.primary_button(text)`, which bundles the two) — whether it was built with
@@ -324,8 +378,11 @@ building the calendar every time Settings is saved.
 
 - Commit **and push** after every event — GitHub's server-recorded push time is the part
   that's hard to forge; local commit times are not.
-- `GitRepo.add/commit/has_staged_changes` take a pathspec, so the worker stages the whole
-  `<habit>/` tree and picks up whichever day file the event landed in.
+- `GitRepo.add/commit/has_staged_changes` take a pathspec. The composition root passes `"."`
+  (the whole data repo), not one habit's tree — the repo holds nothing but habit
+  directories and a `.gitignore`, so this is what lets one `EvidenceWorker` (one thread, one
+  git-command queue) serve every habit's store rather than needing one worker per habit
+  (see § Extras).
 - Backfilled events carry `origin = "backfilled"`, and the log view and `DailySummary` keep
   them separate from live evidence. The calendar deliberately does *not* — one cell per day
   has room for one question ("did this day count"), and a second encoding there was noise.

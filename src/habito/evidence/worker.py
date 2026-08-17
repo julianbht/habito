@@ -50,14 +50,17 @@ class EvidenceWorker:
         self,
         repo: GitRepo,
         config: EvidenceConfig,
-        habit_dir: str,
+        pathspec: str,
         on_status: StatusCallback | None = None,
     ) -> None:
         self._repo = repo
         self._config = config
         # A directory, not a file — git add/commit/diff all take a pathspec, so staging
-        # the whole habit tree picks up whichever day file the event just landed in.
-        self._pathspec = habit_dir
+        # it picks up whichever day file(s) just changed. The composition root passes
+        # "." (the whole data repo) rather than one habit's subtree, so this one
+        # worker/thread can serve every habit's store without racing git commands
+        # against each other in the same repo.
+        self._pathspec = pathspec
         self._on_status = on_status
         self._queue: queue.Queue[Event | _Signal] = queue.Queue()
         self._thread = threading.Thread(target=self._loop, name="evidence-worker", daemon=True)

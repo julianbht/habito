@@ -31,6 +31,7 @@
     "stretch_minutes": 200,
     "stretch_buffer_minutes": 10
   },
+  "extras": { "enabled": true },
   "paths": {
     "data_repo": "../habito-data"
   }

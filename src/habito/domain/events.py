@@ -159,6 +159,25 @@ class TagCreated(BaseEvent):
     tag: str
 
 
+class WakeUpLogged(BaseEvent):
+    """Logs when you woke up, entered later at the PC rather than in the moment.
+
+    ``timestamp`` is the actual wake instant (the historical fact, same convention as a
+    backfilled ``SessionStarted``), not the moment you sat down to log it. ``bedtime`` is
+    the one extra fact worth recording: roughly when you went to bed the evening before —
+    named for what you can actually attest to, since the exact moment you fell asleep isn't
+    knowable. Both share ``tz_offset_minutes``, a deliberate simplification since they fall
+    within the same evening/morning.
+
+    Not part of the Pomodoro session family — no ``session_id`` meaning beyond satisfying
+    the schema, so a fresh one is minted, the same way ``TagDescribed`` does for an event
+    that isn't really about any one session.
+    """
+
+    type: Literal["wake_up_logged"] = "wake_up_logged"
+    bedtime: datetime  # UTC instant, approx
+
+
 class TagDescribed(BaseEvent):
     """Attaches or updates a tag's longer-form description — the tag manager, not the
     session-end prompt.
@@ -194,7 +213,8 @@ Event = Annotated[
     | SessionTagged
     | SessionUntagged
     | TagCreated
-    | TagDescribed,
+    | TagDescribed
+    | WakeUpLogged,
     Field(discriminator="type"),
 ]
 """Discriminated union over the ``type`` field — validates each line into its subtype."""

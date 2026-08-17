@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+from datetime import UTC, datetime
 
 import pytest
 
 from conftest import make_config
+from habito.actions.wakeup import build_wakeup_event
 from habito.config.models import EvidenceConfig
 from habito.engine.clock import FakeClock
 from habito.engine.pomodoro import PomodoroEngine
@@ -113,6 +115,44 @@ def test_each_event_is_committed_and_pushed(repos):
     assert len([ln for ln in committed.splitlines() if ln.strip()]) == 4
     assert "session_ended" in committed
     assert len(store.read_all()) == 4
+
+
+def test_one_worker_commits_two_habits_stores_together(repos):
+    """The "." pathspec (rather than one habit's subtree) is what lets a single worker
+    serve every habit's store — e.g. the study habit and the wake-up "sleep" habit sharing
+    one data repo — without racing git commands against each other."""
+    remote, data = repos
+
+    study = EventStore(data, "study")
+    wakeup = EventStore(data, "sleep")
+    repo = GitRepo(data)
+    worker = EvidenceWorker(repo, EvidenceConfig(), ".")
+    worker.start()
+    recorder = EvidenceRecorder(worker)
+    study.subscribe(recorder)
+    wakeup.subscribe(recorder)
+
+    engine = PomodoroEngine(
+        make_config(rounds=1), sink=study.append, clock=FakeClock(), habit="study"
+    )
+    engine.start()
+    engine.stop()
+    worker.wait_idle()
+
+    wake_event = build_wakeup_event(
+        datetime(2026, 8, 17, 7, 0, tzinfo=UTC),
+        datetime(2026, 8, 16, 23, 0, tzinfo=UTC),
+        habit="sleep",
+    )
+    wakeup.append(wake_event)
+    worker.wait_idle()
+    worker.stop()
+
+    assert repo.unpushed_count("origin", "main") == 0
+    study_file = study.files()[0].relative_to(data).as_posix()
+    wakeup_file = wakeup.files()[0].relative_to(data).as_posix()
+    assert "session_ended" in _git(data, "show", f"HEAD:{study_file}")
+    assert "wake_up_logged" in _git(data, "show", f"HEAD:{wakeup_file}")
 
 
 def test_push_deferred_when_remote_unreachable(repos, tmp_path):

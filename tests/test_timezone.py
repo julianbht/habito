@@ -205,3 +205,30 @@ def test_the_backfill_dialog_stamps_the_configured_zone(qtbot):
     started = captured[0][0]
     assert started.tz_offset_minutes == 120  # CEST, not the machine's offset
     assert logical_date(started) == date(2026, 8, 5)  # 23:50 is still the 5th in Berlin
+
+
+def test_the_wakeup_dialog_stamps_the_configured_zone(qtbot):
+    """Same rule as Backfill: what's typed is Berlin wall-clock, however the computer is
+    set — you're never expected to convert what you type to UTC yourself."""
+    from datetime import time
+
+    from habito.ui.dialogs.wakeup_dialog import WakeUpDialog
+
+    captured = []
+    dialog = WakeUpDialog(
+        on_submit=captured.append,
+        default_wake_time=time(7, 0),
+        default_bedtime=time(23, 0),
+        habit="sleep",
+        time_config=TimeConfig(timezone="Europe/Berlin"),
+        today=date(2026, 8, 5),
+    )
+    qtbot.addWidget(dialog)
+
+    dialog._wake_time.setTime(QTime(7, 0))
+    dialog._bedtime.setTime(QTime(23, 0))
+    dialog._submit()
+
+    logged = captured[0][0]
+    assert logged.tz_offset_minutes == 120  # CEST, not the machine's offset
+    assert logical_date(logged) == date(2026, 8, 5)  # 07:00 is still the 5th in Berlin

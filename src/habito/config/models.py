@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, tzinfo
+from datetime import datetime, time, tzinfo
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -187,6 +187,28 @@ class GoalsConfig(BaseModel):
         return max(0, self.stretch_minutes - self.stretch_buffer_minutes) * 60
 
 
+class WakeUpConfig(BaseModel):
+    """Where wake-up logs are filed, and what the dialog offers before you type over it."""
+
+    habit: str = Field(default="sleep", pattern=HABIT_PATTERN)
+    default_wake_time: time = time(7, 0)
+    default_bedtime: time = time(23, 0)
+
+
+class ExtrasConfig(BaseModel):
+    """Personal, non-Pomodoro habits (wake-up now, workout later) — off by default so a
+    build meant to be shared doesn't carry them.
+
+    Hand-edit only, on purpose: unlike the rest of `Config`, this is a "which build am I
+    running" choice made once per install rather than a setting you'd revisit, so it earns
+    no Settings-dialog widget (see CLAUDE.md § Settings). The wake-up *defaults* nested
+    inside `wakeup`, by contrast, are things you would plausibly tweak — those do get one.
+    """
+
+    enabled: bool = False
+    wakeup: WakeUpConfig = Field(default_factory=WakeUpConfig)
+
+
 class PathsConfig(BaseModel):
     data_repo: str = "../habito-data"
 
@@ -202,6 +224,7 @@ class Config(BaseModel):
     evidence: EvidenceConfig = Field(default_factory=EvidenceConfig)
     ui: UIConfig = Field(default_factory=UIConfig)
     goals: GoalsConfig = Field(default_factory=GoalsConfig)
+    extras: ExtrasConfig = Field(default_factory=ExtrasConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
 
     project_root: Path

@@ -87,6 +87,16 @@ def _build_engine_and_store(
     return engine, store
 
 
+def _build_wakeup_store(config: Config, test_mode: bool = False) -> EventStore | None:
+    """A second, unrelated habit's store — only when `extras.enabled` (see CLAUDE.md §
+    Extras). Reuses the same habit-agnostic `EventStore`, just pointed at a different habit
+    name under the same root."""
+    if not config.extras.enabled:
+        return None
+    root = _log_root(config, test_mode)
+    return EventStore(root, config.extras.wakeup.habit, config.time.rollover_hour)
+
+
 def run_gui(config: Config, test_mode: bool = False) -> int:
     from PySide6.QtWidgets import QApplication
 
@@ -104,7 +114,8 @@ def run_gui(config: Config, test_mode: bool = False) -> int:
         shutil.rmtree(_log_root(config, test_mode=True), ignore_errors=True)
 
     engine, store = _build_engine_and_store(config, test_mode)
-    app = HabitoApp(config, engine, store, test_mode=test_mode)
+    wakeup_store = _build_wakeup_store(config, test_mode)
+    app = HabitoApp(config, engine, store, wakeup_store, test_mode=test_mode)
 
     if test_mode:
         # No GitRepo, no worker, no recorder: nothing can reach the data repo from here.
@@ -112,14 +123,16 @@ def run_gui(config: Config, test_mode: bool = False) -> int:
         print("            the data repo is not touched and settings.json is not written")
         app.set_status_mode("status: TEST MODE · not recorded", theme.ACCENT_TEST)
     else:
-        _attach_evidence(app, config, store)
+        _attach_evidence(app, config, store, wakeup_store)
 
     app.show()
     app.offer_resume()
     return qt_app.exec()
 
 
-def _attach_evidence(app: HabitoApp, config: Config, store: EventStore) -> None:
+def _attach_evidence(
+    app: HabitoApp, config: Config, store: EventStore, wakeup_store: EventStore | None = None
+) -> None:
     from habito.ui import theme
 
     repo = GitRepo(config.data_repo_path())
@@ -127,14 +140,16 @@ def _attach_evidence(app: HabitoApp, config: Config, store: EventStore) -> None:
         app.set_status_mode("status: not set up — run 'habito doctor'", theme.WARN)
         return
 
-    worker = EvidenceWorker(
-        repo,
-        config.evidence,
-        config.habit,  # pathspec for the habit's tree
-        on_status=app.on_evidence_status,
-    )
+    # "." rather than one habit's directory: the data repo holds nothing but habit
+    # trees and a .gitignore, so staging/committing the whole thing is safe and is what
+    # lets one worker (one thread, one git-command queue against this repo) serve every
+    # habit's store rather than needing one worker per habit.
+    worker = EvidenceWorker(repo, config.evidence, ".", on_status=app.on_evidence_status)
     worker.start()
-    store.subscribe(EvidenceRecorder(worker))
+    recorder = EvidenceRecorder(worker)
+    store.subscribe(recorder)
+    if wakeup_store is not None:
+        wakeup_store.subscribe(recorder)
     app.attach_worker(worker)
     if repo.has_remote(config.evidence.remote):
         app.set_status_mode("status: ready", theme.MUTED)
