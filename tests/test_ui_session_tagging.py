@@ -14,7 +14,10 @@ from PySide6.QtCore import Qt
 from habito.app import _build_engine_and_store
 from habito.config.models import Config
 from habito.domain.events import SessionTagged, TagDescribed
-from habito.engine.pomodoro import State
+from habito.engine.clock import FakeClock
+from habito.engine.pomodoro import PomodoroEngine, State
+from habito.projections.daily import summary_for
+from habito.storage.event_store import EventStore
 from habito.ui.app import HabitoApp
 from habito.ui.dialogs.session_complete_dialog import SessionCompleteDialog
 from habito.ui.dialogs.tag_edit_dialog import TagEditDialog
@@ -162,6 +165,60 @@ def test_a_second_session_completes_normally_after_a_tag_was_recorded(qtbot, tmp
 
     assert window._engine.state is State.done
     assert isinstance(window._phase_dialog, SessionCompleteDialog)
+
+
+def build_with_fake_clock(qtbot, tmp_path, *, rounds: int = 2):
+    """Like `build`, but a FakeClock so phases can actually elapse instead of skipping
+    instantly at t=0 — needed to get nonzero recorded work_seconds."""
+    config = Config.model_validate(
+        {
+            "paths": {"data_repo": str(tmp_path)},
+            "project_root": tmp_path,
+            "pomodoro": {"rounds": rounds},
+        }
+    )
+    store = EventStore(config.data_repo_path(), config.habit, config.time.rollover_hour)
+    clock = FakeClock()
+    engine = PomodoroEngine(config.pomodoro, sink=store.append, clock=clock, habit=config.habit)
+    window = HabitoApp(config, engine, store, test_mode=True)
+    qtbot.addWidget(window)
+    return window, store, clock
+
+
+def finish_the_session_with_elapsed_time(window, clock):
+    """Like `finish_the_session`, but each phase elapses a minute before it's skipped, so
+    the recorded work/break seconds — and therefore today's total — are nonzero."""
+    window.on_start()
+    for _ in range(window._config.pomodoro.rounds * 2 - 1):
+        clock.advance(60)
+        window._engine.skip()
+        window._repaint()
+        window._engine.acknowledge()
+        window._repaint()
+
+
+def test_describing_a_new_tag_after_finishing_does_not_double_count_today(
+    qtbot, tmp_path, monkeypatch
+):
+    """Regression: the just-finished session's rounds are already in the store by the
+    time this prompt shows (sink=store.append), and the engine snapshot still adds the
+    same session's total on top of the baseline until the next on_start(). Recomputing
+    the baseline here (_append_all, for the TagDescribed the new tag writes) must not
+    fold that session's own rounds back in a second time."""
+    window, store, clock = build_with_fake_clock(qtbot, tmp_path, rounds=2)
+    finish_the_session_with_elapsed_time(window, clock)
+
+    expected = summary_for(
+        store.read_all(), window._today(), window._config.time.rollover_hour
+    ).total_work_seconds
+    assert expected > 0
+
+    dialog = window._phase_dialog
+    assert isinstance(dialog, SessionCompleteDialog)
+    pick_new_tag(qtbot, monkeypatch, dialog, "linear algebra", description="Strang, ch. 1-3")
+
+    displayed = window._today_baseline + window._engine.snapshot().session_work_seconds
+    assert displayed == expected
 
 
 def test_the_prompt_offers_a_tag_used_in_an_earlier_session(qtbot, tmp_path, monkeypatch):

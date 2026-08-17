@@ -505,9 +505,19 @@ class HabitoApp(QMainWindow):
         return logical_day(self._clock.local_now(), self._config.time.rollover_hour)
 
     def _compute_today_baseline(self) -> int:
-        summary = summary_for(
-            self._store.read_all(), self._today(), self._config.time.rollover_hour
-        )
+        """Everything true for today *besides* the engine's own current session.
+
+        That session's contribution is `_repaint`'s other addend, `snap.session_work_seconds`
+        — live while it runs, still held after it ends until the next `on_start()`. Its
+        events land in the store the moment they're emitted (`sink=store.append`), so a
+        recompute triggered mid-session or right after one ends (tagging, backfill, retract,
+        a settings change) would otherwise fold that session's completed rounds back in from
+        the store while the snapshot is still adding them too. Excluding its `session_id`
+        here is what makes this safe to call at any of those moments, not just at
+        `on_start()`.
+        """
+        events = (e for e in self._store.read_all() if e.session_id != self._engine.session_id)
+        summary = summary_for(events, self._today(), self._config.time.rollover_hour)
         return summary.total_work_seconds
 
     def _tick(self) -> None:
