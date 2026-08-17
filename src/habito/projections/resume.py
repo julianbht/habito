@@ -12,6 +12,7 @@ already drops retracted sessions, so a retracted one simply won't be found here.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
@@ -25,6 +26,7 @@ from habito.domain.events import (
     RoundEnded,
     RoundStarted,
     SessionEnded,
+    SessionEvent,
     SessionStarted,
     TimeAdjusted,
 )
@@ -49,7 +51,7 @@ class ResumableSession:
 
 
 def _with_adjustments(
-    own: list[Event], round_index: int, start: Event, end: Event, base_seconds: int
+    own: Sequence[Event], round_index: int, start: Event, end: Event, base_seconds: int
 ) -> int:
     """``base_seconds`` plus every ``TimeAdjusted`` delta emitted for this phase — between
     its own ``start`` and ``end`` events — so a phase that finished exactly on a
@@ -86,7 +88,10 @@ def find_resumable(events: list[Event], habit: str, current_rounds: int) -> Resu
     last_started = max(started, key=lambda e: e.timestamp)
     session_id = last_started.session_id
 
-    own = sorted((e for e in events if e.session_id == session_id), key=lambda e: e.timestamp)
+    own = sorted(
+        (e for e in events if isinstance(e, SessionEvent) and e.session_id == session_id),
+        key=lambda e: e.timestamp,
+    )
     if not any(isinstance(e, SessionEnded) for e in own):
         # No graceful close ever finalised this one — a crash, or it's still running
         # right now. Neither case has a trustworthy stopping point to resume from.

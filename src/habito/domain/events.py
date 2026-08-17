@@ -40,10 +40,28 @@ class BaseEvent(BaseModel):
     origin: Origin
     # Required, never defaulted — see CLAUDE.md § Habits.
     habit: str = Field(pattern=HABIT_PATTERN)
+
+
+class SessionEvent(BaseEvent):
+    """A `BaseEvent` that belongs to one Pomodoro session — adds the `session_id` shared by
+    every event from that session's `SessionStarted` to `SessionEnded` (see CLAUDE.md §
+    Events and § Schema evolution).
+
+    Required, never defaulted, for the opposite reason `origin` isn't: a default here
+    wouldn't assert anything false, but it would let a construction site that forgot to
+    pass the *shared* id silently mint an unrelated random one instead of erroring — quietly
+    breaking the one-id-per-session convention rather than refusing to build.
+
+    An event not really "about" any one session (`TagCreated`, `TagDescribed`,
+    `WakeUpLogged`) extends `BaseEvent` directly instead — no `session_id` field at all,
+    rather than one holding a throwaway value with nothing to correlate against. See
+    CLAUDE.md § Extras for why that split exists and what it replaced.
+    """
+
     session_id: UUID
 
 
-class SessionStarted(BaseEvent):
+class SessionStarted(SessionEvent):
     type: Literal["session_started"] = "session_started"
     work_minutes: float  # fractional so a round can be shorter than a minute
     break_minutes: int
@@ -54,37 +72,37 @@ class SessionStarted(BaseEvent):
     resumed_from: UUID | None = None
 
 
-class RoundStarted(BaseEvent):
+class RoundStarted(SessionEvent):
     type: Literal["round_started"] = "round_started"
     round_index: int
 
 
-class RoundEnded(BaseEvent):
+class RoundEnded(SessionEvent):
     type: Literal["round_ended"] = "round_ended"
     round_index: int
     work_seconds: int
 
 
-class BreakStarted(BaseEvent):
+class BreakStarted(SessionEvent):
     type: Literal["break_started"] = "break_started"
     round_index: int
 
 
-class BreakEnded(BaseEvent):
+class BreakEnded(SessionEvent):
     type: Literal["break_ended"] = "break_ended"
     round_index: int
     break_seconds: int
 
 
-class SessionPaused(BaseEvent):
+class SessionPaused(SessionEvent):
     type: Literal["session_paused"] = "session_paused"
 
 
-class SessionResumed(BaseEvent):
+class SessionResumed(SessionEvent):
     type: Literal["session_resumed"] = "session_resumed"
 
 
-class TimeAdjusted(BaseEvent):
+class TimeAdjusted(SessionEvent):
     """Records a manual +N-minute adjustment to the current phase, transparently."""
 
     type: Literal["time_adjusted"] = "time_adjusted"
@@ -92,12 +110,12 @@ class TimeAdjusted(BaseEvent):
     delta_seconds: int
 
 
-class SessionEnded(BaseEvent):
+class SessionEnded(SessionEvent):
     type: Literal["session_ended"] = "session_ended"
     total_work_seconds: int
 
 
-class SessionRetracted(BaseEvent):
+class SessionRetracted(SessionEvent):
     """Voids an earlier session, by appending rather than editing.
 
     The target is the inherited ``session_id``: one retraction voids that whole session,
@@ -116,7 +134,7 @@ class SessionRetracted(BaseEvent):
     reason: str = ""
 
 
-class SessionTagged(BaseEvent):
+class SessionTagged(SessionEvent):
     """A free-form label put on a session after the fact — the ☰ prompt on session end.
 
     Its own event rather than a field on ``SessionStarted``: the tag is only known once
@@ -131,7 +149,7 @@ class SessionTagged(BaseEvent):
     tag: str
 
 
-class SessionUntagged(BaseEvent):
+class SessionUntagged(SessionEvent):
     """Removes a tag a session was previously given — the mirror of ``SessionTagged``.
 
     Its own event rather than an edit to the ``SessionTagged`` it reverses: nothing is
@@ -153,6 +171,9 @@ class TagCreated(BaseEvent):
     description: a description is optional, so nothing should have to fake one just to
     make a bare name durable, and an empty string on ``TagDescribed`` would stop meaning
     what its name says. Written once, when a tag is first named in the tag editor.
+
+    Extends ``BaseEvent`` directly, not ``SessionEvent``: not about any particular session,
+    so there is no ``session_id`` to carry.
     """
 
     type: Literal["tag_created"] = "tag_created"
@@ -169,9 +190,8 @@ class WakeUpLogged(BaseEvent):
     knowable. Both share ``tz_offset_minutes``, a deliberate simplification since they fall
     within the same evening/morning.
 
-    Not part of the Pomodoro session family — no ``session_id`` meaning beyond satisfying
-    the schema, so a fresh one is minted, the same way ``TagDescribed`` does for an event
-    that isn't really about any one session.
+    Extends ``BaseEvent`` directly, not ``SessionEvent``: not part of the Pomodoro session
+    family, so there is no ``session_id`` to carry.
     """
 
     type: Literal["wake_up_logged"] = "wake_up_logged"
@@ -189,9 +209,8 @@ class TagDescribed(BaseEvent):
     for the latest ``TagDescribed`` per tag gives the current description — a correction is
     just a later event for the same tag, nothing is ever rewritten.
 
-    Not about any particular session, so ``session_id`` (required on every ``BaseEvent``)
-    carries no meaning here beyond satisfying the schema — each write mints a fresh one, the
-    same way it would for an event with nothing to link.
+    Extends ``BaseEvent`` directly, not ``SessionEvent``: not about any particular session,
+    so there is no ``session_id`` to carry.
     """
 
     type: Literal["tag_described"] = "tag_described"
@@ -292,9 +311,13 @@ def drop_retracted(events: Iterable[Event]) -> list[Event]:
     Collects the set in a first pass so the result holds whatever the stream order is: a
     retraction files under the target's day, so retracting a session that spanned a
     rollover puts the line in the earlier day's file, ahead of events it voids in the later.
+
+    An event with no ``session_id`` at all (``TagCreated``, ``TagDescribed``,
+    ``WakeUpLogged``) was never part of any session, so it can't have been voided by one —
+    kept unconditionally rather than compared against ``retracted``.
     """
     entries = list(events)
     retracted = retracted_session_ids(entries)
     if not retracted:
         return entries
-    return [e for e in entries if e.session_id not in retracted]
+    return [e for e in entries if not isinstance(e, SessionEvent) or e.session_id not in retracted]

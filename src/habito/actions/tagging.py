@@ -15,7 +15,6 @@ from habito.domain.events import (
     SessionUntagged,
     TagCreated,
     TagDescribed,
-    new_session_id,
     stamp,
 )
 
@@ -28,7 +27,6 @@ def build_tag_created_event(tag: str, *, habit: str, now: _datetime) -> TagCreat
         tz_offset_minutes=tz_offset_minutes,
         origin=Origin.live,
         habit=habit,
-        session_id=new_session_id(),
         tag=tag,
     )
 
@@ -84,7 +82,6 @@ def build_tag_described_event(
         tz_offset_minutes=tz_offset_minutes,
         origin=Origin.live,
         habit=habit,
-        session_id=new_session_id(),
         tag=tag,
         description=description,
     )

@@ -18,6 +18,7 @@ from habito.domain.events import (
     Event,
     Origin,
     RoundEnded,
+    SessionEvent,
     SessionRetracted,
     local_datetime,
     partition_date,
@@ -54,6 +55,11 @@ def summarize_sessions(events: Iterable[Event], rollover_hour: int = 0) -> list[
 
     for event in entries:
         if isinstance(event, SessionRetracted):
+            continue
+        # An event with no session_id at all (TagCreated, TagDescribed, WakeUpLogged)
+        # isn't part of any session and shouldn't fold into a bogus one of its own — this
+        # is what previously let each show up as its own zero-length "session" here.
+        if not isinstance(event, SessionEvent):
             continue
         sid = event.session_id
         local = local_datetime(event)

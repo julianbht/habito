@@ -8,6 +8,7 @@ from habito.domain.events import (
     Origin,
     RoundEnded,
     SessionEnded,
+    SessionEvent,
     SessionStarted,
 )
 from habito.projections.daily import summarize_by_day, summary_for
@@ -40,7 +41,8 @@ def test_every_backfilled_event_carries_one_id_and_a_backfilled_origin():
     """
     events = build_backfill_events(_start(), 25, 5, 3, habit="study")
 
-    assert len({e.session_id for e in events}) == 1
+    assert all(isinstance(e, SessionEvent) for e in events)  # every backfilled event is one
+    assert len({e.session_id for e in events if isinstance(e, SessionEvent)}) == 1
     assert all(e.origin is Origin.backfilled for e in events)
     assert all(e.habit == "study" for e in events)
 

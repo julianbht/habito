@@ -17,6 +17,7 @@ from habito.actions.retraction import build_retraction_events
 from habito.domain.events import (
     Origin,
     RoundEnded,
+    SessionEvent,
     SessionRetracted,
     SessionStarted,
     drop_retracted,
@@ -105,7 +106,7 @@ def test_retraction_leaves_other_sessions_alone(tmp_path):
     for event in build_retraction_events(voided.session_id, voided.days, habit="study", now=LATER):
         store.append(event)
 
-    remaining = {e.session_id for e in store.read_all()}
+    remaining = {e.session_id for e in store.read_all() if isinstance(e, SessionEvent)}
     assert remaining == {kept.session_id}
 
 
@@ -205,5 +206,5 @@ def test_rounds_survive_a_retraction_of_a_different_session(tmp_path):
         store.append(event)
 
     remaining = store.read_all()
-    assert {e.session_id for e in remaining} == {evening.session_id}
+    assert {e.session_id for e in remaining if isinstance(e, SessionEvent)} == {evening.session_id}
     assert sum(e.work_seconds for e in remaining if isinstance(e, RoundEnded)) == 6000

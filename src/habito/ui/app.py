@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 
 from habito.config.editor import ConfigEditor
 from habito.config.models import Config
-from habito.domain.events import Event, Origin, SessionTagged, logical_day
+from habito.domain.events import Event, Origin, SessionEvent, SessionTagged, logical_day
 from habito.engine.pomodoro import EngineState, PomodoroEngine, State
 from habito.evidence.worker import EvidenceStatus, EvidenceWorker
 from habito.projections.daily import summarize_by_day, summary_for
@@ -556,7 +556,11 @@ class HabitoApp(QMainWindow):
         here is what makes this safe to call at any of those moments, not just at
         `on_start()`.
         """
-        events = (e for e in self._store.read_all() if e.session_id != self._engine.session_id)
+        events = (
+            e
+            for e in self._store.read_all()
+            if not isinstance(e, SessionEvent) or e.session_id != self._engine.session_id
+        )
         summary = summary_for(events, self._today(), self._config.time.rollover_hour)
         return summary.total_work_seconds
 

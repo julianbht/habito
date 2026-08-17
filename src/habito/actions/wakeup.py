@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from habito.domain.events import Origin, WakeUpLogged, new_session_id, stamp
+from habito.domain.events import Origin, WakeUpLogged, stamp
 
 
 def build_wakeup_event(wake: datetime, bedtime: datetime, *, habit: str) -> WakeUpLogged:
@@ -25,6 +25,5 @@ def build_wakeup_event(wake: datetime, bedtime: datetime, *, habit: str) -> Wake
         tz_offset_minutes=tz_offset_minutes,
         origin=Origin.backfilled,
         habit=habit,
-        session_id=new_session_id(),
         bedtime=bedtime.astimezone(UTC),
     )

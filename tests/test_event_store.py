@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from habito.domain.events import Origin, RoundEnded, SessionStarted
+from habito.domain.events import Origin, RoundEnded, SessionEvent, SessionStarted
 from habito.storage.event_store import EventStore
 
 
@@ -155,7 +155,8 @@ def test_a_split_session_still_replays_as_one_ordered_stream(tmp_path):
 
     events = store.read_all()
     assert len(store.files()) == 2
-    assert [e.session_id for e in events] == [sid, sid]
+    assert all(isinstance(e, SessionEvent) for e in events)
+    assert [e.session_id for e in events if isinstance(e, SessionEvent)] == [sid, sid]
     assert [e.timestamp for e in events] == sorted(e.timestamp for e in events)
 
 

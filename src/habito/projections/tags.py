@@ -39,11 +39,9 @@ def session_tags(events: Iterable[Event], session_id: UUID) -> set[str]:
     """
     tags: set[str] = set()
     for e in events:
-        if e.session_id != session_id:
-            continue
-        if isinstance(e, SessionTagged):
+        if isinstance(e, SessionTagged) and e.session_id == session_id:
             tags.add(e.tag)
-        elif isinstance(e, SessionUntagged):
+        elif isinstance(e, SessionUntagged) and e.session_id == session_id:
             tags.discard(e.tag)
     return tags
 

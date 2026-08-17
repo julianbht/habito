@@ -43,7 +43,6 @@ def described(tag: str, description: str, habit: str = "study") -> TagDescribed:
         tz_offset_minutes=0,
         origin=Origin.live,
         habit=habit,
-        session_id=uuid4(),
         tag=tag,
         description=description,
     )

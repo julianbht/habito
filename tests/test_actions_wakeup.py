@@ -33,14 +33,3 @@ def test_a_bedtime_on_or_after_the_wake_time_is_rejected():
 
     with pytest.raises(ValueError, match="bedtime must be before"):
         build_wakeup_event(wake, wake + timedelta(minutes=1), habit="sleep")
-
-
-def test_each_wakeup_event_mints_its_own_session_id():
-    """Not part of any session, so nothing should tie two logged wake-ups together."""
-    wake = _wake()
-    bed = wake - timedelta(hours=8)
-
-    first = build_wakeup_event(wake, bed, habit="sleep")
-    second = build_wakeup_event(wake, bed, habit="sleep")
-
-    assert first.session_id != second.session_id

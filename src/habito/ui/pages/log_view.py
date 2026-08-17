@@ -36,6 +36,7 @@ from habito.domain.events import (
     RoundEnded,
     RoundStarted,
     SessionEnded,
+    SessionEvent,
     SessionPaused,
     SessionResumed,
     SessionRetracted,
@@ -246,7 +247,13 @@ class LogView(QWidget):
             parent.setFont(0, bold)
             for event in day_events:
                 # The retraction itself is the standing statement, so it isn't struck out.
-                struck = event.session_id in voided and not isinstance(event, SessionRetracted)
+                # An event with no session_id at all (TagCreated, TagDescribed,
+                # WakeUpLogged) was never part of any session, so it's never struck.
+                struck = (
+                    isinstance(event, SessionEvent)
+                    and event.session_id in voided
+                    and not isinstance(event, SessionRetracted)
+                )
                 tag = event.tag if isinstance(event, SessionTagged) else None
                 line = describe(event, descriptions.get(tag) if tag else None)
                 self._add_line(parent, line, voided=struck)

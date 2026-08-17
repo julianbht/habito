@@ -40,8 +40,9 @@ about, not declaration order:
 
 **Session lifecycle** — one `session_id` shared by every event from `SessionStarted` to
 `SessionEnded`, minted once per `PomodoroEngine` session (or per backfill write) and never
-reused. A convention each producer has a test for, not something the type system enforces
-(see § Schema evolution).
+reused. *Which* id a producer shares across a session is a convention each producer has a
+test for, not something the type system enforces — but *whether an event has one at all* is
+type-enforced, via `SessionEvent` (see § Session identity).
 
 | Event | Fires when | Fields beyond the base five |
 |---|---|---|
@@ -61,33 +62,76 @@ reused. A convention each producer has a test for, not something the type system
 |---|---|---|
 | `SessionRetracted` | a mistake is withdrawn, by session id | `target_date` (the day it corrects, not the day it was written), `reason` |
 
-**Tags** (see § Tags for the full rationale):
+**Tags** (see § Tags for the full rationale; `SessionTagged`/`SessionUntagged` get
+`session_id`, `TagCreated`/`TagDescribed` don't — see § Session identity):
 
-| Event | Fires when | Fields beyond the base five |
+| Event | Fires when | Fields beyond the base |
 |---|---|---|
 | `SessionTagged` | a session is labelled after the fact, at the session-end prompt or in the ☰ sessions dialog | `tag` |
 | `SessionUntagged` | a tag is removed from a session, in the ☰ sessions dialog | `tag` |
 | `TagCreated` | a tag is first named, in the tag editor | `tag` |
 | `TagDescribed` | a tag's description is set or changed, in the tag editor | `tag`, `description` |
 
-**Extras** (see § Extras for the full rationale):
+**Extras** (see § Extras for the full rationale; no `session_id` — see § Session identity):
 
-| Event | Fires when | Fields beyond the base five |
+| Event | Fires when | Fields beyond the base |
 |---|---|---|
 | `WakeUpLogged` | a wake-up is logged, later at the PC | `bedtime` (roughly when you went to bed — `timestamp` is the wake instant itself) |
 
 **Conventions that hold for every event, not just one family:**
 
-- The base five (`event_id`, `timestamp`, `tz_offset_minutes`, `origin`, `habit`,
-  `session_id`) are on every event and every one is required — no defaults, so nothing
-  stamps them on for you and each construction site spells them out in full (see §
-  Schema evolution).
+- `timestamp`, `tz_offset_minutes`, `origin` and `habit` are on every event and every one
+  is required — no defaults, so nothing stamps them on for you and each construction site
+  spells them out in full (see § Schema evolution). `event_id` is the one exception,
+  defaulted via `default_factory=uuid4` — nothing meaningful is lost by not spelling out a
+  fresh id. `SessionEvent` adds a fifth required field, `session_id` — not on every event;
+  see § Session identity for which events get it and why.
 - Evolution is additive-only: a new event type or a new field with a default is fine;
   removing, renaming, or repurposing a field is not (see § Schema evolution).
-- An event not really "about" a session still carries `session_id`, because the field is
-  mandatory — `TagDescribed` mints a fresh one it never uses for anything.
 - Nothing is ever rewritten. A correction, a retraction, a changed description — all of
   these are a later event appended, never an edit to one already written.
+
+## Session identity
+
+`session_id` lives on `SessionEvent` (`domain.events.SessionEvent`), not on `BaseEvent`
+itself. Every event genuinely about one Pomodoro session extends `SessionEvent`:
+`SessionStarted` through `SessionEnded`, `SessionRetracted`, `SessionTagged`,
+`SessionUntagged`. An event that isn't about any particular session — `TagCreated`,
+`TagDescribed`, `WakeUpLogged` — extends `BaseEvent` directly, with no `session_id` field
+at all.
+
+**The rule, for any new event type:** decide whether it belongs to one specific session
+before writing it. If yes, extend `SessionEvent`. If no, extend `BaseEvent` directly. Never
+mint a throwaway `session_id` to satisfy a field that isn't meaningful for it — the field's
+presence is a **claim** that this event correlates with others sharing that id, and a
+random one falsely stakes that claim.
+
+**Why this replaced "every event gets one":** originally every event, session-scoped or
+not, carried `session_id`, with a freshly-minted, unused one for `TagCreated`/
+`TagDescribed` (and, briefly, `WakeUpLogged`). That looked harmless — nothing read it for
+meaning — until `projections.sessions.summarize_sessions`, which groups *by* `session_id`,
+treated each throwaway one as defining its own session. Creating a tag while tagging a real
+session could turn one session into three rows in "Manage sessions…". Splitting the base
+class turns that class of bug into a build-time one: reading `.session_id` off a bare
+`Event` without first narrowing to `SessionEvent` is now a pyright error, not a silent
+runtime artifact — see the `isinstance(_, SessionEvent)` narrowing this forced in
+`projections.sessions`, `projections.tags.session_tags`, `projections.resume`,
+`domain.events.drop_retracted`, `ui.app._compute_today_baseline` and `ui.pages.log_view`.
+
+**Doesn't touch history.** Historical `TagCreated`/`TagDescribed` lines already written to
+the data repo still hold a `session_id` key from before this split — left exactly alone,
+never rewritten (see § The log's "nothing is ever rewritten"). Pydantic's default
+`extra="ignore"` behaviour drops an unrecognised field silently on load, so those old lines
+keep parsing exactly like new ones without it. No migration needed, none attempted.
+
+**Flag it, don't work around it.** If a future feature (e.g. the planned workout tracker)
+turns out to want its own events genuinely correlated to each other — a multi-event
+"workout session," say — that's a decision for whoever's building it to raise explicitly:
+extend `SessionEvent` (if it's honestly a Pomodoro-shaped session) or introduce its own,
+differently-named correlation id (if `session_id`'s Pomodoro-specific meaning doesn't fit).
+Don't quietly reuse `session_id` for something it was never meant to mean, and don't add a
+second ad-hoc id field to route around this. If either is starting to feel necessary,
+that's the point to stop and reconsider the split itself instead.
 
 ## The log
 
@@ -234,12 +278,10 @@ so nothing there needed to change, only `describe()` gained a `WakeUpLogged` cas
 bedtime + duration). "Manage sessions…" stays study-only on purpose: `WakeUpLogged` isn't a
 session.
 
-**Known rough edge:** every event that mints its own throwaway `session_id` rather than
-inheriting one from a real session — `TagCreated`, `TagDescribed`, and now `WakeUpLogged` —
-shows up as its own bogus zero-length row in "Manage sessions…", because
-`projections.sessions.summarize_sessions` groups by `session_id` with nothing to tell those
-apart from a real session. Not fixed yet; the intended fix is the `session_id` cleanup
-covered separately, not a patch local to `summarize_sessions`.
+`WakeUpLogged` mints no `session_id` at all — it extends `BaseEvent` directly, not
+`SessionEvent` (see § Session identity for the full rationale, including the
+"Manage sessions…" bug that shape once caused for `TagCreated`/`TagDescribed`, and why this
+event was designed that way from the start rather than needing the same fix).
 
 ## Time
 
@@ -290,14 +332,17 @@ Events are immutable and frozen. Evolve **additively only**:
 
 There is deliberately **no `schema_version` field**. The absence of one *is* version 1.
 
-**Every field on `BaseEvent` is required.** No defaults, `origin` included — a default there
-would make an omission indistinguishable from a claim, and a backfilled event that forgot
-to say so would pass itself off as verified evidence. Because they are all required, an
-event is spelled out in full at each construction site and pyright rejects one that skips a
-field; nothing stamps the common five on for you. The cost is that `session_id` agreeing
-across a session is now a convention rather than a guarantee, so each producer
-(`engine.pomodoro`, `backfill`) has a test asserting one id and the right origin across a
-whole session.
+**Every field on `BaseEvent` is required, except `event_id`.** No defaults on `timestamp`,
+`tz_offset_minutes`, `origin` or `habit` — `origin` most pointedly: a default there would
+make an omission indistinguishable from a claim, and a backfilled event that forgot to say
+so would pass itself off as verified evidence. Because they are all required, an event is
+spelled out in full at each construction site and pyright rejects one that skips a field;
+nothing stamps them on for you. `event_id` defaults via `default_factory=uuid4` — a fresh
+id is always a fine answer for a field nothing correlates against, unlike the rest.
+`SessionEvent.session_id` is required the same deliberate way (see § Session identity for
+why it isn't on `BaseEvent` itself). The cost is that it *agreeing* across a session is a
+convention rather than a guarantee, so each producer (`engine.pomodoro`, `backfill`) has a
+test asserting one id and the right origin across a whole session.
 
 ## Goals
 

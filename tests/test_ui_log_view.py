@@ -265,7 +265,6 @@ def test_the_view_shows_a_tags_description_alongside_its_tag(view):
         tz_offset_minutes=0,
         origin=Origin.live,
         habit="study",
-        session_id=uuid4(),
         tag="LinAlg-S",
         description="Strang's book",
     )
@@ -282,7 +281,6 @@ def test_a_wakeup_event_renders_alongside_study_events(view):
         tz_offset_minutes=0,
         origin=Origin.backfilled,
         habit="sleep",
-        session_id=uuid4(),
         bedtime=NOON - timedelta(hours=8),
     )
     view.set_events([make_day(0, 0), wakeup])
