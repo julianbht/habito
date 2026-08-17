@@ -232,7 +232,7 @@ class HabitoApp(QMainWindow):
         menu.addAction(icon("undo"), "Manage sessions…", self.on_open_manage_sessions)
         menu.addAction(icon("sell"), "Manage tags…", self.on_open_manage_tags)
         if self._wakeup_store is not None:
-            menu.addAction(icon("alarm"), "Log wake-up…", self.on_open_wakeup)
+            menu.addAction(icon("alarm"), "Log sleep", self.on_open_wakeup)
         menu.addAction(icon("keyboard"), "Shortcuts…", self.on_open_shortcuts)
         menu.addAction(icon("settings"), "Settings…", self._open_settings)
         return menu
