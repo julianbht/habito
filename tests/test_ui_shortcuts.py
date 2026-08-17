@@ -151,7 +151,7 @@ def test_settings_is_the_last_menu_entry(qtbot, app):
         "Log",
         "",
         "Backfill…",
-        "Retract session…",
+        "Manage sessions…",
         "Manage tags…",
         "Shortcuts…",
         "Settings…",
@@ -164,9 +164,10 @@ def test_backfill_comes_before_settings(qtbot, app):
 
 
 def test_the_two_corrections_are_grouped(qtbot, app):
-    """Backfill and Retract are the pair of by-hand corrections, so they sit together."""
+    """Backfill and Manage sessions are the pair of by-hand corrections, so they sit
+    together."""
     listed = entries(app)
-    assert listed.index("Retract session…") == listed.index("Backfill…") + 1
+    assert listed.index("Manage sessions…") == listed.index("Backfill…") + 1
 
 
 def test_the_current_view_is_ticked_in_the_menu(qtbot, app):

@@ -20,7 +20,7 @@ CEST = timezone(timedelta(hours=2))
 NOW = datetime(2026, 8, 7, 14, 23, tzinfo=CEST)
 
 
-def picker_for(qtbot, tags, descriptions=None, checkable=False, captured=None):
+def picker_for(qtbot, tags, descriptions=None, checkable=False, checked=None, captured=None):
     picker = TagPicker(
         tags,
         descriptions or {},
@@ -28,6 +28,7 @@ def picker_for(qtbot, tags, descriptions=None, checkable=False, captured=None):
         "study",
         NOW,
         checkable=checkable,
+        checked=checked,
     )
     qtbot.addWidget(picker)
     return picker
@@ -85,6 +86,28 @@ def test_checking_a_row_reports_it_as_selected(qtbot):
     row(picker, 1).setCheckState(0, Qt.CheckState.Checked)
 
     assert picker.selected_tags() == ["topology"]
+
+
+def test_checked_rows_start_ticked(qtbot):
+    picker = picker_for(qtbot, ["linear algebra", "topology"], checkable=True, checked={"topology"})
+
+    assert row(picker, 0).checkState(0) == Qt.CheckState.Unchecked  # linear algebra
+    assert row(picker, 1).checkState(0) == Qt.CheckState.Checked  # topology
+    assert picker.selected_tags() == ["topology"]
+
+
+def test_unchecking_a_pre_checked_row_removes_it_from_selected(qtbot):
+    picker = picker_for(qtbot, ["topology"], checkable=True, checked={"topology"})
+
+    row(picker, 0).setCheckState(0, Qt.CheckState.Unchecked)
+
+    assert picker.selected_tags() == []
+
+
+def test_checked_is_ignored_when_not_checkable(qtbot):
+    picker = picker_for(qtbot, ["topology"], checkable=False, checked={"topology"})
+
+    assert row(picker, 0).data(0, Qt.ItemDataRole.CheckStateRole) is None
 
 
 def test_new_tag_button_is_primary_when_not_checkable(qtbot):

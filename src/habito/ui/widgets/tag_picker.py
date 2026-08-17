@@ -1,9 +1,12 @@
-"""The tag list, shared by the tag manager and the session-end prompt — one widget, not
-two views that happen to look alike. ``checkable`` is the only thing that differs between
-them: off for browsing/managing (the ☰ tag manager), on for picking which tags apply to the
-session that just ended. Everything else — the two-column ``Tag | Description`` tree,
-"+ New tag", double-click to edit — is identical either way, because it's the same task
-(look at what tags exist, add or fix one) with or without a selection on top of it.
+"""The tag list, shared by the tag manager and every tag picker — one widget, not several
+views that happen to look alike. ``checkable`` is what differs between browsing/managing
+(the ☰ tag manager, off) and picking which tags apply to a session (on) — the session-end
+prompt and the retroactive per-session tag/untag picker both use the checkable form.
+``checked`` seeds which rows start ticked when checkable: empty for the session-end prompt
+(nothing's tagged yet), a session's current tags for the retroactive picker, where
+unchecking one is how you untag it. Everything else — the two-column ``Tag | Description``
+tree, "+ New tag", double-click to edit — is identical either way, because it's the same
+task (look at what tags exist, add or fix one) with or without a selection on top of it.
 
 "+ New tag" is built here (so both call sites open the same `TagEditDialog`) but not laid
 out here: what, if anything, sits beside it is each embedding dialog's own layout choice —
@@ -62,6 +65,7 @@ class TagPicker(QWidget):
         habit: str,
         now: datetime,
         checkable: bool,
+        checked: set[str] | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -69,6 +73,11 @@ class TagPicker(QWidget):
         self._habit = habit
         self._now = now
         self._checkable = checkable
+        # Only meaningful when checkable: which rows start checked, e.g. a session's
+        # existing tags in the retroactive tag/untag picker. Ignored (nothing is ever
+        # pre-checked) everywhere else, including the session-end prompt, where a
+        # session freshly ending has no tags yet to reflect.
+        self._checked = checked or set[str]()
 
         self.tree = QTreeWidget()
         self.tree.setColumnCount(2)
@@ -102,7 +111,8 @@ class TagPicker(QWidget):
         item.setForeground(1, QBrush(QColor(theme.MUTED)))
         if self._checkable:
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(0, Qt.CheckState.Unchecked)
+            checked = item.text(0) in self._checked
+            item.setCheckState(0, Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
         self._set_description(item, description)
 
     def _add_row(self, tag: str, description: str) -> QTreeWidgetItem:

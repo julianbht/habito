@@ -1,7 +1,7 @@
 """Projection: fold the event log into one row per session.
 
-What the retract dialog picks from, and the level a correction is made at — a mistake is
-made in whole sessions, so this is the unit the UI offers.
+What `ManageSessionsDialog` lists and picks from, and the level a correction is made at —
+a mistake is made in whole sessions, so this is the unit the UI offers.
 
 Fed the raw stream (``read_all(include_retracted=True)``), so an already-retracted session
 still appears and is marked as such.

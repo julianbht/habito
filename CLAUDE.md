@@ -127,8 +127,9 @@ file is left asserting time the log as a whole no longer claims.
 **`read_all()` drops retracted sessions**, at the deserialization boundary — the same place
 schema upcasting belongs — so projections and views need no knowledge of any of this. The
 two callers that want the raw stream pass `include_retracted=True`: the log view, which
-shows retracted rows struck through with the retraction beneath them, and the retract
-dialog, which lists sessions to pick from.
+shows retracted rows struck through with the retraction beneath them, and
+`ManageSessionsDialog`, which needs to recognise an already-retracted session so it can
+leave it off the list.
 
 ## Tags
 
@@ -151,9 +152,15 @@ the same way for one session's *current* tags — `SessionTagged` adds, a later
 appended fact, never an edit to the `SessionTagged` it reverses.
 
 **One tag list, one tag editor, reused everywhere a tag needs picking or setting up.**
-`ui.widgets.tag_picker.TagPicker` is the `Tag | Description` tree — used both by the ☰ tag manager
-and the session-end "+ Attach tag" prompt, with one constructor flag (`checkable`)
-distinguishing "browse/manage" from "pick which apply to this session."
+`ui.widgets.tag_picker.TagPicker` is the `Tag | Description` tree — used by the ☰ tag
+manager, the session-end "+ Attach tag" prompt, and `SessionTagDialog` (tag or untag one
+session after the fact). `checkable` distinguishes "browse/manage" from "pick which apply
+to this session"; `checked` seeds which rows start ticked when it's on — empty for a
+session that just ended (nothing's tagged yet), that session's current tags
+(`projections.tags.session_tags`) for `SessionTagDialog`, where unchecking a pre-ticked row
+is how you untag it. `SessionTagDialog` itself writes nothing per click — it diffs the
+tree's final checked state against what it opened with into exactly the
+`SessionTagged`/`SessionUntagged` events that changed, only on "Done."
 
 `TagPicker` builds "+ New tag" (so both call sites open the same editor) but doesn't lay it
 into its own layout: what sits beside it is each embedding dialog's own choice, e.g. next
@@ -255,8 +262,8 @@ growing tag list) scrolls rather than earning its dialog a bigger window:
 
 | Tier | Width | Height | Job | Dialogs |
 |---|---|---|---|---|
-| Compact | 320 | content-driven | one ask, or a short form | `PhaseDialog`, `SessionCompleteDialog` (collapsed), `TagEditDialog`, `BackfillDialog`, `ResumePromptDialog` |
-| Browse | 440 | 360 | pick one thing from a list, or manage a small growing one | `RetractDialog`, `ShortcutsDialog`, `TagManagerDialog`, `SessionCompleteDialog` (tag picker showing) |
+| Compact | 320 | content-driven | one ask, or a short form | `PhaseDialog`, `SessionCompleteDialog` (collapsed), `TagEditDialog`, `BackfillDialog`, `ResumePromptDialog`, `RetractConfirmDialog` |
+| Browse | 440 | 360 | pick one thing from a list, or manage a small growing one | `ManageSessionsDialog`, `ShortcutsDialog`, `TagManagerDialog`, `SessionTagDialog`, `SessionCompleteDialog` (tag picker showing) |
 | Large | 460 | 580 | everything at once | `SettingsDialog` only — reuses the size `HabitoApp` already gives the calendar/log pages (`_PAGE_SIZES`) rather than a fourth number, and scrolls its form internally (see its own module docstring) instead of growing past it |
 
 Compact is the one tier that isn't a fixed box: nothing sets a minimum height, so it's the

@@ -30,13 +30,13 @@ from habito.evidence.worker import EvidenceStatus, EvidenceWorker
 from habito.projections.daily import summarize_by_day, summary_for
 from habito.projections.resume import ResumePhase, find_resumable
 from habito.projections.sessions import summarize_sessions
-from habito.projections.tags import known_tags, tag_descriptions
+from habito.projections.tags import known_tags, session_tags, tag_descriptions
 from habito.storage.event_store import EventStore
 from habito.ui import theme
 from habito.ui.dialogs.backfill_dialog import BackfillDialog
+from habito.ui.dialogs.manage_sessions_dialog import ManageSessionsDialog
 from habito.ui.dialogs.phase_dialog import PhaseDialog
 from habito.ui.dialogs.resume_dialog import ResumePromptDialog
-from habito.ui.dialogs.retract_dialog import RetractDialog
 from habito.ui.dialogs.session_complete_dialog import SessionCompleteDialog
 from habito.ui.dialogs.settings_dialog import SettingsDialog, SettingsValues
 from habito.ui.dialogs.shortcuts_dialog import SHORTCUTS, ShortcutsDialog
@@ -224,7 +224,7 @@ class HabitoApp(QMainWindow):
 
         menu.addSeparator()
         menu.addAction(icon("calendar_add_on"), "Backfill…", self.on_open_backfill)
-        menu.addAction(icon("undo"), "Retract session…", self.on_open_retract)
+        menu.addAction(icon("undo"), "Manage sessions…", self.on_open_manage_sessions)
         menu.addAction(icon("sell"), "Manage tags…", self.on_open_manage_tags)
         menu.addAction(icon("keyboard"), "Shortcuts…", self.on_open_shortcuts)
         menu.addAction(icon("settings"), "Settings…", self._open_settings)
@@ -461,14 +461,19 @@ class HabitoApp(QMainWindow):
             parent=self._settings_dialog or self,
         ).exec()
 
-    def on_open_retract(self) -> None:
-        RetractDialog(
-            # The raw stream, so a session already retracted can be recognised as such
-            # and left off the list.
-            sessions=summarize_sessions(
-                self._store.read_all(include_retracted=True),
-                self._config.time.rollover_hour,
-            ),
+    def on_open_manage_sessions(self) -> None:
+        # The raw stream, so a session already retracted can be recognised as such and
+        # left off the list — but known_tags/tag_descriptions still fold the standing one
+        # (retractions dropped), same as on_open_manage_tags, so a tag used only on a
+        # session that's since been retracted stops being offered like anywhere else.
+        raw = self._store.read_all(include_retracted=True)
+        events = self._store.read_all()
+        sessions = summarize_sessions(raw, self._config.time.rollover_hour)
+        ManageSessionsDialog(
+            sessions=sessions,
+            session_tags_by_id={s.session_id: session_tags(raw, s.session_id) for s in sessions},
+            known_tags=known_tags(events, self._config.habit),
+            descriptions=tag_descriptions(events, self._config.habit),
             on_submit=self._append_all,
             habit=self._config.habit,
             now=self._clock.local_now(),

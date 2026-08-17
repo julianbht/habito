@@ -99,8 +99,8 @@ class EventStore:
         gets what the log currently asserts and the rule lives in one place.
 
         ``include_retracted=True`` returns the raw stream, for callers that want what was
-        written: the log view, which shows the correction, and the retract dialog, which
-        lists sessions to pick from.
+        written: the log view, which shows the correction, and the "Manage sessions"
+        dialog, which lists sessions to pick from.
         """
         events: list[Event] = []
         for path in self.files():
