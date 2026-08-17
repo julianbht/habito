@@ -166,7 +166,9 @@ session that just ended (nothing's tagged yet), that session's current tags
 (`projections.tags.session_tags`) for `SessionTagDialog`, where unchecking a pre-ticked row
 is how you untag it. `SessionTagDialog` itself writes nothing per click — it diffs the
 tree's final checked state against what it opened with into exactly the
-`SessionTagged`/`SessionUntagged` events that changed, only on "Done."
+`SessionTagged`/`SessionUntagged` events that changed, only on "Apply Tags" — a muted line
+above the buttons tracks that same diff live ("No changes" / "N tags changed") so the click
+isn't a surprise.
 
 `TagPicker` builds "+ New tag" (so both call sites open the same editor) but doesn't lay it
 into its own layout: what sits beside it is each embedding dialog's own choice, e.g. next
@@ -333,8 +335,8 @@ button stopped working".
 colour differs.** `widgets.button(text, object_name)` with no object name is the plain,
 unstyled case — Close, Cancel, "+ New tag" — anything that isn't the thing the dialog
 exists to do. `object_name="primary"` is the accent colour, for whichever button *is* the
-thing the dialog exists to do — Save, Retract & commit, Add & commit, Log & commit, Resume,
-Done, Start round N
+thing the dialog exists to do — Save, Retract & commit, Add & commit, Log & commit, Apply
+Tags, Resume, Done, Start round N
 
 **A dialog's primary button is always also its default button** (`setDefault(True)`, or
 `widgets.primary_button(text)`, which bundles the two) — whether it was built with

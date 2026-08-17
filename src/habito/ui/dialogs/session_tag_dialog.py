@@ -6,12 +6,14 @@ Reuses the exact same `TagPicker` the session-end prompt and the ☰ tag manager
 (see CLAUDE.md § Tags) — checkable, seeded with the session's current tags via
 `checked=` so unchecking one reads as "take this back off" rather than "I never touched
 this." Nothing is written per click, unlike `TagEditDialog`'s Save: checking and
-unchecking here is free until "Done", which diffs the tree's final state against what the
-session had when this dialog opened and writes exactly the difference — a `SessionTagged`
-per newly-checked tag, a `SessionUntagged` per newly-unchecked one. Cancelling (Esc, the
-close button) discards that diff the same way any other dialog's Cancel does; a tag
-created or described via "+ New tag"/double-click along the way still stands, the same as
-it would from the tag manager, since that write already landed the moment it was saved.
+unchecking here is free until "Apply Tags", which diffs the tree's final state against what
+the session had when this dialog opened and writes exactly the difference — a
+`SessionTagged` per newly-checked tag, a `SessionUntagged` per newly-unchecked one. The
+muted line above the buttons tracks that same diff live ("No changes" / "N tags changed"),
+off the tree's own `itemChanged` signal. Cancelling (Esc, the close button) discards that
+diff the same way any other dialog's Cancel does; a tag created or described via "+ New
+tag"/double-click along the way still stands, the same as it would from the tag manager,
+since that write already landed the moment it was saved.
 """
 
 from __future__ import annotations
@@ -77,23 +79,45 @@ class SessionTagDialog(QDialog):
         )
         root.addWidget(self.tag_picker, 1)
 
+        # Checking/unchecking writes nothing until "Apply Tags" (see the module
+        # docstring), so this is the only feedback that anything changed at all before
+        # then — updated off the tree's own itemChanged rather than tracked by hand.
+        self._status = label("", "muted")
+        self._update_status()
+        self.tag_picker.tree.itemChanged.connect(self._update_status)
+        root.addWidget(self._status)
+
         actions = QHBoxLayout()
         actions.addWidget(self.tag_picker.new_tag_button)
         actions.addStretch(1)
-        self._done_btn = primary_button("Done")
+        self._done_btn = primary_button("Apply Tags")
         self._done_btn.clicked.connect(self._accept)
         actions.addWidget(self._done_btn)
         root.addLayout(actions)
 
-    def _accept(self) -> None:
+    def _diff(self) -> tuple[set[str], set[str]]:
         final = set(self.tag_picker.selected_tags())
+        return final - self._current_tags, self._current_tags - final
+
+    def _update_status(self) -> None:
+        added, removed = self._diff()
+        changed = len(added) + len(removed)
+        if changed == 0:
+            self._status.setText("No changes")
+        elif changed == 1:
+            self._status.setText("1 tag changed")
+        else:
+            self._status.setText(f"{changed} tags changed")
+
+    def _accept(self) -> None:
+        added, removed = self._diff()
         events: list[Event] = [
             build_session_tagged_event(self._session_id, tag, habit=self._habit, now=self._now)
-            for tag in sorted(final - self._current_tags)
+            for tag in sorted(added)
         ]
         events += [
             build_session_untagged_event(self._session_id, tag, habit=self._habit, now=self._now)
-            for tag in sorted(self._current_tags - final)
+            for tag in sorted(removed)
         ]
         if events:
             self._on_submit(events)

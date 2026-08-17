@@ -4,7 +4,8 @@ tree/"+ New tag"/double-click behaviour this reuses unchanged.
 
 What's actually this dialog's own job: diffing the tree's final checked state against what
 the session had when it opened into exactly the SessionTagged/SessionUntagged events that
-changed, only on Done — not per click, and not at all on Cancel.
+changed, only on "Apply Tags" — not per click, and not at all on Cancel — plus the muted
+status line that tracks that same diff live.
 """
 
 from __future__ import annotations
@@ -53,17 +54,45 @@ def test_the_sessions_current_tags_start_checked(qtbot):
     assert set(dialog.tag_picker.selected_tags()) == {"topology"}
 
 
-def test_done_is_the_primary_button(qtbot):
+def test_apply_tags_is_the_primary_button(qtbot):
     dialog = dialog_for(qtbot, [])
+    assert dialog._done_btn.text() == "Apply Tags"
     assert dialog._done_btn.objectName() == "primary"
 
 
-def test_new_tag_button_is_plain_since_done_is_primary(qtbot):
+def test_new_tag_button_is_plain_since_apply_tags_is_primary(qtbot):
     dialog = dialog_for(qtbot, [])
     assert dialog.tag_picker.new_tag_button.objectName() == ""
 
 
-def test_done_with_no_changes_submits_nothing(qtbot):
+def test_the_status_line_starts_at_no_changes(qtbot):
+    dialog = dialog_for(qtbot, ["topology"], current_tags={"topology"})
+    assert dialog._status.text() == "No changes"
+
+
+def test_the_status_line_counts_a_single_change(qtbot):
+    dialog = dialog_for(qtbot, ["topology"])
+    row(dialog, 0).setCheckState(0, Qt.CheckState.Checked)
+    assert dialog._status.text() == "1 tag changed"
+
+
+def test_the_status_line_counts_multiple_changes(qtbot):
+    dialog = dialog_for(qtbot, ["linear algebra", "topology"], current_tags={"topology"})
+    row(dialog, 0).setCheckState(0, Qt.CheckState.Checked)  # linear algebra: newly tagged
+    row(dialog, 1).setCheckState(0, Qt.CheckState.Unchecked)  # topology: newly untagged
+    assert dialog._status.text() == "2 tags changed"
+
+
+def test_the_status_line_returns_to_no_changes_when_toggled_back(qtbot):
+    """The diff is against what the session *had*, not a history of clicks — checking then
+    unchecking the same row nets to nothing."""
+    dialog = dialog_for(qtbot, ["topology"])
+    row(dialog, 0).setCheckState(0, Qt.CheckState.Checked)
+    row(dialog, 0).setCheckState(0, Qt.CheckState.Unchecked)
+    assert dialog._status.text() == "No changes"
+
+
+def test_accepting_with_no_changes_submits_nothing(qtbot):
     captured: list[Event] = []
     dialog = dialog_for(qtbot, ["topology"], current_tags={"topology"}, captured=captured)
 
@@ -73,7 +102,7 @@ def test_done_with_no_changes_submits_nothing(qtbot):
     assert not dialog.isVisible()
 
 
-def test_checking_a_new_tag_and_done_attaches_it(qtbot):
+def test_checking_a_new_tag_and_applying_attaches_it(qtbot):
     captured: list[Event] = []
     dialog = dialog_for(qtbot, ["topology"], captured=captured)
     row(dialog, 0).setCheckState(0, Qt.CheckState.Checked)
@@ -88,7 +117,7 @@ def test_checking_a_new_tag_and_done_attaches_it(qtbot):
     assert event.habit == "study"
 
 
-def test_unchecking_an_existing_tag_and_done_removes_it(qtbot):
+def test_unchecking_an_existing_tag_and_applying_removes_it(qtbot):
     captured: list[Event] = []
     dialog = dialog_for(qtbot, ["topology"], current_tags={"topology"}, captured=captured)
     row(dialog, 0).setCheckState(0, Qt.CheckState.Unchecked)
@@ -102,7 +131,7 @@ def test_unchecking_an_existing_tag_and_done_removes_it(qtbot):
     assert event.tag == "topology"
 
 
-def test_tagging_one_and_untagging_another_in_the_same_done_writes_both(qtbot):
+def test_tagging_one_and_untagging_another_in_the_same_apply_writes_both(qtbot):
     captured: list[Event] = []
     dialog = dialog_for(
         qtbot, ["linear algebra", "topology"], current_tags={"topology"}, captured=captured

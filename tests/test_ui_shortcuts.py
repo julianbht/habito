@@ -172,7 +172,7 @@ def test_the_two_corrections_are_grouped(qtbot, app):
 
 def test_log_wakeup_is_absent_when_extras_are_disabled(qtbot, app):
     """Off by default — the whole point of the flag (see CLAUDE.md § Extras)."""
-    assert "Log wake-up…" not in entries(app)
+    assert "Log sleep" not in entries(app)
 
 
 def test_log_wakeup_appears_grouped_with_the_other_corrections_when_enabled(qtbot, tmp_path):
@@ -189,8 +189,8 @@ def test_log_wakeup_appears_grouped_with_the_other_corrections_when_enabled(qtbo
     qtbot.addWidget(window)
 
     listed = entries(window)
-    assert "Log wake-up…" in listed
-    assert listed.index("Manage tags…") < listed.index("Log wake-up…") < listed.index("Shortcuts…")
+    assert "Log sleep" in listed
+    assert listed.index("Manage tags…") < listed.index("Log sleep") < listed.index("Shortcuts…")
 
 
 def test_opening_wakeup_launches_the_dialog(qtbot, tmp_path, monkeypatch):
