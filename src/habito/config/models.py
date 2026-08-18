@@ -195,18 +195,26 @@ class WakeUpConfig(BaseModel):
     default_bedtime: time = time(23, 0)
 
 
-class ExtrasConfig(BaseModel):
-    """Personal, non-Pomodoro habits (wake-up now, workout later) — off by default so a
-    build meant to be shared doesn't carry them.
+class WorkoutConfig(BaseModel):
+    """Where workout events — the catalog and the logged entries alike — are filed."""
 
-    Hand-edit only, on purpose: unlike the rest of `Config`, this is a "which build am I
-    running" choice made once per install rather than a setting you'd revisit, so it earns
-    no Settings-dialog widget (see CLAUDE.md § Settings). The wake-up *defaults* nested
-    inside `wakeup`, by contrast, are things you would plausibly tweak — those do get one.
+    habit: str = Field(default="workout", pattern=HABIT_PATTERN)
+
+
+class ExtrasConfig(BaseModel):
+    """Personal, non-Pomodoro habits (wake-up, workout) — off by default so a build meant
+    to be shared doesn't carry them.
+
+    One flag for the whole group, not one per habit: hand-edit only, unlike the rest of
+    `Config`, this is a "which build am I running" choice made once per install rather than
+    a setting you'd revisit, so it earns no Settings-dialog widget (see CLAUDE.md §
+    Settings). The wake-up *defaults* nested inside `wakeup`, by contrast, are things you
+    would plausibly tweak — those do get one.
     """
 
     enabled: bool = False
     wakeup: WakeUpConfig = Field(default_factory=WakeUpConfig)
+    workout: WorkoutConfig = Field(default_factory=WorkoutConfig)
 
 
 class PathsConfig(BaseModel):

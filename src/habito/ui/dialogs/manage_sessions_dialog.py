@@ -139,7 +139,7 @@ class ManageSessionsDialog(QDialog):
             parent=self,
         )
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            self._session_tags_by_id[session.session_id] = set(dialog.tag_picker.selected_tags())
+            self._session_tags_by_id[session.session_id] = set(dialog.tag_picker.selected())
 
     def _open_retract_dialog(self, session: SessionSummary) -> None:
         dialog = RetractConfirmDialog(session, self._on_submit, self._habit, self._now, parent=self)

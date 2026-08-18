@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from habito.actions.tagging import build_tag_created_event, build_tag_described_event
 from habito.config.editor import ConfigEditor
 from habito.config.models import Config
 from habito.domain.events import Event, Origin, SessionEvent, SessionTagged, logical_day
@@ -31,17 +32,19 @@ from habito.projections.daily import summarize_by_day, summary_for
 from habito.projections.resume import ResumePhase, find_resumable
 from habito.projections.sessions import summarize_sessions
 from habito.projections.tags import known_tags, session_tags, tag_descriptions
+from habito.projections.workouts import known_workouts, workout_descriptions
 from habito.storage.event_store import EventStore
 from habito.ui import theme
 from habito.ui.dialogs.backfill_dialog import BackfillDialog
+from habito.ui.dialogs.catalog_manager_dialog import CatalogManagerDialog
 from habito.ui.dialogs.manage_sessions_dialog import ManageSessionsDialog
 from habito.ui.dialogs.phase_dialog import PhaseDialog
 from habito.ui.dialogs.resume_dialog import ResumePromptDialog
 from habito.ui.dialogs.session_complete_dialog import SessionCompleteDialog
 from habito.ui.dialogs.settings_dialog import SettingsDialog, SettingsValues
 from habito.ui.dialogs.shortcuts_dialog import SHORTCUTS, ShortcutsDialog
-from habito.ui.dialogs.tag_manager_dialog import TagManagerDialog
 from habito.ui.dialogs.wakeup_dialog import WakeUpDialog
+from habito.ui.dialogs.workout_log_dialog import WorkoutLogDialog
 from habito.ui.notifier import (
     DesktopNotifier,
     Notification,
@@ -94,6 +97,7 @@ class HabitoApp(QMainWindow):
         engine: PomodoroEngine,
         store: EventStore,
         wakeup_store: EventStore | None = None,
+        workout_store: EventStore | None = None,
         test_mode: bool = False,
     ) -> None:
         super().__init__()
@@ -103,9 +107,10 @@ class HabitoApp(QMainWindow):
         self._config_editor = ConfigEditor(config, test_mode)
         self._engine = engine
         self._store = store
-        # Only set when `config.extras.enabled` — the composition root builds it
-        # conditionally (see `habito.app._build_wakeup_store`).
+        # Only set when `config.extras.enabled` — the composition root builds these
+        # conditionally (see `habito.app._build_wakeup_store` / `_build_workout_store`).
         self._wakeup_store = wakeup_store
+        self._workout_store = workout_store
         # Borrowed rather than built: one clock means a timezone change from Settings
         # reaches the events the engine stamps, not just the views.
         self._clock = engine.clock
@@ -233,6 +238,8 @@ class HabitoApp(QMainWindow):
         menu.addAction(icon("sell"), "Manage tags…", self.on_open_manage_tags)
         if self._wakeup_store is not None:
             menu.addAction(icon("alarm"), "Log sleep", self.on_open_wakeup)
+        if self._workout_store is not None:
+            menu.addAction(icon("fitness_center"), "Log workout", self.on_open_log_workout)
         menu.addAction(icon("keyboard"), "Shortcuts…", self.on_open_shortcuts)
         menu.addAction(icon("settings"), "Settings…", self._open_settings)
         return menu
@@ -253,6 +260,8 @@ class HabitoApp(QMainWindow):
             events = self._store.read_all(include_retracted=True)
             if self._wakeup_store is not None:
                 events += self._wakeup_store.read_all()
+            if self._workout_store is not None:
+                events += self._workout_store.read_all()
             log.set_events(events)
             widget, focus = log, log.tree
         else:
@@ -488,6 +497,22 @@ class HabitoApp(QMainWindow):
             parent=self._settings_dialog or self,
         ).exec()
 
+    def on_open_log_workout(self) -> None:
+        assert self._workout_store is not None  # menu action only exists when this is set
+        workout = self._config.extras.workout
+        events = self._workout_store.read_all()
+        WorkoutLogDialog(
+            on_submit=self._append_workout,
+            on_describe_workout=lambda event: self._append_workout([event]),
+            known_workouts=known_workouts(events, workout.habit),
+            descriptions=workout_descriptions(events, workout.habit),
+            habit=workout.habit,
+            now=self._clock.local_now(),
+            time_config=self._config.time,
+            today=self._today(),
+            parent=self._settings_dialog or self,
+        ).exec()
+
     def on_open_manage_sessions(self) -> None:
         # The raw stream, so a session already retracted can be recognised as such and
         # left off the list — but known_tags/tag_descriptions still fold the standing one
@@ -512,12 +537,20 @@ class HabitoApp(QMainWindow):
 
     def on_open_manage_tags(self) -> None:
         events = self._store.read_all()
-        TagManagerDialog(
-            tags=known_tags(events, self._config.habit),
+        now = self._clock.local_now()
+        CatalogManagerDialog(
+            title="Manage tags",
+            hint="Double-click a tag to change its description.",
+            noun="tag",
+            items=known_tags(events, self._config.habit),
             descriptions=tag_descriptions(events, self._config.habit),
             on_submit=lambda event: self._append_all([event]),
-            habit=self._config.habit,
-            now=self._clock.local_now(),
+            build_created=lambda tag: build_tag_created_event(
+                tag, habit=self._config.habit, now=now
+            ),
+            build_described=lambda tag, description: build_tag_described_event(
+                tag, description, habit=self._config.habit, now=now
+            ),
             parent=self._settings_dialog or self,
         ).exec()
 
@@ -539,6 +572,14 @@ class HabitoApp(QMainWindow):
         assert self._wakeup_store is not None  # only called from a dialog gated on this
         for event in events:
             self._wakeup_store.append(event)
+
+    def _append_workout(self, events: Iterable[Event]) -> None:
+        """Land a workout catalog write or a logged entry. Its own habit's store, same
+        reasoning as `_append_wakeup` — nothing here bears on the study habit's baseline or
+        calendar."""
+        assert self._workout_store is not None  # only called from a dialog gated on this
+        for event in events:
+            self._workout_store.append(event)
 
     def _today(self) -> date:
         """The habit-day in progress — which before the rollover hour is still yesterday."""

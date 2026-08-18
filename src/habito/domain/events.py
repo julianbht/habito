@@ -67,9 +67,10 @@ class SessionEvent(BaseEvent):
     breaking the one-id-per-session convention rather than refusing to build.
 
     An event not really "about" any one session (`TagCreated`, `TagDescribed`,
-    `WakeUpLogged`) extends `BaseEvent` directly instead — no `session_id` field at all,
-    rather than one holding a throwaway value with nothing to correlate against. See
-    CLAUDE.md § Extras for why that split exists and what it replaced.
+    `WakeUpLogged`, the `Workout*` family) extends `BaseEvent` directly instead — no
+    `session_id` field at all, rather than one holding a throwaway value with nothing to
+    correlate against. See CLAUDE.md § Extras for why that split exists and what it
+    replaced.
     """
 
     session_id: UUID
@@ -212,6 +213,56 @@ class WakeUpLogged(BaseEvent):
     bedtime: datetime  # UTC instant, approx
 
 
+class WorkoutCreated(BaseEvent):
+    """Marks that a workout type exists, independent of whether it's ever been described
+    or logged. The workout catalog's mirror of ``TagCreated`` — same reasoning: its own
+    event rather than folding "exists" into a ``WorkoutDescribed`` with an empty
+    description, written once when a workout is first named in the workout editor.
+
+    Extends ``BaseEvent`` directly, not ``SessionEvent``: not about any particular Pomodoro
+    session, so there is no ``session_id`` to carry — and unlike ``SessionTagged``, no
+    workout is ever attached to one either (see ``WorkoutLogged``).
+    """
+
+    type: Literal["workout_created"] = "workout_created"
+    workout: str
+
+
+class WorkoutDescribed(BaseEvent):
+    """Attaches or updates a workout type's description — the workout manager, not the
+    log-workout dialog. The workout catalog's mirror of ``TagDescribed``: folding the log
+    for the latest ``WorkoutDescribed`` per workout gives its current description, a
+    correction being just a later event for the same name.
+
+    Extends ``BaseEvent`` directly, not ``SessionEvent`` — same reasoning as
+    ``WorkoutCreated``.
+    """
+
+    type: Literal["workout_described"] = "workout_described"
+    workout: str
+    description: str
+
+
+class WorkoutLogged(BaseEvent):
+    """Logs that one or more workouts were done, entered later at the PC rather than in
+    the moment — the workout extra's mirror of ``WakeUpLogged``. ``timestamp`` is the
+    actual instant the workout happened, not when you sat down to log it, so ``origin`` is
+    always ``backfilled`` for the same reason a wake-up always is: there's no "live"
+    workout log short of a sensor pinging the app the moment you finish.
+
+    ``workouts`` is a list rather than one event per workout: a single log entry (one date,
+    one time) can cover more than one workout done in the same sitting, and nothing here
+    needs the events to correlate with each other the way a Pomodoro session's rounds do —
+    see CLAUDE.md § Session identity on why that's a reason *not* to mint a shared id.
+
+    Extends ``BaseEvent`` directly, not ``SessionEvent``: not part of the Pomodoro session
+    family, so there is no ``session_id`` to carry.
+    """
+
+    type: Literal["workout_logged"] = "workout_logged"
+    workouts: list[str]
+
+
 class TagDescribed(BaseEvent):
     """Attaches or updates a tag's longer-form description — the tag manager, not the
     session-end prompt.
@@ -247,7 +298,10 @@ Event = Annotated[
     | SessionUntagged
     | TagCreated
     | TagDescribed
-    | WakeUpLogged,
+    | WakeUpLogged
+    | WorkoutCreated
+    | WorkoutDescribed
+    | WorkoutLogged,
     Field(discriminator="type"),
 ]
 """Discriminated union over the ``type`` field — validates each line into its subtype."""
@@ -327,8 +381,9 @@ def drop_retracted(events: Iterable[Event]) -> list[Event]:
     rollover puts the line in the earlier day's file, ahead of events it voids in the later.
 
     An event with no ``session_id`` at all (``TagCreated``, ``TagDescribed``,
-    ``WakeUpLogged``) was never part of any session, so it can't have been voided by one —
-    kept unconditionally rather than compared against ``retracted``.
+    ``WakeUpLogged``, the ``Workout*`` family) was never part of any session, so it can't
+    have been voided by one — kept unconditionally rather than compared against
+    ``retracted``.
     """
     entries = list(events)
     retracted = retracted_session_ids(entries)

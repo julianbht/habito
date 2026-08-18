@@ -34,15 +34,16 @@ from datetime import datetime
 
 from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
+from habito.actions.tagging import build_tag_created_event, build_tag_described_event
+from habito.ui.dialogs.catalog_edit_dialog import SubmitCallback
 from habito.ui.dialogs.prompt_dialog import PromptDialog
-from habito.ui.dialogs.tag_edit_dialog import SubmitCallback
+from habito.ui.widgets.catalog_picker import CatalogPicker
 from habito.ui.widgets.controls import (
     BROWSE_DIALOG_HEIGHT,
     BROWSE_DIALOG_WIDTH,
     button,
     primary_button,
 )
-from habito.ui.widgets.tag_picker import TagPicker
 
 
 class SessionCompleteDialog(PromptDialog):
@@ -77,8 +78,16 @@ class SessionCompleteDialog(PromptDialog):
         now: datetime,
         action: str,
     ) -> None:
-        self.tag_picker = TagPicker(
-            known_tags, descriptions, on_describe_tag, habit, now, checkable=True
+        self.tag_picker = CatalogPicker(
+            known_tags,
+            descriptions,
+            on_describe_tag,
+            lambda tag: build_tag_created_event(tag, habit=habit, now=now),
+            lambda tag, description: build_tag_described_event(
+                tag, description, habit=habit, now=now
+            ),
+            "tag",
+            checkable=True,
         )
         self._tag_section = QWidget()
         section = QVBoxLayout(self._tag_section)
@@ -90,12 +99,12 @@ class SessionCompleteDialog(PromptDialog):
         self._attach_tag_link = button("+ Attach tag", "link")
         self._attach_tag_link.setToolTip("Optional — attach a tag for what you were working on")
         self._attach_tag_link.clicked.connect(self._reveal_tag_picker)
-        self.tag_picker.new_tag_button.setVisible(False)
+        self.tag_picker.new_button.setVisible(False)
         self.action_button = primary_button(action)
 
         bottom_row = QHBoxLayout()
         bottom_row.addWidget(self._attach_tag_link)
-        bottom_row.addWidget(self.tag_picker.new_tag_button)
+        bottom_row.addWidget(self.tag_picker.new_button)
         bottom_row.addStretch(1)
         bottom_row.addWidget(self.action_button)
         self._root.addSpacing(4)
@@ -103,13 +112,13 @@ class SessionCompleteDialog(PromptDialog):
 
     def _reveal_tag_picker(self) -> None:
         self._attach_tag_link.setVisible(False)
-        self.tag_picker.new_tag_button.setVisible(True)
+        self.tag_picker.new_button.setVisible(True)
         self._tag_section.setVisible(True)
         self.setMinimumWidth(BROWSE_DIALOG_WIDTH)
         self.setMinimumHeight(BROWSE_DIALOG_HEIGHT)
 
     def selected_tags(self) -> list[str]:
-        return self.tag_picker.selected_tags()
+        return self.tag_picker.selected()
 
     def _accept(self) -> None:
         tags = self.selected_tags()

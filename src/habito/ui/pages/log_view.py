@@ -47,6 +47,9 @@ from habito.domain.events import (
     TagDescribed,
     TimeAdjusted,
     WakeUpLogged,
+    WorkoutCreated,
+    WorkoutDescribed,
+    WorkoutLogged,
     local_datetime,
     partition_date,
     retracted_session_ids,
@@ -128,24 +131,31 @@ def describe(event: Event, tag_description: str | None = None) -> Line:
     elif isinstance(event, TagDescribed):
         what = "Tag described"
         detail = f"{event.tag} — {event.description}" if event.description else event.tag
+    elif isinstance(event, WorkoutCreated):
+        what, detail = "Workout created", event.workout
+    elif isinstance(event, WorkoutDescribed):
+        what = "Workout described"
+        detail = f"{event.workout} — {event.description}" if event.description else event.workout
     elif isinstance(event, SessionRetracted):
         what = "Session retracted"
         # Says when the correction was made, since the row sits under the day it corrects
         # and its time column would otherwise read as that day's.
         made = local_datetime(event).strftime("%Y-%m-%d")
         detail = f"{event.reason} · retracted {made}" if event.reason else f"retracted {made}"
-    elif isinstance(event, WakeUpLogged):  # pyright: ignore[reportUnnecessaryIsInstance]
-        # Exhaustive today (pyright can prove it), but spelled as isinstance rather than a
-        # bare `else` on purpose: a future event type added to the union should fall
-        # through to the "Event"/event.type default above rather than be mis-rendered as
-        # a wake-up log — same defensive-but-currently-unreachable trade as
-        # `_mark_expanded`'s `reportUnnecessaryComparison` below.
+    elif isinstance(event, WakeUpLogged):
         what = "Woke up"
         # `bedtime` shares `timestamp`'s offset (see WakeUpLogged's docstring), so the same
         # arithmetic `local_datetime` does for `timestamp` applies here by hand.
         bedtime_local = event.bedtime + timedelta(minutes=event.tz_offset_minutes)
         asleep = format_duration(int((event.timestamp - event.bedtime).total_seconds()))
         detail = f"bedtime {bedtime_local:%H:%M} · {asleep} asleep"
+    elif isinstance(event, WorkoutLogged):  # pyright: ignore[reportUnnecessaryIsInstance]
+        # Exhaustive today (pyright can prove it), but spelled as isinstance rather than a
+        # bare `else` on purpose: a future event type added to the union should fall
+        # through to the "Event"/event.type default above rather than be mis-rendered as a
+        # workout log — same defensive-but-currently-unreachable trade as
+        # `_mark_expanded`'s `reportUnnecessaryComparison` below.
+        what, detail = "Workout logged", ", ".join(event.workouts)
 
     return Line(
         time=_local_time(event),

@@ -2,10 +2,10 @@
 "Manage tags…" action, for the case a session finished without being tagged (or was tagged
 wrong) and the session-end prompt is long gone.
 
-Reuses the exact same `TagPicker` the session-end prompt and the ☰ tag manager both embed
-(see CLAUDE.md § Tags) — checkable, seeded with the session's current tags via
+Reuses the exact same `CatalogPicker` the session-end prompt and the ☰ tag manager both
+embed (see CLAUDE.md § Tags) — checkable, seeded with the session's current tags via
 `checked=` so unchecking one reads as "take this back off" rather than "I never touched
-this." Nothing is written per click, unlike `TagEditDialog`'s Save: checking and
+this." Nothing is written per click, unlike `CatalogEditDialog`'s Save: checking and
 unchecking here is free until "Apply Tags", which diffs the tree's final state against what
 the session had when this dialog opened and writes exactly the difference — a
 `SessionTagged` per newly-checked tag, a `SessionUntagged` per newly-unchecked one. The
@@ -24,15 +24,20 @@ from uuid import UUID
 
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QWidget
 
-from habito.actions.tagging import build_session_tagged_event, build_session_untagged_event
+from habito.actions.tagging import (
+    build_session_tagged_event,
+    build_session_untagged_event,
+    build_tag_created_event,
+    build_tag_described_event,
+)
 from habito.domain.events import Event
+from habito.ui.widgets.catalog_picker import CatalogPicker
 from habito.ui.widgets.controls import (
     BROWSE_DIALOG_HEIGHT,
     BROWSE_DIALOG_WIDTH,
     label,
     primary_button,
 )
-from habito.ui.widgets.tag_picker import TagPicker
 
 SubmitCallback = Callable[[Iterable[Event]], None]
 
@@ -68,12 +73,15 @@ class SessionTagDialog(QDialog):
         hint = "Check a tag to attach it, uncheck to remove it."
         root.addWidget(label(hint, "muted"))
 
-        self.tag_picker = TagPicker(
+        self.tag_picker = CatalogPicker(
             known_tags,
             descriptions,
             lambda event: self._on_submit([event]),
-            self._habit,
-            self._now,
+            lambda tag: build_tag_created_event(tag, habit=self._habit, now=self._now),
+            lambda tag, description: build_tag_described_event(
+                tag, description, habit=self._habit, now=self._now
+            ),
+            "tag",
             checkable=True,
             checked=self._current_tags,
         )
@@ -88,7 +96,7 @@ class SessionTagDialog(QDialog):
         root.addWidget(self._status)
 
         actions = QHBoxLayout()
-        actions.addWidget(self.tag_picker.new_tag_button)
+        actions.addWidget(self.tag_picker.new_button)
         actions.addStretch(1)
         self._done_btn = primary_button("Apply Tags")
         self._done_btn.clicked.connect(self._accept)
@@ -96,7 +104,7 @@ class SessionTagDialog(QDialog):
         root.addLayout(actions)
 
     def _diff(self) -> tuple[set[str], set[str]]:
-        final = set(self.tag_picker.selected_tags())
+        final = set(self.tag_picker.selected())
         return final - self._current_tags, self._current_tags - final
 
     def _update_status(self) -> None:

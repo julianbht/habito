@@ -24,13 +24,13 @@ _DURATION_RE = re.compile(r"\d{0,3}(:\d{0,2})?")
 # LARGE_DIALOG_WIDTH/_HEIGHT for the calendar and log) picks whichever shape matches its job
 # rather than choosing its own numbers:
 # - COMPACT: a single ask or a short form — PhaseDialog, SessionCompleteDialog (collapsed),
-#   TagEditDialog, BackfillDialog, ResumePromptDialog, RetractConfirmDialog. Width only;
-#   height follows content. A list here scrolls rather than growing the dialog to fit it —
-#   that's what a scrollbar is for — so a size tier is about a dialog's *job*, not how much
-#   content it could hold.
+#   CatalogEditDialog, BackfillDialog, WakeUpDialog, ResumePromptDialog, RetractConfirmDialog.
+#   Width only; height follows content. A list here scrolls rather than growing the dialog
+#   to fit it — that's what a scrollbar is for — so a size tier is about a dialog's *job*,
+#   not how much content it could hold.
 # - BROWSE: pick one thing from a list, or manage a small growing one — ManageSessionsDialog,
-#   ShortcutsDialog, TagManagerDialog, SessionTagDialog, SessionCompleteDialog once its tag
-#   picker is showing.
+#   ShortcutsDialog, CatalogManagerDialog, SessionTagDialog, WorkoutLogDialog,
+#   SessionCompleteDialog once its tag picker is showing.
 # - LARGE: everything at once — currently only SettingsDialog, scrolled internally rather
 #   than left to grow taller than the window that opened it.
 COMPACT_DIALOG_WIDTH = 320

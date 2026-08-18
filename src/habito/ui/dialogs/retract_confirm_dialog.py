@@ -1,7 +1,7 @@
 """Confirm voiding one session — the "Retract session…" action in a `ManageSessionsDialog`
 row's right-click menu.
 
-A Compact dialog like `TagEditDialog`/`BackfillDialog` (one ask plus a short optional
+A Compact dialog like `CatalogEditDialog`/`BackfillDialog` (one ask plus a short optional
 field), not a `PromptDialog` — this isn't an always-on-top interruption, it's an ordinary
 modal opened on purpose. The primary button stays named for the action ("Retract &
 commit"), the same convention every other primary button in the app follows, rather than a
