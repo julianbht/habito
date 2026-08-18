@@ -67,7 +67,7 @@ def row(dialog, index):
 
 class _StubTagDialog:
     """Stands in for SessionTagDialog: records what it was constructed with, reports
-    back a chosen final tag set instead of driving a real TagPicker."""
+    back a chosen final tag set instead of driving a real CatalogPicker."""
 
     last: _StubTagDialog | None = None
 
@@ -86,7 +86,7 @@ class _StubTagDialog:
         def __init__(self, outer: _StubTagDialog) -> None:
             self._outer = outer
 
-        def selected_tags(self):
+        def selected(self):
             return sorted(self._outer.final_tags)
 
     @property
@@ -186,7 +186,7 @@ def test_manage_tags_seeds_the_picker_with_the_sessions_current_tags(qtbot, monk
 
 def test_manage_tags_updates_the_cached_tags_on_accept(qtbot, monkeypatch):
     """A real SessionTagDialog reports its final checked state via
-    tag_picker.selected_tags() once accepted — that's what should end up cached, not
+    tag_picker.selected() once accepted — that's what should end up cached, not
     whatever the session had when the dialog opened."""
 
     def opens_already_changed(

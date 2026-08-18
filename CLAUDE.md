@@ -20,9 +20,10 @@ One concern per package, dependencies point inward toward `habito.domain`:
 
 `domain` ← `storage`, `projections`, `engine`, `actions` ← `evidence`, `ui`
 
-`habito.actions` (`tagging`, `backfill`, `retraction`) holds the event-builder modules —
-one per correction/annotation kind, each turning a user action into an event via `stamp()`
-in `domain.events` rather than recomputing the timestamp arithmetic itself.
+`habito.actions` (`tagging`, `backfill`, `retraction`, `wakeup`, `workout`) holds the
+event-builder modules — one per correction/annotation kind, each turning a user action into
+an event via `stamp()` in `domain.events` rather than recomputing the timestamp arithmetic
+itself.
 
 Only `habito.ui` imports Qt. Views are presentational and talk to a `Controller`
 protocol, so engine/storage/projections/evidence stay UI-agnostic. `habito.app` is the
@@ -34,7 +35,7 @@ stay at the package root as the window's own shared infrastructure, alongside `i
 
 ## Events
 
-Everything in the log is one of the fifteen types below (`habito.domain.events.Event`,
+Everything in the log is one of the eighteen types below (`habito.domain.events.Event`,
 the discriminated union pyright and Pydantic both check against). Grouped by what they're
 about, not declaration order:
 
@@ -77,6 +78,9 @@ type-enforced, via `SessionEvent` (see § Session identity).
 | Event | Fires when | Fields beyond the base |
 |---|---|---|
 | `WakeUpLogged` | a wake-up is logged, later at the PC | `bedtime` (roughly when you went to bed — `timestamp` is the wake instant itself) |
+| `WorkoutCreated` | a workout type is first named, in `WorkoutLogDialog`'s "+ New workout" | `workout` |
+| `WorkoutDescribed` | a workout type's description is set or changed | `workout`, `description` |
+| `WorkoutLogged` | one or more workouts are logged, later at the PC | `workouts` (a list — one log entry can cover more than one done in the same sitting) |
 
 **Conventions that hold for every event, not just one family:**
 
@@ -97,8 +101,8 @@ type-enforced, via `SessionEvent` (see § Session identity).
 itself. Every event genuinely about one Pomodoro session extends `SessionEvent`:
 `SessionStarted` through `SessionEnded`, `SessionRetracted`, `SessionTagged`,
 `SessionUntagged`. An event that isn't about any particular session — `TagCreated`,
-`TagDescribed`, `WakeUpLogged` — extends `BaseEvent` directly, with no `session_id` field
-at all.
+`TagDescribed`, `WakeUpLogged`, the `Workout*` family — extends `BaseEvent` directly, with
+no `session_id` field at all.
 
 **The rule, for any new event type:** decide whether it belongs to one specific session
 before writing it. If yes, extend `SessionEvent`. If no, extend `BaseEvent` directly. Never
@@ -124,14 +128,24 @@ never rewritten (see § The log's "nothing is ever rewritten"). Pydantic's defau
 `extra="ignore"` behaviour drops an unrecognised field silently on load, so those old lines
 keep parsing exactly like new ones without it. No migration needed, none attempted.
 
-**Flag it, don't work around it.** If a future feature (e.g. the planned workout tracker)
-turns out to want its own events genuinely correlated to each other — a multi-event
-"workout session," say — that's a decision for whoever's building it to raise explicitly:
-extend `SessionEvent` (if it's honestly a Pomodoro-shaped session) or introduce its own,
-differently-named correlation id (if `session_id`'s Pomodoro-specific meaning doesn't fit).
-Don't quietly reuse `session_id` for something it was never meant to mean, and don't add a
-second ad-hoc id field to route around this. If either is starting to feel necessary,
-that's the point to stop and reconsider the split itself instead.
+**Flag it, don't work around it.** If a future feature turns out to want its own events
+genuinely correlated to each other — a multi-event "workout session," say — that's a
+decision for whoever's building it to raise explicitly: extend `SessionEvent` (if it's
+honestly a Pomodoro-shaped session) or introduce its own, differently-named correlation id
+(if `session_id`'s Pomodoro-specific meaning doesn't fit). Don't quietly reuse `session_id`
+for something it was never meant to mean, and don't add a second ad-hoc id field to route
+around this. If either is starting to feel necessary, that's the point to stop and
+reconsider the split itself instead.
+
+**This actually came up, and the answer was "don't."** `WorkoutLogged` could have gone the
+correlated-events route — one event per workout in a log entry, sharing a fresh `log_id` —
+to get `SessionTagged`/`SessionUntagged`-style per-item correction later. Instead
+`workouts` is a plain `list[str]` on one event: nothing about logging several workouts at
+once is actually correlated the way a session's rounds are, so minting an id for it would
+have been exactly the "throwaway, nothing reads it for meaning" mistake this section warns
+about. The accepted cost is coarser correction — a future undo mechanism (see §
+Corrections) could only void a whole `WorkoutLogged` entry, never surgically remove one
+wrong workout out of three — which was a deliberate trade, not an oversight.
 
 ## Origin
 
@@ -146,19 +160,22 @@ call to make per event type.
 session from three days ago, via ☰ "Manage sessions…", is still `live`: attaching a tag is
 an act that happens the instant you do it, so `timestamp` genuinely *is* "now" when
 `actions.tagging.build_session_tagged_event` builds it — not some earlier instant you
-typed in. `TagCreated`/`TagDescribed` are `live` for the identical reason. Contrast a
-backfilled Pomodoro session (`actions.backfill`) or a wake-up (`actions.wakeup`): there,
-`timestamp` is a *claimed* instant — the round you say you worked, the moment you say you
-woke — that provably differs from when the event was actually written, because you're
-describing something that already happened by the time you open the dialog.
+typed in. `TagCreated`/`TagDescribed` are `live` for the identical reason, and so are
+`WorkoutCreated`/`WorkoutDescribed` — naming or describing a workout type, in
+`WorkoutLogDialog`'s "+ New workout"/double-click, is exactly as much an in-the-moment act
+as naming a tag. Contrast a backfilled Pomodoro session (`actions.backfill`), a wake-up
+(`actions.wakeup`), or a logged workout (`actions.workout`): there, `timestamp` is a
+*claimed* instant — the round you say you worked, the moment you say you woke, when you say
+you did the workout — that provably differs from when the event was actually written,
+because you're describing something that already happened by the time you open the dialog.
 
-**`WakeUpLogged` is always `backfilled`, and that's correct, not merely constant.** There's
-no possible "live" wake-up short of a future sensor pinging the app the instant you wake —
-the entire workflow is "write down, later, what already happened." A field being the same
-value on every instance of an event type isn't a code smell by itself (unlike `session_id`
-minting a fresh, meaningless value per event — see § Session identity); it's only worth
-revisiting if some consumer reads it for information it doesn't actually carry, which
-isn't the case here.
+**`WakeUpLogged` and `WorkoutLogged` are always `backfilled`, and that's correct, not merely
+constant.** There's no possible "live" wake-up or workout log short of a future sensor
+pinging the app the instant it happens — the entire workflow is "write down, later, what
+already happened." A field being the same value on every instance of an event type isn't a
+code smell by itself (unlike `session_id` minting a fresh, meaningless value per event —
+see § Session identity); it's only worth revisiting if some consumer reads it for
+information it doesn't actually carry, which isn't the case here.
 
 **For any new event type:** ask whether `timestamp` will be "now" at the moment you
 construct it, or a moment you're reconstructing/claiming. That answer is `origin` — it
@@ -212,6 +229,20 @@ shows retracted rows struck through with the retraction beneath them, and
 `ManageSessionsDialog`, which needs to recognise an already-retracted session so it can
 leave it off the list.
 
+**`WakeUpLogged` and `WorkoutLogged` have no correction mechanism at all, deliberately left
+that way for now.** `SessionRetracted` only works because it's keyed by the inherited
+`session_id` — `retracted_session_ids()`/`drop_retracted()` both filter on that field alone
+— and neither of these extends `SessionEvent` (see § Session identity), so
+`SessionRetracted` structurally cannot target them. Once committed and pushed, a wrong
+wake-up or workout log entry is permanent: there's no void, no undo, nothing in the UI to
+reach it. This was raised and consciously deferred, not missed — if it's built later, the
+right shape is **not** another `session_id`-keyed event: it's something keyed by the
+target's own `event_id` (already on every `BaseEvent`, unused by anything else today), e.g.
+`EventVoided(target_event_id: UUID, target_date: date, reason: str)`, filtered at the same
+`drop_retracted`-style boundary. That mechanism should stay scoped to events with no
+`session_id` — a session's own correction story is `SessionRetracted`, and a second,
+overlapping way to void the same events would be two undo systems fighting over one job.
+
 ## Tags
 
 A session may be labelled with a free-form tag — what you were studying, not a setting —
@@ -232,12 +263,26 @@ the same way for one session's *current* tags — `SessionTagged` adds, a later
 `SessionTagged` puts one on a session; `SessionUntagged` takes it back off — a later,
 appended fact, never an edit to the `SessionTagged` it reverses.
 
-**One tag list, one tag editor, reused everywhere a tag needs picking or setting up.**
-`ui.widgets.tag_picker.TagPicker` is the `Tag | Description` tree — used by the ☰ tag
-manager, the session-end "+ Attach tag" prompt, and `SessionTagDialog` (tag or untag one
-session after the fact). `checkable` distinguishes "browse/manage" from "pick which apply
-to this session"; `checked` seeds which rows start ticked when it's on — empty for a
-session that just ended (nothing's tagged yet), that session's current tags
+**One picker, one editor, one manager — shared with workouts, not just reused across tag
+call sites.** `ui.widgets.catalog_picker.CatalogPicker` is the `Name | Description` tree
+used by the ☰ tag manager, the session-end "+ Attach tag" prompt, `SessionTagDialog` (tag or
+untag one session after the fact), and `WorkoutLogDialog`'s workout picker.
+`ui.dialogs.catalog_edit_dialog.CatalogEditDialog` and
+`ui.dialogs.catalog_manager_dialog.CatalogManagerDialog` are the shared editor and the
+shared "browse everything" shell around the picker. These were originally `TagPicker`/
+`TagEditDialog`/`TagManagerDialog` — generalized once workouts needed the identical
+name-and-description-tree shape, rather than duplicated as `WorkoutPicker`/etc.: two real
+call sites wanting the exact same widget, not a hypothetical future one, is the point past
+which sharing beats duplicating. `noun` (`"tag"` / `"workout"`) is the only thing that
+varies in the label text;
+`build_created`/`build_described` are the two event-builders a call site binds to its own
+`habit`/`now` (via a `lambda`, matching the rest of the codebase's callback-adapting
+convention — not `functools.partial`, which has no other precedent here) before handing
+them in, so the shared widgets never need to know which domain they're serving.
+
+`checkable` distinguishes "browse/manage" from "pick which apply"; `checked` seeds which
+rows start ticked when it's on — empty for a session that just ended or a fresh
+`WorkoutLogDialog` (nothing's picked yet), a session's current tags
 (`projections.tags.session_tags`) for `SessionTagDialog`, where unchecking a pre-ticked row
 is how you untag it. `SessionTagDialog` itself writes nothing per click — it diffs the
 tree's final checked state against what it opened with into exactly the
@@ -245,37 +290,42 @@ tree's final checked state against what it opened with into exactly the
 above the buttons tracks that same diff live ("No changes" / "N tags changed") so the click
 isn't a surprise.
 
-`TagPicker` builds "+ New tag" (so both call sites open the same editor) but doesn't lay it
-into its own layout: what sits beside it is each embedding dialog's own choice, e.g. next
+`CatalogPicker` builds "+ New …" (so every call site opens the same editor) but doesn't lay
+it into its own layout: what sits beside it is each embedding dialog's own choice, e.g. next
 to "Close" in the tag manager, exactly the same row shape as everywhere else a dialog pairs
 a primary action with a plain dismiss one — never a big button stretched to the container's
 width, stacked above another. Its styling is decided here, though, tied to the same
-`checkable` flag as everything else: creating a tag is the *point* of the tag manager, so
-it's the primary button there (`object_name="primary"`); in the session-end picker, "Done"
-already is the primary action, so "+ New tag" stays plain.
+`checkable` flag as everything else: creating an entry is the *point* of a manager dialog,
+so it's the primary button there (`object_name="primary"`); in a picker, some other button
+already is the primary action, so "+ New …" stays plain.
+
+**Workouts don't get their own `CatalogManagerDialog`, even though the widget is shared.**
+See § Extras for why.
 
 ## Extras
 
-Personal, non-Pomodoro habits — logging when you woke up so far, a workout tracker planned
-later — live behind `config.extras.enabled`, off by default. The flag is **hand-edit-only**
-in `settings.json`, deliberately with no Settings-dialog widget: it's a once-per-install
-"which build am I running" choice, like `paths.data_repo`, not something you'd revisit (see
-§ Settings for the general "default to a widget" rule this is the documented exception to).
-When it's off, the whole feature is invisible — no ☰ menu entry, no Settings section, no
-second `EventStore` even gets constructed.
+Personal, non-Pomodoro habits — logging when you woke up, logging a workout — live behind
+`config.extras.enabled`, off by default, one flag for the whole group rather than one per
+habit. The flag is **hand-edit-only** in `settings.json`, deliberately with no
+Settings-dialog widget: it's a once-per-install "which build am I running" choice, like
+`paths.data_repo`, not something you'd revisit (see § Settings for the general "default to
+a widget" rule this is the documented exception to). When it's off, the whole feature is
+invisible — no ☰ menu entries, no Settings section, no second or third `EventStore` even
+gets constructed.
 
-**A second, unrelated habit, not a second app.** Wake-up logging reuses every piece of
-existing infrastructure rather than inventing a parallel one: the same `EventStore` (already
-parameterized by habit name — nothing habit-specific to generalize), the same JSONL/day-file
-layout, the same evidence mechanism. It's filed under its own habit directory
-(`config.extras.wakeup.habit`, default `sleep`) alongside `study`, so `habito.app` builds a
-*second* `EventStore` when extras are enabled and hands both to `HabitoApp`.
+**Second and third habits, not a second app.** Wake-up and workout logging reuse every
+piece of existing infrastructure rather than inventing a parallel one: the same `EventStore`
+(already parameterized by habit name — nothing habit-specific to generalize), the same
+JSONL/day-file layout, the same evidence mechanism. Each is filed under its own habit
+directory (`config.extras.wakeup.habit` / `config.extras.workout.habit`, default `sleep` /
+`workout`) alongside `study`, so `habito.app` builds a *second* and *third* `EventStore`
+when extras are enabled and hands all three to `HabitoApp`.
 
-**One `EvidenceWorker` still, not one per habit.** Two threads issuing git commands against
-the same repo would race, so the composition root keeps a single worker whose pathspec is
-`"."` — the whole data repo — rather than one habit's subtree. Safe because the data repo
-holds nothing but habit directories and a `.gitignore`. Both the study store and (when
-present) the wake-up store `.subscribe()` the same `EvidenceRecorder`.
+**One `EvidenceWorker` still, not one per habit.** Three threads issuing git commands
+against the same repo would race, so the composition root keeps a single worker whose
+pathspec is `"."` — the whole data repo — rather than one habit's subtree. Safe because the
+data repo holds nothing but habit directories and a `.gitignore`. The study store and (when
+present) the wake-up and workout stores all `.subscribe()` the same `EvidenceRecorder`.
 
 **`WakeUpLogged` is a single fact, not a session.** It doesn't fit the
 `SessionStarted…SessionEnded` family — there are no rounds or breaks to a wake-up — so it's
@@ -301,18 +351,45 @@ Unlike the flag itself, **the wake/bedtime defaults do get a Settings-dialog sec
 shown only when extras are enabled — since those are values worth tweaking occasionally,
 not a one-time install choice.
 
-**The log view merges both streams**, unlike the calendar (which stays study-only —
-`WakeUpLogged` has no `RoundEnded`s for the goal math to count, so there's nothing for it to
-show). `HabitoApp.show_page` reads `wakeup_store.read_all()` alongside the study store's and
-hands `LogView` the combined list — day-grouping (`partition_date`) is already habit-agnostic,
-so nothing there needed to change, only `describe()` gained a `WakeUpLogged` case ("Woke up",
-bedtime + duration). "Manage sessions…" stays study-only on purpose: `WakeUpLogged` isn't a
+**Workout tracking is one dialog, not two.** `WorkoutLogDialog` is both "log an instance"
+and "manage the catalog" at once — its embedded `CatalogPicker` (checkable) already offers
+double-click-to-edit and "+ New workout", so there is no separate "Manage workouts…" the way
+tags get a `CatalogManagerDialog`. This is a deliberate difference from tags, not an
+inconsistency: a tag's checkable picker only ever appears *inside* a session-tagging flow
+(the session-end prompt, `SessionTagDialog`), with no "just browse the catalog" entry point
+otherwise — `CatalogManagerDialog` fills that gap. `WorkoutLogDialog` is already its own
+top-level ☰ entry with nothing else it needs to be nested inside, so opening it just to fix
+a workout's description and pressing Cancel afterwards is a perfectly normal use, not a
+workaround. It's sized at `BROWSE_DIALOG_WIDTH`/`_HEIGHT` from the start too, unlike
+`SessionCompleteDialog`'s tag picker, which starts Compact and only grows once revealed:
+there, attaching a tag is optional and skipping it is the common case; here, picking at
+least one workout is the point of opening the dialog, so there's no collapsed state worth
+having.
+
+**`WorkoutLogged.workouts` is a list, not one event per workout.** A single log entry (one
+date, one time) can cover several workouts done in the same sitting; see § Session identity
+("This actually came up, and the answer was 'don't'") for why that's a list field rather
+than several events sharing a fresh correlation id, and § Corrections for the coarse-only
+correction tradeoff that follows from it. `origin` is always `backfilled`, for the identical
+reason `WakeUpLogged`'s is (see § Origin) — the workflow is always "write down, later, what
+already happened," never "in the moment." Unlike wake-up, there's no `default_wake_time`-
+style config for the log time: `WorkoutLogDialog` defaults it to *now* rather than a
+configured value, since you're usually logging a workout you just finished.
+
+**The log view merges all three streams**, unlike the calendar (which stays study-only —
+neither `WakeUpLogged` nor `WorkoutLogged` has `RoundEnded`s for the goal math to count, so
+there's nothing for it to show). `HabitoApp.show_page` reads `wakeup_store.read_all()` and
+`workout_store.read_all()` alongside the study store's and hands `LogView` the combined list
+— day-grouping (`partition_date`) is already habit-agnostic, so nothing there needed to
+change, only `describe()` gained `WakeUpLogged`/`WorkoutCreated`/`WorkoutDescribed`/
+`WorkoutLogged` cases. "Manage sessions…" stays study-only on purpose: none of these are a
 session.
 
-`WakeUpLogged` mints no `session_id` at all — it extends `BaseEvent` directly, not
-`SessionEvent` (see § Session identity for the full rationale, including the
-"Manage sessions…" bug that shape once caused for `TagCreated`/`TagDescribed`, and why this
-event was designed that way from the start rather than needing the same fix).
+None of `WakeUpLogged`, `WorkoutCreated`, `WorkoutDescribed`, `WorkoutLogged` mint a
+`session_id` at all — each extends `BaseEvent` directly, not `SessionEvent` (see § Session
+identity for the full rationale, including the "Manage sessions…" bug that shape once
+caused for `TagCreated`/`TagDescribed`, and why every event added here since was designed
+that way from the start rather than needing the same fix).
 
 ## Time
 
@@ -409,8 +486,8 @@ growing tag list) scrolls rather than earning its dialog a bigger window:
 
 | Tier | Width | Height | Job | Dialogs |
 |---|---|---|---|---|
-| Compact | 320 | content-driven | one ask, or a short form | `PhaseDialog`, `SessionCompleteDialog` (collapsed), `TagEditDialog`, `BackfillDialog`, `WakeUpDialog`, `ResumePromptDialog`, `RetractConfirmDialog` |
-| Browse | 440 | 360 | pick one thing from a list, or manage a small growing one | `ManageSessionsDialog`, `ShortcutsDialog`, `TagManagerDialog`, `SessionTagDialog`, `SessionCompleteDialog` (tag picker showing) |
+| Compact | 320 | content-driven | one ask, or a short form | `PhaseDialog`, `SessionCompleteDialog` (collapsed), `CatalogEditDialog`, `BackfillDialog`, `WakeUpDialog`, `ResumePromptDialog`, `RetractConfirmDialog` |
+| Browse | 440 | 360 | pick one thing from a list, or manage a small growing one | `ManageSessionsDialog`, `ShortcutsDialog`, `CatalogManagerDialog`, `SessionTagDialog`, `WorkoutLogDialog`, `SessionCompleteDialog` (tag picker showing) |
 | Large | 460 | 580 | everything at once | `SettingsDialog` only — reuses the size `HabitoApp` already gives the calendar/log pages (`_PAGE_SIZES`) rather than a fourth number, and scrolls its form internally (see its own module docstring) instead of growing past it |
 
 Compact is the one tier that isn't a fixed box: nothing sets a minimum height, so it's the

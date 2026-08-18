@@ -1,9 +1,9 @@
 """SessionCompleteDialog on its own: the tag picker's visibility and (unlike PhaseDialog)
 unrestricted ways to dismiss it.
 
-TagPicker's own mechanics (the tree, "+ New tag", double-click-to-edit) are covered once in
-test_ui_tag_picker.py — this file only checks what this dialog does with what's checked:
-report it through ``on_accept``, and treat Esc the same as pressing the button.
+CatalogPicker's own mechanics (the tree, "+ New tag", double-click-to-edit) are covered once
+in test_ui_catalog_picker.py — this file only checks what this dialog does with what's
+checked: report it through ``on_accept``, and treat Esc the same as pressing the button.
 """
 
 from __future__ import annotations
@@ -13,8 +13,8 @@ from datetime import datetime, timedelta, timezone
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog
 
+from habito.ui.dialogs.catalog_edit_dialog import CatalogEditDialog
 from habito.ui.dialogs.session_complete_dialog import SessionCompleteDialog
-from habito.ui.dialogs.tag_edit_dialog import TagEditDialog
 
 CEST = timezone(timedelta(hours=2))
 NOW = datetime(2026, 8, 7, 14, 23, tzinfo=CEST)
@@ -113,21 +113,21 @@ def test_the_picker_starts_hidden_behind_the_link(qtbot):
 
 
 def test_creating_a_new_tag_and_finishing_reports_it(qtbot, monkeypatch):
-    """End-to-end through the picker: TagPicker and TagEditDialog have their own
+    """End-to-end through the picker: CatalogPicker and CatalogEditDialog have their own
     mechanics covered elsewhere — this just checks the pieces are wired together."""
 
-    def fake_exec(self: TagEditDialog) -> int:
-        self.tag_name = "linear algebra"
+    def fake_exec(self: CatalogEditDialog) -> int:
+        self.name = "linear algebra"
         self.description = ""
         return QDialog.DialogCode.Accepted
 
-    monkeypatch.setattr(TagEditDialog, "exec", fake_exec)
+    monkeypatch.setattr(CatalogEditDialog, "exec", fake_exec)
     answers: list[list[str]] = []
     dialog = make_dialog([], answers)
     qtbot.addWidget(dialog)
     dialog._reveal_tag_picker()
 
-    dialog.tag_picker._on_new_tag()
+    dialog.tag_picker._on_new_item()
     qtbot.mouseClick(dialog.action_button, Qt.MouseButton.LeftButton)
 
     assert answers == [["linear algebra"]]

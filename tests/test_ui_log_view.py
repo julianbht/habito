@@ -26,6 +26,9 @@ from habito.domain.events import (
     TagDescribed,
     TimeAdjusted,
     WakeUpLogged,
+    WorkoutCreated,
+    WorkoutDescribed,
+    WorkoutLogged,
 )
 from habito.ui import theme
 from habito.ui.pages.log_view import LogView, day_heading, describe, group_by_day
@@ -139,6 +142,29 @@ def test_a_wakeups_bedtime_reads_in_the_events_own_offset():
         at(5, cls=WakeUpLogged, offset=120, bedtime=datetime(2026, 8, 3, 21, 15, tzinfo=UTC))
     )
     assert line.detail == "bedtime 23:15 · 7h 45m asleep"
+
+
+def test_a_workout_created_event_shows_its_name():
+    line = describe(at(11, cls=WorkoutCreated, workout="running"))
+    assert line.what == "Workout created"
+    assert line.detail == "running"
+
+
+def test_a_workout_described_event_shows_what_it_means():
+    line = describe(at(11, cls=WorkoutDescribed, workout="running", description="5k loop"))
+    assert line.what == "Workout described"
+    assert line.detail == "running — 5k loop"
+
+
+def test_a_workout_described_event_without_text_still_reads():
+    line = describe(at(11, cls=WorkoutDescribed, workout="running", description=""))
+    assert line.detail == "running"
+
+
+def test_a_workout_logged_event_lists_every_workout():
+    line = describe(at(7, cls=WorkoutLogged, workouts=["running", "push-ups"]))
+    assert line.what == "Workout logged"
+    assert line.detail == "running, push-ups"
 
 
 def test_events_without_detail_still_read_cleanly():
@@ -290,6 +316,22 @@ def test_a_wakeup_event_renders_alongside_study_events(view):
     assert any(day.child(i).text(1) == "Woke up" for i in range(day.childCount()))
 
 
+def test_a_workout_log_renders_alongside_study_events(view):
+    """Same habit-agnostic grouping as the wake-up merge above."""
+    workout = WorkoutLogged(
+        timestamp=NOON,
+        tz_offset_minutes=0,
+        origin=Origin.backfilled,
+        habit="workout",
+        workouts=["running"],
+    )
+    view.set_events([make_day(0, 0), workout])
+    day = view.tree.topLevelItem(0)
+
+    assert day.childCount() == 2
+    assert any(day.child(i).text(1) == "Workout logged" for i in range(day.childCount()))
+
+
 def test_the_view_cannot_edit_the_log(view):
     """It's a window onto an append-only log; there is nothing here that writes."""
     view.set_events([make_day(0, 0)])
@@ -358,6 +400,34 @@ def test_the_log_page_merges_the_wakeup_store_when_extras_are_enabled(qtbot, tmp
     day = app._log_view().tree.topLevelItem(0)
     assert day is not None
     assert any(day.child(i).text(1) == "Woke up" for i in range(day.childCount()))
+
+
+def test_the_log_page_merges_the_workout_store_when_extras_are_enabled(qtbot, tmp_path):
+    from habito.actions.workout import build_workout_logged_event
+    from habito.app import _build_engine_and_store, _build_workout_store
+    from habito.config.models import Config
+    from habito.ui.app import _LOG_PAGE, HabitoApp
+
+    config = Config.model_validate(
+        {
+            "paths": {"data_repo": str(tmp_path)},
+            "project_root": tmp_path,
+            "extras": {"enabled": True, "workout": {"habit": "workout"}},
+        }
+    )
+    engine, store = _build_engine_and_store(config, test_mode=False)
+    workout_store = _build_workout_store(config, test_mode=False)
+    assert workout_store is not None
+    when = datetime(2026, 8, 4, 18, 0, tzinfo=UTC)
+    workout_store.append(build_workout_logged_event(when, ["running"], habit="workout"))
+
+    app = HabitoApp(config, engine, store, None, workout_store, test_mode=True)
+    qtbot.addWidget(app)
+    app.show_page(_LOG_PAGE)
+
+    day = app._log_view().tree.topLevelItem(0)
+    assert day is not None
+    assert any(day.child(i).text(1) == "Workout logged" for i in range(day.childCount()))
 
 
 def test_the_log_page_is_study_only_when_extras_are_disabled(qtbot, tmp_path):

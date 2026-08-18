@@ -1,10 +1,10 @@
 """Wiring between session completion and the tag prompt.
 
 SessionCompleteDialog's own behaviour (the picker, Esc) is covered in
-test_ui_session_complete_dialog.py, and TagPicker/TagEditDialog's in their own files —
-these tests are only about what the window does with the answer: HabitoApp._prompt and
-_on_session_complete_accepted, including that a tag described mid-attach actually reaches
-the store (on_describe_tag), not just the checked-tags-become-SessionTagged path.
+test_ui_session_complete_dialog.py, and CatalogPicker/CatalogEditDialog's in their own
+files — these tests are only about what the window does with the answer: HabitoApp._prompt
+and _on_session_complete_accepted, including that a tag described mid-attach actually
+reaches the store (on_describe_tag), not just the checked-tags-become-SessionTagged path.
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ from habito.engine.pomodoro import PomodoroEngine, State
 from habito.projections.daily import summary_for
 from habito.storage.event_store import EventStore
 from habito.ui.app import HabitoApp
+from habito.ui.dialogs.catalog_edit_dialog import CatalogEditDialog
 from habito.ui.dialogs.session_complete_dialog import SessionCompleteDialog
-from habito.ui.dialogs.tag_edit_dialog import TagEditDialog
 
 
 def build(qtbot, tmp_path, *, rounds: int = 1):
@@ -52,16 +52,16 @@ def finish_the_session(window):
 def pick_new_tag(
     qtbot, monkeypatch, dialog: SessionCompleteDialog, tag: str, description: str = ""
 ) -> None:
-    def fake_exec(self: TagEditDialog) -> int:
+    def fake_exec(self: CatalogEditDialog) -> int:
         if not self._name.isReadOnly():
             self._name.setText(tag)
         self._description.setPlainText(description)
         self._on_save()
         return self.result()
 
-    monkeypatch.setattr(TagEditDialog, "exec", fake_exec)
+    monkeypatch.setattr(CatalogEditDialog, "exec", fake_exec)
     dialog._reveal_tag_picker()
-    dialog.tag_picker._on_new_tag()
+    dialog.tag_picker._on_new_item()
 
 
 def test_finishing_a_session_shows_the_tag_prompt_not_the_phase_prompt(qtbot, tmp_path):

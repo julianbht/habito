@@ -1,6 +1,6 @@
-"""SessionTagDialog on its own: a thin shell around TagPicker, like TagManagerDialog, but
-checkable and pre-seeded with a session's current tags — see test_ui_tag_picker.py for the
-tree/"+ New tag"/double-click behaviour this reuses unchanged.
+"""SessionTagDialog on its own: a thin shell around CatalogPicker, like CatalogManagerDialog,
+but checkable and pre-seeded with a session's current tags — see test_ui_catalog_picker.py
+for the tree/"+ New tag"/double-click behaviour this reuses unchanged.
 
 What's actually this dialog's own job: diffing the tree's final checked state against what
 the session had when it opened into exactly the SessionTagged/SessionUntagged events that
@@ -51,7 +51,7 @@ def row(dialog, index: int):
 def test_the_sessions_current_tags_start_checked(qtbot):
     dialog = dialog_for(qtbot, ["linear algebra", "topology"], current_tags={"topology"})
 
-    assert set(dialog.tag_picker.selected_tags()) == {"topology"}
+    assert set(dialog.tag_picker.selected()) == {"topology"}
 
 
 def test_apply_tags_is_the_primary_button(qtbot):
@@ -62,7 +62,7 @@ def test_apply_tags_is_the_primary_button(qtbot):
 
 def test_new_tag_button_is_plain_since_apply_tags_is_primary(qtbot):
     dialog = dialog_for(qtbot, [])
-    assert dialog.tag_picker.new_tag_button.objectName() == ""
+    assert dialog.tag_picker.new_button.objectName() == ""
 
 
 def test_the_status_line_starts_at_no_changes(qtbot):

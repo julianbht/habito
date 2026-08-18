@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from PySide6.QtCore import Qt
 
-from habito.app import _build_engine_and_store, _build_wakeup_store
+from habito.app import _build_engine_and_store, _build_wakeup_store, _build_workout_store
 from habito.config.models import Config
 from habito.engine.pomodoro import State
 from habito.ui import theme
@@ -212,6 +212,76 @@ def test_opening_wakeup_launches_the_dialog(qtbot, tmp_path, monkeypatch):
     monkeypatch.setattr(WakeUpDialog, "exec", lambda self: opened.append(self) or 0)
 
     window.on_open_wakeup()
+
+    assert len(opened) == 1
+
+
+def test_log_workout_is_absent_when_extras_are_disabled(qtbot, app):
+    """Off by default — the whole point of the flag (see CLAUDE.md § Extras)."""
+    assert "Log workout" not in entries(app)
+
+
+def test_log_workout_appears_grouped_with_log_sleep_when_enabled(qtbot, tmp_path):
+    config = Config.model_validate(
+        {
+            "paths": {"data_repo": str(tmp_path)},
+            "project_root": tmp_path,
+            "extras": {
+                "enabled": True,
+                "wakeup": {"habit": "sleep"},
+                "workout": {"habit": "workout"},
+            },
+        }
+    )
+    engine, store = _build_engine_and_store(config, test_mode=False)
+    wakeup_store = _build_wakeup_store(config, test_mode=False)
+    workout_store = _build_workout_store(config, test_mode=False)
+    window = HabitoApp(config, engine, store, wakeup_store, workout_store, test_mode=True)
+    qtbot.addWidget(window)
+
+    listed = entries(window)
+    assert "Log workout" in listed
+    assert listed.index("Log sleep") + 1 == listed.index("Log workout")
+    assert listed.index("Log workout") < listed.index("Shortcuts…")
+
+
+def test_no_separate_manage_workouts_entry(qtbot, tmp_path):
+    """Unlike tags, workouts don't get a standalone manager — the picker embedded in
+    "Log workout" already covers create/edit (see workout_log_dialog.py's docstring)."""
+    config = Config.model_validate(
+        {
+            "paths": {"data_repo": str(tmp_path)},
+            "project_root": tmp_path,
+            "extras": {"enabled": True, "workout": {"habit": "workout"}},
+        }
+    )
+    engine, store = _build_engine_and_store(config, test_mode=False)
+    workout_store = _build_workout_store(config, test_mode=False)
+    window = HabitoApp(config, engine, store, None, workout_store, test_mode=True)
+    qtbot.addWidget(window)
+
+    assert "Manage workouts…" not in entries(window)
+
+
+def test_opening_log_workout_launches_the_dialog(qtbot, tmp_path, monkeypatch):
+    from habito.ui.dialogs.workout_log_dialog import WorkoutLogDialog
+
+    config = Config.model_validate(
+        {
+            "paths": {"data_repo": str(tmp_path)},
+            "project_root": tmp_path,
+            "extras": {"enabled": True, "workout": {"habit": "workout"}},
+        }
+    )
+    engine, store = _build_engine_and_store(config, test_mode=False)
+    workout_store = _build_workout_store(config, test_mode=False)
+    window = HabitoApp(config, engine, store, None, workout_store, test_mode=True)
+    qtbot.addWidget(window)
+
+    opened = []
+    monkeypatch.setattr(WorkoutLogDialog, "exec", lambda self: opened.append(self) or 0)
+
+    window.on_open_log_workout()
 
     assert len(opened) == 1
 
