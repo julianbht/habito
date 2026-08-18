@@ -31,7 +31,14 @@
     "stretch_minutes": 200,
     "stretch_buffer_minutes": 10
   },
-  "extras": { "enabled": true },
+  "extras": {
+    "enabled": true,
+    "wakeup": {
+      "habit": "sleep",
+      "default_wake_time": "04:00:00",
+      "default_bedtime": "20:00:00"
+    }
+  },
   "paths": {
     "data_repo": "../habito-data"
   }
