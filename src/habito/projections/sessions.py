@@ -3,8 +3,8 @@
 What `ManageSessionsDialog` lists and picks from, and the level a correction is made at —
 a mistake is made in whole sessions, so this is the unit the UI offers.
 
-Fed the raw stream (``read_all(include_retracted=True)``), so an already-retracted session
-still appears and is marked as such.
+Fed the raw stream (``read_all(raw=True)``), so an already-retracted session still
+appears and is marked as such.
 """
 
 from __future__ import annotations

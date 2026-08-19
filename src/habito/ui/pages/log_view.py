@@ -4,14 +4,15 @@ Deliberately read-only. The log's whole value is that it's append-only, so this 
 what's in it and nothing more — no edit, no delete. Backfilled entries are marked, so what
 you see here matches the distinction the log itself makes.
 
-This is the one view fed the raw stream, retractions included: a retracted session stays
-on screen struck through, under the day it was filed on, with the retraction line beneath
-it. Day totals count only what still stands, so they agree with the calendar.
+This is the one view fed the raw stream, corrections included: a retracted session or a
+voided entry stays on screen struck through, under the day it was filed on, with the
+correction line beneath it. Day totals count only what still stands, so they agree with the
+calendar.
 
-When the wake-up extra is enabled, its stream is merged in alongside the study habit's
-(see `HabitoApp.show_page`) — day-grouping is habit-agnostic already (`partition_date`
-doesn't care which habit an event belongs to), so nothing here needed to change to show
-both. Wake-up logs have no retraction UI yet, so that stream is read plain.
+When the extras are enabled, the sleep and workout streams are merged in alongside the
+study habit's (see `HabitoApp.show_page`) — day-grouping is habit-agnostic already
+(`partition_date` doesn't care which habit an event belongs to), so nothing here needs to
+know which stream a row came from.
 
 Turning an event into a line of text is a pure function (:func:`describe`), kept apart from
 the widget so it can be read and tested on its own.
@@ -32,6 +33,7 @@ from habito.domain.events import (
     BreakEnded,
     BreakStarted,
     Event,
+    EventVoided,
     Origin,
     RoundEnded,
     RoundStarted,
@@ -53,6 +55,7 @@ from habito.domain.events import (
     local_datetime,
     partition_date,
     retracted_session_ids,
+    voided_event_ids,
 )
 from habito.ui import theme
 from habito.ui.widgets.controls import format_duration, label
@@ -71,9 +74,9 @@ class Line:
     detail: str
     backfilled: bool
     voided: bool = False
-    """Part of a session a later retraction voided — struck through, and left out of the
-    day's total. Set by the view, which knows the whole stream; :func:`describe` sees one
-    event and can't."""
+    """Withdrawn by a later correction — part of a retracted session, or an entry a
+    ``EventVoided`` named. Struck through, and left out of the day's total. Set by the view,
+    which knows the whole stream; :func:`describe` sees one event and can't."""
 
 
 def _local_time(event: Event) -> str:
@@ -142,6 +145,10 @@ def describe(event: Event, tag_description: str | None = None) -> Line:
         # and its time column would otherwise read as that day's.
         made = local_datetime(event).strftime("%Y-%m-%d")
         detail = f"{event.reason} · retracted {made}" if event.reason else f"retracted {made}"
+    elif isinstance(event, EventVoided):
+        what = "Entry voided"
+        made = local_datetime(event).strftime("%Y-%m-%d")
+        detail = f"{event.reason} · voided {made}" if event.reason else f"voided {made}"
     elif isinstance(event, WakeUpLogged):
         what = "Woke up"
         # `bedtime` shares `timestamp`'s offset (see WakeUpLogged's docstring), so the same
@@ -179,12 +186,14 @@ def group_by_day(events: Iterable[Event], rollover_hour: int = 0) -> dict[date, 
     return dict(sorted(days.items(), key=lambda item: item[0], reverse=True))
 
 
-def day_heading(day: date, events: list[Event], voided: Container[UUID] = frozenset()) -> str:
+def day_heading(day: date, events: list[Event], retracted: Container[UUID] = frozenset()) -> str:
     """``Mon 4 Aug · 1h 40m over 4 rounds`` — what the day amounted to.
 
-    Counts only rounds that still stand, so the heading matches the calendar cell.
+    Counts only rounds that still stand, so the heading matches the calendar cell. Takes
+    retracted *session* ids: a ``RoundEnded`` is only ever withdrawn as part of its whole
+    session, never one at a time.
     """
-    rounds = [e for e in events if isinstance(e, RoundEnded) and e.session_id not in voided]
+    rounds = [e for e in events if isinstance(e, RoundEnded) and e.session_id not in retracted]
     worked = sum(e.work_seconds for e in rounds)
     parts = [day.strftime("%a %d %b %Y"), format_duration(worked)]
     if rounds:
@@ -241,7 +250,8 @@ class LogView(QWidget):
     def set_events(self, events: Iterable[Event]) -> None:
         entries = list(events)
         self._events = entries
-        voided = retracted_session_ids(entries)
+        retracted = retracted_session_ids(entries)
+        voided = voided_event_ids(entries)
         days = group_by_day(entries, self._rollover_hour)
         # A tag's description isn't on the SessionTagged event itself — it's known only by
         # folding the whole stream, which this view already does for retractions.
@@ -250,18 +260,18 @@ class LogView(QWidget):
         self.tree.clear()
         for day, day_events in days.items():
             parent = QTreeWidgetItem(self.tree, [""])
-            parent.setData(0, _HEADING_ROLE, day_heading(day, day_events, voided))
+            parent.setData(0, _HEADING_ROLE, day_heading(day, day_events, retracted))
             parent.setFirstColumnSpanned(True)
             bold = QFont(parent.font(0))
             bold.setBold(True)
             parent.setFont(0, bold)
             for event in day_events:
-                # The retraction itself is the standing statement, so it isn't struck out.
-                # An event with no session_id at all (TagCreated, TagDescribed,
-                # WakeUpLogged) was never part of any session, so it's never struck.
-                struck = (
+                # The correction itself is the standing statement, so it isn't struck out.
+                # An event with no session_id can only be withdrawn one at a time, by an
+                # EventVoided naming its own event_id.
+                struck = event.event_id in voided or (
                     isinstance(event, SessionEvent)
-                    and event.session_id in voided
+                    and event.session_id in retracted
                     and not isinstance(event, SessionRetracted)
                 )
                 tag = event.tag if isinstance(event, SessionTagged) else None

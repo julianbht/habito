@@ -1,9 +1,13 @@
-"""Projections over the workout catalog: what's known, and what each one means.
+"""Projections over workouts: the catalog (what's known, what each one means) and the log
+entries themselves.
 
-Both derived from the log rather than a separate list to maintain — the same shape as
-``projections.tags``. There is no ``session_workouts`` equivalent: unlike a tag, a workout
-is never attached to a Pomodoro session (see ``WorkoutLogged``'s docstring), so nothing
-needs to ask "which workouts does this session currently have."
+The catalog pair is derived from the log rather than a separate list to maintain — the same
+shape as ``projections.tags``. There is no ``session_workouts`` equivalent: unlike a tag, a
+workout is never attached to a Pomodoro session (see ``WorkoutLogged``'s docstring), so
+nothing needs to ask "which workouts does this session currently have."
+
+:func:`workout_entries` is the other half — one row per logged entry, for
+``ManageWorkoutsDialog``, mirroring ``projections.wakeups.wakeup_entries``.
 """
 
 from __future__ import annotations
@@ -43,3 +47,13 @@ def workout_descriptions(events: Iterable[Event], habit: str) -> dict[str, str]:
         if isinstance(e, WorkoutDescribed) and e.habit == habit:
             descriptions[e.workout] = e.description
     return descriptions
+
+
+def workout_entries(events: Iterable[Event], habit: str) -> list[WorkoutLogged]:
+    """Every standing workout log entry for this habit, most recent first.
+
+    Fed the standing stream (``read_all()``), so a voided entry is already gone.
+    """
+    entries = [e for e in events if isinstance(e, WorkoutLogged) and e.habit == habit]
+    entries.sort(key=lambda e: e.timestamp, reverse=True)
+    return entries

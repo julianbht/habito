@@ -1,150 +1,159 @@
-"""Dialog to act on a past session: retract it, or tag/untag it after the fact.
+"""Manage the study habit's past sessions: back one, retract one, or tag it after the fact.
 
-Right-click a row for its menu (Manage tags…, Retract session…) rather than a single
-selection-driven button — there are two different actions now, one destructive and one
-not, and a context menu keeps that distinction visible instead of one button whose meaning
-depends on what else you've clicked. Retracting opens `RetractConfirmDialog`, tagging opens
-`SessionTagDialog` — both scoped to whichever row was clicked, this dialog stays a shell
-around the list and the two sub-dialogs, same shape as `TagManagerDialog` around
-`TagPicker`.
+The one place a session is acted on. "Backfill…" is its primary button, so adding a
+session and correcting one live in the same window rather than two menu entries you have
+to know are related; "Tags…" opens the shared catalog manager, since a tag only ever means
+something on a session. Row actions are a right-click menu (Manage tags…, Retract
+session…): two actions, one destructive and one not, kept visibly distinct instead of one
+button whose meaning depends on what else is selected.
 
-Sits in the ☰ menu where "Retract session…" used to, since it now covers strictly more —
-this is the one place all of a habit's past sessions are listed to pick one from. The log
-view stays read-only: this appends to the log like everything else does.
+A session is voided as a whole by ``session_id`` (`RetractConfirmDialog`), not entry by
+entry — which is why sleep and workouts use `EntryManagerDialog` instead of this. The list
+widget itself (`EntryList`) is shared with them.
+
+`reload` is called after anything that writes, so a session backfilled from inside this
+dialog appears in the list behind it — the snapshot is never patched by hand.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
-from PySide6.QtCore import QPoint, Qt
-from PySide6.QtWidgets import (
-    QDialog,
-    QMenu,
-    QTreeWidget,
-    QTreeWidgetItem,
-    QVBoxLayout,
-    QWidget,
-)
+from PySide6.QtCore import QPoint
+from PySide6.QtWidgets import QDialog, QHBoxLayout, QMenu, QVBoxLayout, QWidget
 
 from habito.domain.events import Event
 from habito.projections.sessions import SessionSummary
 from habito.ui.dialogs.retract_confirm_dialog import RetractConfirmDialog, describe_session
 from habito.ui.dialogs.session_tag_dialog import SessionTagDialog
 from habito.ui.svg_icons import icon
-from habito.ui.widgets.controls import BROWSE_DIALOG_HEIGHT, BROWSE_DIALOG_WIDTH, button, label
+from habito.ui.widgets.controls import (
+    BROWSE_DIALOG_HEIGHT,
+    BROWSE_DIALOG_WIDTH,
+    button,
+    primary_button,
+)
+from habito.ui.widgets.entry_list import EntryList
 
 SubmitCallback = Callable[[Iterable[Event]], None]
 
-_SESSION_ROLE = Qt.ItemDataRole.UserRole + 1
+_HINT = "Right-click a session to retract it or manage its tags."
+_EMPTY = "Nothing to manage — the log has no standing sessions."
+
+
+@dataclass(frozen=True)
+class SessionsSnapshot:
+    """Everything the dialog shows, folded from the log in one go so the four parts can
+    never disagree about which sessions and tags currently stand."""
+
+    sessions: Sequence[SessionSummary]
+    tags_by_session: Mapping[UUID, set[str]]
+    known_tags: list[str]
+    descriptions: Mapping[str, str]
 
 
 class ManageSessionsDialog(QDialog):
     def __init__(
         self,
-        sessions: Sequence[SessionSummary],
-        session_tags_by_id: dict[UUID, set[str]],
-        known_tags: list[str],
-        descriptions: dict[str, str],
+        *,
+        reload: Callable[[], SessionsSnapshot],
         on_submit: SubmitCallback,
         habit: str,
-        now: datetime,
+        now: Callable[[], datetime],
+        open_backfill: Callable[[QWidget], None],
+        open_tags: Callable[[QWidget], None],
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        self._reload = reload
         self._on_submit = on_submit
         self._habit = habit
+        # Read afresh per correction, not fixed at construction — a retraction records
+        # when it was made, and this dialog can sit open for a long time.
         self._now = now
-        self._session_tags_by_id = dict(session_tags_by_id)
-        self._known_tags = known_tags
-        self._descriptions = descriptions
-        # Already-retracted sessions are left out: there is nothing left to retract or
-        # tag on one that no longer stands.
-        self._sessions = [s for s in sessions if not s.retracted]
+        self._open_backfill = open_backfill
+        self._open_tags = open_tags
+        self._sessions: list[SessionSummary] = []
+        self._snapshot = SessionsSnapshot((), {}, [], {})
         self.setWindowTitle("Manage sessions")
         self.setMinimumWidth(BROWSE_DIALOG_WIDTH)
         self.setMinimumHeight(BROWSE_DIALOG_HEIGHT)
         self.setModal(True)
         self._build()
+        self._refresh()
 
     def _build(self) -> None:
         root = QVBoxLayout(self)
         root.setContentsMargins(20, 18, 20, 18)
         root.setSpacing(10)
 
-        hint = "Right-click a session to retract it or manage its tags."
-        root.addWidget(label(hint, "muted"))
-
-        # A one-column QTreeWidget rather than QListWidget — same widget every other list
-        # in the app uses (log view, tag pickers, shortcuts), so it picks up the theme's
-        # tree styling for free instead of falling back to the native list style. A plain
-        # non-editable list either way: large editable combo boxes have aborted the suite.
-        self.list = QTreeWidget()
-        self.list.setHeaderHidden(True)
-        self.list.setIndentation(0)
-        self.list.setRootIsDecorated(False)
-        self.list.setAlternatingRowColors(True)
-        self.list.setSelectionMode(QTreeWidget.SelectionMode.NoSelection)
-        self.list.setEditTriggers(QTreeWidget.EditTrigger.NoEditTriggers)
-        self.list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.list.customContextMenuRequested.connect(self._on_context_menu)
-        self._populate()
+        self.list = EntryList(_HINT, _EMPTY)
+        self.list.row_menu_requested.connect(self._on_row_menu)
         root.addWidget(self.list, 1)
 
-        self._empty_lbl = label("", "muted")
-        if not self._sessions:
-            self._empty_lbl.setText("Nothing to manage — the log has no standing sessions.")
-        root.addWidget(self._empty_lbl)
-
+        actions = QHBoxLayout()
+        self.backfill_button = primary_button("Backfill…")
+        self.backfill_button.clicked.connect(self._backfill)
+        actions.addWidget(self.backfill_button)
+        tags_btn = button("Tags…")
+        tags_btn.clicked.connect(self._tags)
+        actions.addWidget(tags_btn)
+        actions.addStretch(1)
         close_btn = button("Close")
         close_btn.clicked.connect(self.accept)
-        root.addWidget(close_btn)
+        actions.addWidget(close_btn)
+        root.addLayout(actions)
 
-    def _populate(self) -> None:
-        self.list.clear()
-        for session in self._sessions:
-            item = QTreeWidgetItem(self.list, [describe_session(session)])
-            item.setData(0, _SESSION_ROLE, session.session_id)
+    def _refresh(self) -> None:
+        self._snapshot = self._reload()
+        # Already-retracted sessions are left out: there is nothing left to retract or tag
+        # on one that no longer stands.
+        self._sessions = [s for s in self._snapshot.sessions if not s.retracted]
+        self.list.set_rows([describe_session(s) for s in self._sessions])
 
-    def _row_at(self, pos: QPoint) -> SessionSummary | None:
-        item = self.list.itemAt(pos)
-        if item is None:
-            return None
-        row = self.list.indexOfTopLevelItem(item)
-        if 0 <= row < len(self._sessions):
-            return self._sessions[row]
-        return None
+    def _submit(self, events: Iterable[Event]) -> None:
+        self._on_submit(events)
+        self._refresh()
 
-    def _on_context_menu(self, pos: QPoint) -> None:
-        session = self._row_at(pos)
-        if session is None:
+    def _backfill(self) -> None:
+        self._open_backfill(self)
+        self._refresh()
+
+    def _tags(self) -> None:
+        # The catalog dialog writes its own events as they're made, so there is nothing to
+        # submit here — but a description changed there changes what the tag picker shows.
+        self._open_tags(self)
+        self._refresh()
+
+    def _on_row_menu(self, row: int, pos: QPoint) -> None:
+        if not 0 <= row < len(self._sessions):
             return
+        session = self._sessions[row]
         menu = QMenu(self)
         menu.addAction(icon("sell"), "Manage tags…", lambda: self._open_tag_dialog(session))
         menu.addAction(icon("undo"), "Retract session…", lambda: self._open_retract_dialog(session))
-        menu.exec(self.list.viewport().mapToGlobal(pos))
+        menu.exec(pos)
 
     def _open_tag_dialog(self, session: SessionSummary) -> None:
-        current = self._session_tags_by_id.get(session.session_id, set())
-        dialog = SessionTagDialog(
+        SessionTagDialog(
             session.session_id,
-            current,
-            self._known_tags,
-            self._descriptions,
-            self._on_submit,
+            self._snapshot.tags_by_session.get(session.session_id, set()),
+            self._snapshot.known_tags,
+            dict(self._snapshot.descriptions),
+            self._submit,
             self._habit,
-            self._now,
+            self._now(),
             parent=self,
-        )
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            self._session_tags_by_id[session.session_id] = set(dialog.tag_picker.selected())
+        ).exec()
 
     def _open_retract_dialog(self, session: SessionSummary) -> None:
-        dialog = RetractConfirmDialog(session, self._on_submit, self._habit, self._now, parent=self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            self._sessions = [s for s in self._sessions if s.session_id != session.session_id]
-            self._populate()
-            if not self._sessions:
-                self._empty_lbl.setText("Nothing to manage — the log has no standing sessions.")
+        RetractConfirmDialog(
+            session,
+            self._submit,
+            self._habit,
+            self._now(),
+            parent=self,
+        ).exec()

@@ -6,8 +6,9 @@ live (``timestamp`` is the recording moment itself, evidentially strong) events 
 backfilled ones (``timestamp`` is a claimed moment typed in after the fact) — see
 :class:`Origin`. ``habit`` says which habit the event is evidence of.
 
-A mistake is corrected by appending :class:`SessionRetracted`, so the record shows both
-what was claimed and that it was withdrawn.
+A mistake is corrected by appending — :class:`SessionRetracted` for a whole session,
+:class:`EventVoided` for one standalone entry — so the record shows both what was claimed
+and that it was withdrawn.
 """
 
 from __future__ import annotations
@@ -145,6 +146,28 @@ class SessionRetracted(SessionEvent):
     """
 
     type: Literal["session_retracted"] = "session_retracted"
+    target_date: date
+    reason: str = ""
+
+
+class EventVoided(BaseEvent):
+    """Voids one earlier event, by appending rather than editing.
+
+    The target is ``target_event_id`` — the ``event_id`` of a single standalone event, a
+    wake-up or a workout log. A whole Pomodoro session is voided by
+    :class:`SessionRetracted` instead, keyed by ``session_id``, so the two never overlap
+    and no event is reachable by both.
+
+    ``target_date`` is the habit-day the voided event was filed under, copied in at write
+    time: it files this event beside what it corrects (see :func:`partition_date`) and
+    stays there across a ``rollover_hour`` change.
+
+    Correcting an entry rather than dropping it is a void plus a fresh log entry, appended
+    together — see ``habito.actions.voiding``.
+    """
+
+    type: Literal["event_voided"] = "event_voided"
+    target_event_id: UUID
     target_date: date
     reason: str = ""
 
@@ -294,6 +317,7 @@ Event = Annotated[
     | TimeAdjusted
     | SessionEnded
     | SessionRetracted
+    | EventVoided
     | SessionTagged
     | SessionUntagged
     | TagCreated
@@ -363,7 +387,7 @@ def partition_date(event: Event, rollover_hour: int = 0) -> date:
     ``habit``. The store, the calendar and the log all go through here, so a file holds
     exactly the events those views attribute to its day.
     """
-    if isinstance(event, SessionRetracted):
+    if isinstance(event, (SessionRetracted, EventVoided)):
         return event.target_date
     return logical_date(event, rollover_hour)
 
@@ -373,20 +397,29 @@ def retracted_session_ids(events: Iterable[Event]) -> set[UUID]:
     return {e.session_id for e in events if isinstance(e, SessionRetracted)}
 
 
-def drop_retracted(events: Iterable[Event]) -> list[Event]:
-    """``events`` with every retracted session removed, retraction lines included.
+def voided_event_ids(events: Iterable[Event]) -> set[UUID]:
+    """The individual events voided by an :class:`EventVoided` somewhere in ``events``."""
+    return {e.target_event_id for e in events if isinstance(e, EventVoided)}
 
-    Collects the set in a first pass so the result holds whatever the stream order is: a
-    retraction files under the target's day, so retracting a session that spanned a
-    rollover puts the line in the earlier day's file, ahead of events it voids in the later.
 
-    An event with no ``session_id`` at all (``TagCreated``, ``TagDescribed``,
-    ``WakeUpLogged``, the ``Workout*`` family) was never part of any session, so it can't
-    have been voided by one — kept unconditionally rather than compared against
-    ``retracted``.
+def drop_corrected(events: Iterable[Event]) -> list[Event]:
+    """``events`` with everything a later correction withdrew removed.
+
+    Two rules, one pass: a session named by a :class:`SessionRetracted` loses every event
+    carrying its ``session_id``, and an event named by an :class:`EventVoided` loses just
+    itself. The correction lines themselves stand — they are the current statement.
+
+    Both sets are collected first, because a correction files under the day it corrects and
+    so can appear ahead of what it withdraws in the concatenated stream.
     """
     entries = list(events)
     retracted = retracted_session_ids(entries)
-    if not retracted:
+    voided = voided_event_ids(entries)
+    if not retracted and not voided:
         return entries
-    return [e for e in entries if not isinstance(e, SessionEvent) or e.session_id not in retracted]
+    return [
+        e
+        for e in entries
+        if e.event_id not in voided
+        and not (isinstance(e, SessionEvent) and e.session_id in retracted)
+    ]

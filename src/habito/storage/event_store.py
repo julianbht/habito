@@ -31,7 +31,7 @@ import os
 from collections.abc import Callable
 from pathlib import Path
 
-from habito.domain.events import Event, EventAdapter, drop_retracted, partition_date
+from habito.domain.events import Event, EventAdapter, drop_corrected, partition_date
 
 Listener = Callable[[Event], None]
 
@@ -92,22 +92,24 @@ class EventStore:
             return []
         return sorted(self._habit_root.glob("*/*/*.jsonl"))
 
-    def read_all(self, *, include_retracted: bool = False) -> list[Event]:
+    def read_all(self, *, raw: bool = False) -> list[Event]:
         """Replay the full log, parsing each line into its concrete event type.
 
-        Retracted sessions are dropped here, at the deserialization boundary, so a caller
-        gets what the log currently asserts and the rule lives in one place.
+        Retracted sessions and voided entries are dropped here, at the deserialization
+        boundary, so a caller gets what the log currently asserts and the rule lives in one
+        place (see :func:`~habito.domain.events.drop_corrected`).
 
-        ``include_retracted=True`` returns the raw stream, for callers that want what was
-        written: the log view, which shows the correction, and the "Manage sessions"
-        dialog, which lists sessions to pick from.
+        ``raw=True`` returns the stream exactly as written, for the two callers that want
+        what the log *says* rather than what it currently asserts: the log view, which
+        shows a correction alongside what it corrects, and the "Manage sessions" dialog,
+        which needs to recognise an already-retracted session to leave it off the list.
         """
         events: list[Event] = []
         for path in self.files():
             with path.open("r", encoding="utf-8") as f:
-                for raw in f:
-                    raw = raw.strip()
-                    if not raw:
+                for line in f:
+                    line = line.strip()
+                    if not line:
                         continue
-                    events.append(EventAdapter.validate_json(raw))
-        return events if include_retracted else drop_retracted(events)
+                    events.append(EventAdapter.validate_json(line))
+        return events if raw else drop_corrected(events)

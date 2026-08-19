@@ -15,13 +15,16 @@ immediately, through ``on_describe_workout`` — the same split ``SessionComplet
 makes between "describe the catalog entry" (writes now) and "log this instance" (writes on
 submit, via ``build_workout_logged_event``, only once you press "Log & commit").
 
-The only ☰ entry point for workouts, deliberately — there's no separate "Manage workouts…"
-the way tags get a ``CatalogManagerDialog``. The picker embedded here (double-click to edit
-a description, "+ New workout" to add one) already covers everything a standalone manager
-would, since — unlike a tag's checkable picker, which only ever appears mid-session-tagging
-— this dialog is already its own top-level menu entry with nothing else it needs to be
-nested inside. Opening it just to fix a workout's description and pressing Cancel afterwards
-is a perfectly normal use, not a workaround.
+Opened from ``ManageWorkoutsDialog`` — its "Log workout…" button for a fresh entry, its row
+menu's "Edit…" for one already logged. ``replacing`` seeds the fields (including which
+workouts start ticked) and renames the dialog and its button; it changes nothing about what
+this dialog *writes*, since the correction is the manager's to make by voiding the old entry
+alongside the new one this submits.
+
+The picker embedded here still doubles as the workout catalog — double-click a row to edit
+its description, "+ New workout" to add one — but the manager also reaches
+``CatalogManagerDialog`` directly, so fixing a description doesn't mean opening a logging
+form and cancelling out of it.
 """
 
 from __future__ import annotations
@@ -48,7 +51,7 @@ from habito.actions.workout import (
     build_workout_logged_event,
 )
 from habito.config.models import TimeConfig
-from habito.domain.events import Event
+from habito.domain.events import Event, WorkoutLogged, local_datetime
 from habito.ui import theme
 from habito.ui.dialogs.catalog_edit_dialog import SubmitCallback as DescribeWorkoutCallback
 from habito.ui.widgets.catalog_picker import CatalogPicker
@@ -68,6 +71,7 @@ class WorkoutLogDialog(QDialog):
         now: datetime,
         time_config: TimeConfig | None = None,
         today: date | None = None,
+        replacing: WorkoutLogged | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -75,11 +79,12 @@ class WorkoutLogDialog(QDialog):
         self._habit = habit
         self._tz = time_config or TimeConfig()
         self._today = today or date.today()
-        self.setWindowTitle("Log workout")
+        self._editing = replacing is not None
+        self.setWindowTitle("Edit workout log" if self._editing else "Log workout")
         self.setMinimumWidth(BROWSE_DIALOG_WIDTH)
         self.setMinimumHeight(BROWSE_DIALOG_HEIGHT)
         self.setModal(True)
-        self._build(known_workouts, descriptions, on_describe_workout, habit, now)
+        self._build(known_workouts, descriptions, on_describe_workout, habit, now, replacing)
 
     def _build(
         self,
@@ -88,6 +93,7 @@ class WorkoutLogDialog(QDialog):
         on_describe_workout: DescribeWorkoutCallback,
         habit: str,
         now: datetime,
+        replacing: WorkoutLogged | None,
     ) -> None:
         root = QVBoxLayout(self)
         root.setContentsMargins(20, 18, 20, 18)
@@ -99,15 +105,18 @@ class WorkoutLogDialog(QDialog):
         # "Today" is the configured timezone's, which on a machine set to another zone is
         # not the same day the computer thinks it is — same reasoning as Backfill/WakeUp.
         today = QDate(self._today.year, self._today.month, self._today.day)
-        self._date = QDateEdit(today)
+        # Right now for a fresh entry — you're most often logging a workout you just
+        # finished, unlike wake-up/bedtime, which have their own configured defaults — or
+        # the entry's own wall-clock values when correcting one.
+        when = local_datetime(replacing) if replacing is not None else now
+        seed_date = when.date() if replacing is not None else self._today
+        self._date = QDateEdit(QDate(seed_date.year, seed_date.month, seed_date.day))
         self._date.setCalendarPopup(True)
         self._date.setDisplayFormat("yyyy-MM-dd")
         self._date.setMaximumDate(today)  # you can't log a workout in the future
         form.addRow("Date", self._date)
 
-        # Defaults to right now — you're most often logging a workout you just finished,
-        # unlike wake-up/bedtime, which have their own configured defaults instead.
-        default_time = now.time()
+        default_time = when.time()
         self._time = QTimeEdit(QTime(default_time.hour, default_time.minute))
         self._time.setDisplayFormat("HH:mm")
         form.addRow("Time", Stepper(self._time))
@@ -123,6 +132,7 @@ class WorkoutLogDialog(QDialog):
             ),
             "workout",
             checkable=True,
+            checked=set(replacing.workouts) if replacing is not None else None,
         )
         root.addWidget(self.picker, 1)
 
@@ -140,7 +150,7 @@ class WorkoutLogDialog(QDialog):
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
-        ok.setText("Log && commit")
+        ok.setText("Save && commit" if self._editing else "Log && commit")
         ok.setObjectName("primary")
         ok.setDefault(True)
         buttons.accepted.connect(self._submit)

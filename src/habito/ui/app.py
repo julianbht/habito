@@ -7,7 +7,7 @@ the safe cross-thread pattern here, and the reason no explicit status queue is n
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import date
 
 from PySide6.QtCore import QSize, Qt, QTimer, Signal
@@ -23,21 +23,33 @@ from PySide6.QtWidgets import (
 )
 
 from habito.actions.tagging import build_tag_created_event, build_tag_described_event
+from habito.actions.workout import build_workout_created_event, build_workout_described_event
 from habito.config.editor import ConfigEditor
 from habito.config.models import Config
-from habito.domain.events import Event, Origin, SessionEvent, SessionTagged, logical_day
+from habito.domain.events import (
+    Event,
+    Origin,
+    SessionEvent,
+    SessionTagged,
+    WakeUpLogged,
+    WorkoutLogged,
+    logical_day,
+)
 from habito.engine.pomodoro import EngineState, PomodoroEngine, State
 from habito.evidence.worker import EvidenceStatus, EvidenceWorker
 from habito.projections.daily import summarize_by_day, summary_for
 from habito.projections.resume import ResumePhase, find_resumable
 from habito.projections.sessions import summarize_sessions
 from habito.projections.tags import known_tags, session_tags, tag_descriptions
-from habito.projections.workouts import known_workouts, workout_descriptions
+from habito.projections.wakeups import wakeup_entries
+from habito.projections.workouts import known_workouts, workout_descriptions, workout_entries
 from habito.storage.event_store import EventStore
 from habito.ui import theme
 from habito.ui.dialogs.backfill_dialog import BackfillDialog
 from habito.ui.dialogs.catalog_manager_dialog import CatalogManagerDialog
-from habito.ui.dialogs.manage_sessions_dialog import ManageSessionsDialog
+from habito.ui.dialogs.entry_manager_dialog import EntryManagerDialog, ManagedEntry
+from habito.ui.dialogs.entry_summaries import describe_wakeup, describe_workout_log
+from habito.ui.dialogs.manage_sessions_dialog import ManageSessionsDialog, SessionsSnapshot
 from habito.ui.dialogs.phase_dialog import PhaseDialog
 from habito.ui.dialogs.resume_dialog import ResumePromptDialog
 from habito.ui.dialogs.session_complete_dialog import SessionCompleteDialog
@@ -232,14 +244,15 @@ class HabitoApp(QMainWindow):
             action.triggered.connect(lambda _c=False, i=index: self.show_page(i))
             group.addAction(action)
 
+        # One entry per stream of things you log, each opening that stream's manager:
+        # the list of what's there, plus the button that adds one. Backfill and the tag
+        # catalog are reached from inside the sessions manager rather than from here.
         menu.addSeparator()
-        menu.addAction(icon("calendar_add_on"), "Backfill…", self.on_open_backfill)
-        menu.addAction(icon("undo"), "Manage sessions…", self.on_open_manage_sessions)
-        menu.addAction(icon("sell"), "Manage tags…", self.on_open_manage_tags)
+        menu.addAction(icon("calendar_add_on"), "Sessions…", self.on_open_manage_sessions)
         if self._wakeup_store is not None:
-            menu.addAction(icon("alarm"), "Log sleep", self.on_open_wakeup)
+            menu.addAction(icon("alarm"), "Sleep…", self.on_open_manage_wakeups)
         if self._workout_store is not None:
-            menu.addAction(icon("fitness_center"), "Log workout", self.on_open_log_workout)
+            menu.addAction(icon("fitness_center"), "Workouts…", self.on_open_manage_workouts)
         menu.addAction(icon("keyboard"), "Shortcuts…", self.on_open_shortcuts)
         menu.addAction(icon("settings"), "Settings…", self._open_settings)
         return menu
@@ -255,13 +268,13 @@ class HabitoApp(QMainWindow):
             widget, focus = calendar, calendar.calendar
         elif page == _LOG_PAGE:
             log = self._log_view()
-            # The one view showing retractions, so it reads the study stream unfiltered.
-            # The wake-up habit has no retraction UI yet, so its own stream is read plain.
-            events = self._store.read_all(include_retracted=True)
+            # The one view showing corrections, so every stream is read unfiltered: a
+            # retracted session and a voided entry both stay on screen, struck through.
+            events = self._store.read_all(raw=True)
             if self._wakeup_store is not None:
-                events += self._wakeup_store.read_all()
+                events += self._wakeup_store.read_all(raw=True)
             if self._workout_store is not None:
-                events += self._workout_store.read_all()
+                events += self._workout_store.read_all(raw=True)
             log.set_events(events)
             widget, focus = log, log.tree
         else:
@@ -452,7 +465,11 @@ class HabitoApp(QMainWindow):
         self._clock.set_zone(time_config.zone())
         if self._log is not None:
             self._log.set_rollover_hour(time_config.rollover_hour)
-        self._store.set_rollover_hour(time_config.rollover_hour)
+        # Every store, not just the study one: they all partition by the same rollover, and
+        # a void files under the day its target was filed on.
+        for store in (self._store, self._wakeup_store, self._workout_store):
+            if store is not None:
+                store.set_rollover_hour(time_config.rollover_hour)
         # "Today" may well have moved, so anything counting from it is now stale.
         self._today_baseline = self._compute_today_baseline()
         self._refresh_calendar()
@@ -470,7 +487,82 @@ class HabitoApp(QMainWindow):
         """Play a sound without committing to it, so it can be auditioned."""
         self._sounds.play(sound)
 
-    def on_open_backfill(self) -> None:
+    def on_open_manage_sessions(self) -> None:
+        ManageSessionsDialog(
+            reload=self._sessions_snapshot,
+            on_submit=self._append_all,
+            habit=self._config.habit,
+            now=self._clock.local_now,
+            open_backfill=self._open_backfill_form,
+            open_tags=self._open_tag_catalog,
+            parent=self._settings_dialog or self,
+        ).exec()
+
+    def on_open_manage_wakeups(self) -> None:
+        assert self._wakeup_store is not None  # menu action only exists when this is set
+        EntryManagerDialog(
+            title="Sleep",
+            hint="Right-click an entry to edit or void it.",
+            empty_text="Nothing logged yet.",
+            add_text="Log wake-up…",
+            reload=self._wakeup_entries,
+            open_form=self._open_wakeup_form,
+            on_submit=self._append_wakeup,
+            rollover_hour=self._config.time.rollover_hour,
+            now=self._clock.local_now,
+            parent=self._settings_dialog or self,
+        ).exec()
+
+    def on_open_manage_workouts(self) -> None:
+        assert self._workout_store is not None  # menu action only exists when this is set
+        EntryManagerDialog(
+            title="Workouts",
+            hint="Right-click an entry to edit or void it.",
+            empty_text="Nothing logged yet.",
+            add_text="Log workout…",
+            reload=self._workout_entries,
+            open_form=self._open_workout_form,
+            on_submit=self._append_workout,
+            rollover_hour=self._config.time.rollover_hour,
+            now=self._clock.local_now,
+            extra=("Workout types…", self._open_workout_catalog),
+            parent=self._settings_dialog or self,
+        ).exec()
+
+    def on_open_shortcuts(self) -> None:
+        ShortcutsDialog(parent=self._settings_dialog or self).exec()
+
+    # --- what the managers list, and the forms they open ------------------
+    # Each manager is handed a `reload` rather than a snapshot, so anything written from
+    # inside it — a backfilled session, an edited wake-up — shows up in the list behind the
+    # form that wrote it.
+    def _sessions_snapshot(self) -> SessionsSnapshot:
+        # The raw stream, so a session already retracted can be recognised as such and left
+        # off the list — but known_tags/tag_descriptions fold the standing one, so a tag
+        # used only on a session that's since been retracted stops being offered.
+        raw = self._store.read_all(raw=True)
+        events = self._store.read_all()
+        sessions = summarize_sessions(raw, self._config.time.rollover_hour)
+        return SessionsSnapshot(
+            sessions=sessions,
+            tags_by_session={s.session_id: session_tags(raw, s.session_id) for s in sessions},
+            known_tags=known_tags(events, self._config.habit),
+            descriptions=tag_descriptions(events, self._config.habit),
+        )
+
+    def _wakeup_entries(self) -> list[ManagedEntry]:
+        assert self._wakeup_store is not None
+        habit = self._config.extras.wakeup.habit
+        entries = wakeup_entries(self._wakeup_store.read_all(), habit)
+        return [ManagedEntry(describe_wakeup(e), e) for e in entries]
+
+    def _workout_entries(self) -> list[ManagedEntry]:
+        assert self._workout_store is not None
+        habit = self._config.extras.workout.habit
+        entries = workout_entries(self._workout_store.read_all(), habit)
+        return [ManagedEntry(describe_workout_log(e), e) for e in entries]
+
+    def _open_backfill_form(self, parent: QWidget) -> None:
         BackfillDialog(
             on_submit=self._append_all,
             # Backfilled sessions are described in whole minutes; a sub-minute test round
@@ -481,28 +573,38 @@ class HabitoApp(QMainWindow):
             habit=self._config.habit,
             time_config=self._config.time,
             today=self._today(),
-            parent=self._settings_dialog or self,
+            parent=parent,
         ).exec()
 
-    def on_open_wakeup(self) -> None:
-        assert self._wakeup_store is not None  # menu action only exists when this is set
+    def _open_wakeup_form(
+        self,
+        parent: QWidget,
+        on_submit: Callable[[Iterable[Event]], None],
+        replacing: Event | None,
+    ) -> None:
         wakeup = self._config.extras.wakeup
         WakeUpDialog(
-            on_submit=self._append_wakeup,
+            on_submit=on_submit,
             default_wake_time=wakeup.default_wake_time,
             default_bedtime=wakeup.default_bedtime,
             habit=wakeup.habit,
             time_config=self._config.time,
             today=self._today(),
-            parent=self._settings_dialog or self,
+            replacing=replacing if isinstance(replacing, WakeUpLogged) else None,
+            parent=parent,
         ).exec()
 
-    def on_open_log_workout(self) -> None:
-        assert self._workout_store is not None  # menu action only exists when this is set
+    def _open_workout_form(
+        self,
+        parent: QWidget,
+        on_submit: Callable[[Iterable[Event]], None],
+        replacing: Event | None,
+    ) -> None:
+        assert self._workout_store is not None
         workout = self._config.extras.workout
         events = self._workout_store.read_all()
         WorkoutLogDialog(
-            on_submit=self._append_workout,
+            on_submit=on_submit,
             on_describe_workout=lambda event: self._append_workout([event]),
             known_workouts=known_workouts(events, workout.habit),
             descriptions=workout_descriptions(events, workout.habit),
@@ -510,32 +612,11 @@ class HabitoApp(QMainWindow):
             now=self._clock.local_now(),
             time_config=self._config.time,
             today=self._today(),
-            parent=self._settings_dialog or self,
+            replacing=replacing if isinstance(replacing, WorkoutLogged) else None,
+            parent=parent,
         ).exec()
 
-    def on_open_manage_sessions(self) -> None:
-        # The raw stream, so a session already retracted can be recognised as such and
-        # left off the list — but known_tags/tag_descriptions still fold the standing one
-        # (retractions dropped), same as on_open_manage_tags, so a tag used only on a
-        # session that's since been retracted stops being offered like anywhere else.
-        raw = self._store.read_all(include_retracted=True)
-        events = self._store.read_all()
-        sessions = summarize_sessions(raw, self._config.time.rollover_hour)
-        ManageSessionsDialog(
-            sessions=sessions,
-            session_tags_by_id={s.session_id: session_tags(raw, s.session_id) for s in sessions},
-            known_tags=known_tags(events, self._config.habit),
-            descriptions=tag_descriptions(events, self._config.habit),
-            on_submit=self._append_all,
-            habit=self._config.habit,
-            now=self._clock.local_now(),
-            parent=self._settings_dialog or self,
-        ).exec()
-
-    def on_open_shortcuts(self) -> None:
-        ShortcutsDialog(parent=self._settings_dialog or self).exec()
-
-    def on_open_manage_tags(self) -> None:
+    def _open_tag_catalog(self, parent: QWidget) -> None:
         events = self._store.read_all()
         now = self._clock.local_now()
         CatalogManagerDialog(
@@ -551,7 +632,28 @@ class HabitoApp(QMainWindow):
             build_described=lambda tag, description: build_tag_described_event(
                 tag, description, habit=self._config.habit, now=now
             ),
-            parent=self._settings_dialog or self,
+            parent=parent,
+        ).exec()
+
+    def _open_workout_catalog(self, parent: QWidget) -> None:
+        assert self._workout_store is not None
+        habit = self._config.extras.workout.habit
+        events = self._workout_store.read_all()
+        now = self._clock.local_now()
+        CatalogManagerDialog(
+            title="Manage workouts",
+            hint="Double-click a workout to change its description.",
+            noun="workout",
+            items=known_workouts(events, habit),
+            descriptions=workout_descriptions(events, habit),
+            on_submit=lambda event: self._append_workout([event]),
+            build_created=lambda workout: build_workout_created_event(
+                workout, habit=habit, now=now
+            ),
+            build_described=lambda workout, description: build_workout_described_event(
+                workout, description, habit=habit, now=now
+            ),
+            parent=parent,
         ).exec()
 
     # --- internals -------------------------------------------------------

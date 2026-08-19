@@ -1,10 +1,17 @@
-"""Dialog to log when you woke up, entered later at the PC.
+"""Dialog to log when you woke up, entered later at the PC — and to correct one already
+logged.
 
 Modeled on ``BackfillDialog`` for a consistent feel: same compact size, same date/time
 field pattern, same error-label-then-primary-button shape. Produces a backfilled
 ``WakeUpLogged`` via :func:`habito.actions.wakeup.build_wakeup_event` and hands it to the
 ``on_submit`` callback, which appends it to the wake-up store (then committed+pushed,
 tagged ``[backfilled]``).
+
+``replacing`` seeds the fields from an existing entry and renames the dialog and its
+button. It changes nothing about what this dialog *writes* — the correction is the caller's
+to make, by voiding the old entry alongside the new one this submits (see
+``EntryManagerDialog``), so a form that only ever produces one honest wake-up event stays
+that way.
 """
 
 from __future__ import annotations
@@ -26,7 +33,7 @@ from PySide6.QtWidgets import (
 
 from habito.actions.wakeup import build_wakeup_event
 from habito.config.models import TimeConfig
-from habito.domain.events import Event
+from habito.domain.events import Event, WakeUpLogged, local_datetime
 from habito.ui import theme
 from habito.ui.widgets.controls import COMPACT_DIALOG_WIDTH, Stepper
 
@@ -42,6 +49,7 @@ class WakeUpDialog(QDialog):
         habit: str,
         time_config: TimeConfig | None = None,
         today: date | None = None,
+        replacing: WakeUpLogged | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -49,12 +57,26 @@ class WakeUpDialog(QDialog):
         self._habit = habit
         self._tz = time_config or TimeConfig()
         self._today = today or date.today()
-        self.setWindowTitle("Log wake-up")
+        self._editing = replacing is not None
+        self.setWindowTitle("Edit wake-up" if self._editing else "Log wake-up")
         self.setMinimumWidth(COMPACT_DIALOG_WIDTH)
         self.setModal(True)
-        self._build(default_wake_time, default_bedtime)
+        self._build(*self._seed(replacing, default_wake_time, default_bedtime))
 
-    def _build(self, default_wake_time: time, default_bedtime: time) -> None:
+    def _seed(
+        self, replacing: WakeUpLogged | None, default_wake_time: time, default_bedtime: time
+    ) -> tuple[date, time, time]:
+        """The date and two clock values the fields start on — the configured defaults for a
+        fresh entry, the existing one's own wall-clock values when correcting it."""
+        if replacing is None:
+            return self._today, default_wake_time, default_bedtime
+        woke = local_datetime(replacing)
+        # `bedtime` shares `timestamp`'s offset (see WakeUpLogged), so the same arithmetic
+        # `local_datetime` does for `timestamp` applies to it by hand.
+        bed = replacing.bedtime + timedelta(minutes=replacing.tz_offset_minutes)
+        return woke.date(), woke.time(), bed.time()
+
+    def _build(self, seed_date: date, default_wake_time: time, default_bedtime: time) -> None:
         root = QVBoxLayout(self)
         root.setContentsMargins(20, 18, 20, 18)
         root.setSpacing(10)
@@ -65,7 +87,7 @@ class WakeUpDialog(QDialog):
         # "Today" is the configured timezone's, which on a machine set to another zone
         # is not the same day the computer thinks it is — same reasoning as Backfill.
         today = QDate(self._today.year, self._today.month, self._today.day)
-        self._date = QDateEdit(today)
+        self._date = QDateEdit(QDate(seed_date.year, seed_date.month, seed_date.day))
         self._date.setCalendarPopup(True)
         self._date.setDisplayFormat("yyyy-MM-dd")
         self._date.setMaximumDate(today)  # you can't log a wake-up in the future
@@ -89,7 +111,7 @@ class WakeUpDialog(QDialog):
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
-        ok.setText("Log && commit")
+        ok.setText("Save && commit" if self._editing else "Log && commit")
         ok.setObjectName("primary")
         ok.setDefault(True)
         buttons.accepted.connect(self._submit)
