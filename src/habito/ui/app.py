@@ -498,7 +498,7 @@ class HabitoApp(QMainWindow):
         assert self._wakeup_store is not None  # menu action only exists when this is set
         EntryManagerDialog(
             title="Sleep",
-            hint="Right-click an entry to edit or void it.",
+            hint="Double-click an entry to edit it, or right-click to void it.",
             empty_text="Nothing logged yet.",
             add_text="Log wake-up…",
             reload=self._wakeup_entries,
@@ -513,7 +513,7 @@ class HabitoApp(QMainWindow):
         assert self._workout_store is not None  # menu action only exists when this is set
         EntryManagerDialog(
             title="Workouts",
-            hint="Right-click an entry to edit or void it.",
+            hint="Double-click an entry to edit it, or right-click to void it.",
             empty_text="Nothing logged yet.",
             add_text="Log workout…",
             reload=self._workout_entries,

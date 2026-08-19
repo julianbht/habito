@@ -1,10 +1,13 @@
 """Manage one stream of standalone log entries — sleep or workouts.
 
-The list of what's been logged, an "add" button that opens that stream's own logging
-dialog, and a right-click menu per row to correct or void an entry. One class for both
-streams: a wake-up and a workout log differ in what a row says and which form adds one,
-never in the shape of managing them, so those two come in as data (``reload``,
-``open_form``) rather than as a second dialog.
+The list of what's been logged, and an "add" button that opens that stream's own logging
+dialog. Double-click a row to edit it — the same gesture that edits a catalog entry one
+dialog further in — with a right-click menu that keeps editing discoverable and adds the
+destructive action beside it.
+
+One class for both streams: a wake-up and a workout log differ in what a row says and which
+form adds one, never in the shape of managing them, so those two come in as data
+(``reload``, ``open_form``) rather than as a second dialog.
 
 Editing is a void plus a fresh entry, appended together in one submit — the log is never
 rewritten, so "I logged the wrong time" is the old entry withdrawn and the corrected one
@@ -94,6 +97,8 @@ class EntryManagerDialog(QDialog):
 
         self.list = EntryList(hint, empty_text)
         self.list.row_menu_requested.connect(self._on_row_menu)
+        # Double-click edits, the same gesture that edits a catalog entry one dialog in.
+        self.list.row_activated.connect(self._on_row_activated)
         root.addWidget(self.list, 1)
 
         actions = QHBoxLayout()
@@ -117,10 +122,18 @@ class EntryManagerDialog(QDialog):
     def _add(self) -> None:
         self._open_form(self, self._submit, None)
 
+    def _entry_at(self, row: int) -> ManagedEntry | None:
+        return self._entries[row] if 0 <= row < len(self._entries) else None
+
+    def _on_row_activated(self, row: int) -> None:
+        entry = self._entry_at(row)
+        if entry is not None:
+            self._edit(entry)
+
     def _on_row_menu(self, row: int, pos: QPoint) -> None:
-        if not 0 <= row < len(self._entries):
+        entry = self._entry_at(row)
+        if entry is None:
             return
-        entry = self._entries[row]
         menu = QMenu(self)
         menu.addAction("Edit…", lambda: self._edit(entry))
         menu.addAction(icon("undo"), "Void…", lambda: self._void(entry))
