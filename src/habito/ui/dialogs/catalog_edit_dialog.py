@@ -39,7 +39,6 @@ from PySide6.QtGui import QShowEvent
 from PySide6.QtWidgets import (
     QDialog,
     QFormLayout,
-    QHBoxLayout,
     QLineEdit,
     QPlainTextEdit,
     QVBoxLayout,
@@ -47,7 +46,12 @@ from PySide6.QtWidgets import (
 )
 
 from habito.domain.events import Event
-from habito.ui.widgets.controls import COMPACT_DIALOG_WIDTH, button, primary_button
+from habito.ui.widgets.controls import (
+    COMPACT_DIALOG_WIDTH,
+    button,
+    button_row,
+    primary_button,
+)
 
 SubmitCallback = Callable[[Event], None]
 CreatedBuilder = Callable[[str], Event]
@@ -108,16 +112,12 @@ class CatalogEditDialog(QDialog):
         form.addRow("Description", self._description)
         root.addLayout(form)
 
-        row = QHBoxLayout()
-        row.addStretch(1)
         cancel_btn = button("Cancel")
         cancel_btn.clicked.connect(self.reject)
-        row.addWidget(cancel_btn)
         self.save_btn = primary_button("Save")
         self.save_btn.setEnabled(bool((name or "").strip()))
         self.save_btn.clicked.connect(self._on_save)
-        row.addWidget(self.save_btn)
-        root.addLayout(row)
+        root.addLayout(button_row(self, primary=self.save_btn, dismiss=cancel_btn))
 
     def showEvent(self, event: QShowEvent) -> None:  # noqa: N802 (Qt override)
         """Set initial focus here, not in ``_build`` — Qt assigns its own default focus

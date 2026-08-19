@@ -18,7 +18,6 @@ from PySide6.QtCore import QDate, Qt, QTime
 from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
-    QDialogButtonBox,
     QFormLayout,
     QLabel,
     QTimeEdit,
@@ -30,7 +29,14 @@ from habito.actions.backfill import build_backfill_events
 from habito.config.models import TimeConfig
 from habito.domain.events import Event
 from habito.ui import theme
-from habito.ui.widgets.controls import COMPACT_DIALOG_WIDTH, Stepper, StepSpinBox
+from habito.ui.widgets.controls import (
+    COMPACT_DIALOG_WIDTH,
+    Stepper,
+    StepSpinBox,
+    button,
+    button_row,
+    primary_button,
+)
 
 SubmitCallback = Callable[[list[Event]], None]
 
@@ -93,16 +99,11 @@ class BackfillDialog(QDialog):
         self._error.setStyleSheet(f"color: {theme.ERROR};")
         root.addWidget(self._error)
 
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
-        ok.setText("Add && commit")
-        ok.setObjectName("primary")
-        ok.setDefault(True)
-        buttons.accepted.connect(self._submit)
-        buttons.rejected.connect(self.reject)  # Esc also closes, via QDialog
-        root.addWidget(buttons)
+        cancel_btn = button("Cancel")
+        cancel_btn.clicked.connect(self.reject)  # Esc also closes, via QDialog
+        self.ok_button = primary_button("Add && commit")
+        self.ok_button.clicked.connect(self._submit)
+        root.addLayout(button_row(self, primary=self.ok_button, dismiss=cancel_btn))
 
     @staticmethod
     def _spin(value: int, *, maximum: int, step: int = 1) -> StepSpinBox:

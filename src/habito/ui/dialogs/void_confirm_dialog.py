@@ -11,12 +11,18 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 
-from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QLineEdit, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QDialog, QLabel, QLineEdit, QVBoxLayout, QWidget
 
 from habito.actions.voiding import build_void_event
 from habito.domain.events import Event
 from habito.ui import theme
-from habito.ui.widgets.controls import COMPACT_DIALOG_WIDTH, button, label, primary_button
+from habito.ui.widgets.controls import (
+    COMPACT_DIALOG_WIDTH,
+    button,
+    button_row,
+    label,
+    primary_button,
+)
 
 SubmitCallback = Callable[[list[Event]], None]
 
@@ -63,15 +69,11 @@ class VoidConfirmDialog(QDialog):
         self._error.setStyleSheet(f"color: {theme.ERROR};")
         root.addWidget(self._error)
 
-        row = QHBoxLayout()
-        row.addStretch(1)
         cancel_btn = button("Cancel")
         cancel_btn.clicked.connect(self.reject)
-        row.addWidget(cancel_btn)
         self._ok_btn = primary_button("Void && commit")
         self._ok_btn.clicked.connect(self._submit)
-        row.addWidget(self._ok_btn)
-        root.addLayout(row)
+        root.addLayout(button_row(self, primary=self._ok_btn, dismiss=cancel_btn))
 
     def _submit(self) -> None:
         try:

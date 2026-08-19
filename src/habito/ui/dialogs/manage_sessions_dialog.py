@@ -24,7 +24,7 @@ from datetime import datetime
 from uuid import UUID
 
 from PySide6.QtCore import QPoint
-from PySide6.QtWidgets import QDialog, QHBoxLayout, QMenu, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QDialog, QMenu, QVBoxLayout, QWidget
 
 from habito.domain.events import Event
 from habito.projections.sessions import SessionSummary
@@ -35,6 +35,7 @@ from habito.ui.widgets.controls import (
     BROWSE_DIALOG_HEIGHT,
     BROWSE_DIALOG_WIDTH,
     button,
+    button_row,
     primary_button,
 )
 from habito.ui.widgets.entry_list import EntryList
@@ -93,15 +94,11 @@ class ManageSessionsDialog(QDialog):
         self.list.row_menu_requested.connect(self._on_row_menu)
         root.addWidget(self.list, 1)
 
-        actions = QHBoxLayout()
-        self.backfill_button = primary_button("Backfill…")
-        self.backfill_button.clicked.connect(self._backfill)
-        actions.addWidget(self.backfill_button)
-        actions.addStretch(1)
         close_btn = button("Close")
         close_btn.clicked.connect(self.accept)
-        actions.addWidget(close_btn)
-        root.addLayout(actions)
+        self.backfill_button = primary_button("Backfill…")
+        self.backfill_button.clicked.connect(self._backfill)
+        root.addLayout(button_row(self, primary=self.backfill_button, dismiss=close_btn))
 
     def _refresh(self) -> None:
         self._snapshot = self._reload()

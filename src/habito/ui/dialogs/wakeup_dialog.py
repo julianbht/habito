@@ -23,7 +23,6 @@ from PySide6.QtCore import QDate, QTime
 from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
-    QDialogButtonBox,
     QFormLayout,
     QLabel,
     QTimeEdit,
@@ -35,7 +34,13 @@ from habito.actions.wakeup import build_wakeup_event
 from habito.config.models import TimeConfig
 from habito.domain.events import Event, WakeUpLogged, local_datetime
 from habito.ui import theme
-from habito.ui.widgets.controls import COMPACT_DIALOG_WIDTH, Stepper
+from habito.ui.widgets.controls import (
+    COMPACT_DIALOG_WIDTH,
+    Stepper,
+    button,
+    button_row,
+    primary_button,
+)
 
 SubmitCallback = Callable[[list[Event]], None]
 
@@ -107,16 +112,11 @@ class WakeUpDialog(QDialog):
         self._error.setStyleSheet(f"color: {theme.ERROR};")
         root.addWidget(self._error)
 
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
-        ok.setText("Save && commit" if self._editing else "Log && commit")
-        ok.setObjectName("primary")
-        ok.setDefault(True)
-        buttons.accepted.connect(self._submit)
-        buttons.rejected.connect(self.reject)  # Esc also closes, via QDialog
-        root.addWidget(buttons)
+        cancel_btn = button("Cancel")
+        cancel_btn.clicked.connect(self.reject)  # Esc also closes, via QDialog
+        self.ok_button = primary_button("Save && commit" if self._editing else "Log && commit")
+        self.ok_button.clicked.connect(self._submit)
+        root.addLayout(button_row(self, primary=self.ok_button, dismiss=cancel_btn))
 
     def _submit(self) -> None:
         try:

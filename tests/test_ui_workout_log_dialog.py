@@ -14,7 +14,6 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, timedelta, timezone
 
 from PySide6.QtCore import QDate, Qt, QTime
-from PySide6.QtWidgets import QDialogButtonBox
 
 from habito.actions.workout import build_workout_logged_event
 from habito.config.models import TimeConfig
@@ -161,15 +160,6 @@ def test_creating_a_new_workout_inline_reaches_on_describe_workout(qtbot, monkey
 # `replacing` only seeds the fields and renames the window; the void that makes it a
 # correction is the manager's to add (see EntryManagerDialog), so what this dialog
 # *writes* is the same single honest event either way.
-def ok_button(dialog):
-    """The dialog's primary button, out of its QDialogButtonBox."""
-    box = dialog.findChild(QDialogButtonBox)
-    assert box is not None
-    button = box.button(QDialogButtonBox.StandardButton.Ok)
-    assert button is not None
-    return button
-
-
 def logged_workout(workouts=("running",), hour=18):
     """A workout log on 2026-08-04, as it would come back out of the log."""
     return build_workout_logged_event(
@@ -219,14 +209,14 @@ def test_editing_renames_the_window_and_its_button(qtbot):
     dialog = editing(qtbot, logged_workout())
 
     assert dialog.windowTitle() == "Edit workout log"
-    assert ok_button(dialog).text() == "Save && commit"
+    assert dialog.ok_button.text() == "Save && commit"
 
 
 def test_logging_afresh_keeps_the_log_wording(qtbot):
     dialog = editing(qtbot, None)
 
     assert dialog.windowTitle() == "Log workout"
-    assert ok_button(dialog).text() == "Log && commit"
+    assert dialog.ok_button.text() == "Log && commit"
 
 
 def test_editing_still_submits_one_plain_workout_log(qtbot):

@@ -8,14 +8,18 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import (
     QDialog,
-    QDialogButtonBox,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
-from habito.ui.widgets.controls import BROWSE_DIALOG_HEIGHT, BROWSE_DIALOG_WIDTH
+from habito.ui.widgets.controls import (
+    BROWSE_DIALOG_HEIGHT,
+    BROWSE_DIALOG_WIDTH,
+    button,
+    button_row,
+)
 
 # The single source for the app's keyboard shortcuts: shown here, and what
 # HabitoApp._install_shortcuts binds against (zipped with its slots there, in this
@@ -63,6 +67,6 @@ class ShortcutsDialog(QDialog):
         tree.resizeColumnToContents(0)
         root.addWidget(tree, 1)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        buttons.rejected.connect(self.reject)
-        root.addWidget(buttons)
+        close_btn = button("Close")
+        close_btn.clicked.connect(self.reject)  # Esc also closes, via QDialog
+        root.addLayout(button_row(self, dismiss=close_btn))

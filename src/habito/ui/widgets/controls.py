@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeyEvent, QValidator, QWheelEvent
@@ -119,6 +120,47 @@ def primary_button(text: str) -> Button:
     widget = button(text, "primary")
     widget.setDefault(True)
     return widget
+
+
+def button_row(
+    parent: QWidget,
+    *,
+    primary: QPushButton | None = None,
+    dismiss: QPushButton | None = None,
+    auxiliary: Sequence[QPushButton] = (),
+) -> QHBoxLayout:
+    """The app's one button-row shape — see CLAUDE.md § Controls.
+
+    Auxiliary buttons at the far left, a stretch, then the dismiss and the primary, so the
+    primary is always rightmost. Laying it out here rather than at each call site is what
+    makes that a property of the app instead of a habit: a call site cannot put the primary
+    on the left, and changing the order everywhere is a change to this function.
+
+    It also fixes the tab order across the row. Qt derives that from *construction* order,
+    which is nothing to do with where a button ends up, so a row assembled in a different
+    order than it reads would tab in that different order — and focus that skips around a
+    row it visibly matches is worse than either order on its own.
+
+    ``parent`` is the dialog the row belongs to, and is why it is a positional argument
+    rather than one more keyword: ``setTabOrder`` silently does nothing (with a warning on
+    stderr) unless both widgets are already in the same window, and a button only joins one
+    when the layout it is in is attached — which happens *after* this returns.
+    """
+    ordered = [*auxiliary, *(b for b in (dismiss, primary) if b is not None)]
+    row = QHBoxLayout()
+    for widget in auxiliary:
+        row.addWidget(widget)
+    row.addStretch(1)
+    if dismiss is not None:
+        row.addWidget(dismiss)
+    if primary is not None:
+        row.addWidget(primary)
+
+    for widget in ordered:
+        widget.setParent(parent)
+    for earlier, later in zip(ordered, ordered[1:], strict=False):
+        QWidget.setTabOrder(earlier, later)
+    return row
 
 
 class _NoWheelMixin:

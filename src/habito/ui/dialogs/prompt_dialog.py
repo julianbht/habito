@@ -42,7 +42,14 @@ class PromptDialog(QDialog):
 
     def _add_action_row(self, action: str) -> Button:
         """The centred action button. Called last, once a subclass has added whatever
-        goes between the message and it."""
+        goes between the message and it.
+
+        The one row in the app not built by ``widgets.button_row`` — see CLAUDE.md §
+        Controls. A prompt whose only button is its action centres it, matching the centred
+        heading and message above it; right-aligning a lone button under centred text reads
+        as a mistake. A subclass that adds a second button lays out its own ``button_row``
+        instead (``SessionCompleteDialog`` does).
+        """
         row = QHBoxLayout()
         row.addStretch(1)
         self.action_button = primary_button(action)

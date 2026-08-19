@@ -32,7 +32,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 
-from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from habito.actions.tagging import build_tag_created_event, build_tag_described_event
 from habito.ui.dialogs.catalog_edit_dialog import SubmitCallback
@@ -42,6 +42,7 @@ from habito.ui.widgets.controls import (
     BROWSE_DIALOG_HEIGHT,
     BROWSE_DIALOG_WIDTH,
     button,
+    button_row,
     primary_button,
 )
 
@@ -102,13 +103,14 @@ class SessionCompleteDialog(PromptDialog):
         self.tag_picker.new_button.setVisible(False)
         self.action_button = primary_button(action)
 
-        bottom_row = QHBoxLayout()
-        bottom_row.addWidget(self._attach_tag_link)
-        bottom_row.addWidget(self.tag_picker.new_button)
-        bottom_row.addStretch(1)
-        bottom_row.addWidget(self.action_button)
         self._root.addSpacing(4)
-        self._root.addLayout(bottom_row)
+        self._root.addLayout(
+            button_row(
+                self,
+                primary=self.action_button,
+                auxiliary=(self._attach_tag_link, self.tag_picker.new_button),
+            )
+        )
 
     def _reveal_tag_picker(self) -> None:
         self._attach_tag_link.setVisible(False)

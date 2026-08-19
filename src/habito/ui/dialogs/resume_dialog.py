@@ -7,10 +7,17 @@ purpose, so resuming has to be something you ask for, not something sprung on yo
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QDialog, QDialogButtonBox, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QWidget
 
 from habito.projections.resume import ResumableSession, ResumePhase
-from habito.ui.widgets.controls import COMPACT_DIALOG_WIDTH, format_duration, label
+from habito.ui.widgets.controls import (
+    COMPACT_DIALOG_WIDTH,
+    button,
+    button_row,
+    format_duration,
+    label,
+    primary_button,
+)
 
 
 def describe_resumable(resumable: ResumableSession) -> str:
@@ -38,14 +45,8 @@ class ResumePromptDialog(QDialog):
         message.setWordWrap(True)
         root.addWidget(message)
 
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
-        ok.setText("Resume")
-        ok.setObjectName("primary")
-        ok.setDefault(True)
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Not now")
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)  # Esc also closes, via QDialog
-        root.addWidget(buttons)
+        dismiss_btn = button("Not now")
+        dismiss_btn.clicked.connect(self.reject)  # Esc also closes, via QDialog
+        self.resume_button = primary_button("Resume")
+        self.resume_button.clicked.connect(self.accept)
+        root.addLayout(button_row(self, primary=self.resume_button, dismiss=dismiss_btn))

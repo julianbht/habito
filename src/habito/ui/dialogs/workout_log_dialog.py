@@ -37,9 +37,7 @@ from PySide6.QtCore import QDate, QTime
 from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
-    QDialogButtonBox,
     QFormLayout,
-    QHBoxLayout,
     QLabel,
     QTimeEdit,
     QVBoxLayout,
@@ -56,7 +54,14 @@ from habito.domain.events import Event, WorkoutLogged, local_datetime
 from habito.ui import theme
 from habito.ui.dialogs.catalog_edit_dialog import SubmitCallback as DescribeWorkoutCallback
 from habito.ui.widgets.catalog_picker import CatalogPicker
-from habito.ui.widgets.controls import BROWSE_DIALOG_HEIGHT, BROWSE_DIALOG_WIDTH, Stepper
+from habito.ui.widgets.controls import (
+    BROWSE_DIALOG_HEIGHT,
+    BROWSE_DIALOG_WIDTH,
+    Stepper,
+    button,
+    button_row,
+    primary_button,
+)
 
 SubmitCallback = Callable[[list[Event]], None]
 
@@ -137,26 +142,23 @@ class WorkoutLogDialog(QDialog):
         )
         root.addWidget(self.picker, 1)
 
-        new_row = QHBoxLayout()
-        new_row.addWidget(self.picker.new_button)
-        new_row.addStretch(1)
-        root.addLayout(new_row)
-
         self._error = QLabel("")
         self._error.setWordWrap(True)
         self._error.setStyleSheet(f"color: {theme.ERROR};")
         root.addWidget(self._error)
 
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        cancel_btn = button("Cancel")
+        cancel_btn.clicked.connect(self.reject)  # Esc also closes, via QDialog
+        self.ok_button = primary_button("Save && commit" if self._editing else "Log && commit")
+        self.ok_button.clicked.connect(self._submit)
+        root.addLayout(
+            button_row(
+                self,
+                primary=self.ok_button,
+                dismiss=cancel_btn,
+                auxiliary=(self.picker.new_button,),
+            )
         )
-        ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
-        ok.setText("Save && commit" if self._editing else "Log && commit")
-        ok.setObjectName("primary")
-        ok.setDefault(True)
-        buttons.accepted.connect(self._submit)
-        buttons.rejected.connect(self.reject)  # Esc also closes, via QDialog
-        root.addWidget(buttons)
 
     def _submit(self) -> None:
         try:

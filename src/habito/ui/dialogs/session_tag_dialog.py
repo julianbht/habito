@@ -22,7 +22,7 @@ from collections.abc import Callable, Iterable
 from datetime import datetime
 from uuid import UUID
 
-from PySide6.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QWidget
 
 from habito.actions.tagging import (
     build_session_tagged_event,
@@ -35,6 +35,8 @@ from habito.ui.widgets.catalog_picker import CatalogPicker
 from habito.ui.widgets.controls import (
     BROWSE_DIALOG_HEIGHT,
     BROWSE_DIALOG_WIDTH,
+    button,
+    button_row,
     label,
     primary_button,
 )
@@ -92,13 +94,18 @@ class SessionTagDialog(QDialog):
         self.tag_picker.tree.itemChanged.connect(self._update_status)
         root.addWidget(self._status)
 
-        actions = QHBoxLayout()
-        actions.addWidget(self.tag_picker.new_button)
-        actions.addStretch(1)
+        cancel_btn = button("Cancel")
+        cancel_btn.clicked.connect(self.reject)
         self._done_btn = primary_button("Apply Tags")
         self._done_btn.clicked.connect(self._accept)
-        actions.addWidget(self._done_btn)
-        root.addLayout(actions)
+        root.addLayout(
+            button_row(
+                self,
+                primary=self._done_btn,
+                dismiss=cancel_btn,
+                auxiliary=(self.tag_picker.new_button,),
+            )
+        )
 
     def _diff(self) -> tuple[set[str], set[str]]:
         final = set(self.tag_picker.selected())

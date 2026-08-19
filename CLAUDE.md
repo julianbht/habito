@@ -583,8 +583,62 @@ thing the dialog exists to do — Save, Retract & commit, Void & commit, Add & c
 commit, Apply Tags, Backfill…, Log wake-up…, Log workout…, Resume, Done, Start round N
 
 **A dialog's primary button is always also its default button** (`setDefault(True)`, or
-`widgets.primary_button(text)`, which bundles the two) — whether it was built with
-`widgets.button()` or pulled out of a `QDialogButtonBox`.
+`widgets.primary_button(text)`, which bundles the two). That is what makes Enter reach it
+from anywhere in the dialog — measured working from a `QLineEdit`, a `QPlainTextEdit` and a
+`QTreeWidget` — so the primary is never something you have to tab to, and Esc is never
+something you have to tab to either.
+
+**Every button row is built by `widgets.button_row(parent, ...)`, and it is the only place
+the order is decided:**
+
+```
+[+ New tag]  [+ Attach tag]  <——— stretch ———>  [Cancel]  [Log & commit]
+└─ auxiliary ─────────────┘                     └dismiss┘  └── primary ──┘
+```
+
+- **primary** — what the dialog exists to do. Always rightmost, always accented, always the
+  default button.
+- **dismiss** — Cancel, Close, "Not now". Immediately left of the primary.
+- **auxiliary** — everything else, pushed to the far left behind a stretch.
+
+The split that matters is **auxiliary vs. the rest**, and it is not about closing: pressing
+a *commit* button ends the dialog either way, pressing an *auxiliary* one opens something
+and drops you back where you were. "Backfill…" doesn't close its manager but is still what
+that manager is for, so it is the primary; "+ New tag" doesn't close `SessionTagDialog` and
+isn't what it is for, so it is auxiliary. Grouping them apart is what stops a side trip
+reading as a way to finish. `object_name="primary"` already draws that line, so the row
+needs no second concept.
+
+`button_row` also fixes the **tab order** across what it lays out. Qt derives that from
+*construction* order, which has nothing to do with where a button ends up, so a row
+assembled in one order and read in another would tab in the first — and focus that skips
+around a row it visibly matches is worse than either order alone. This is why `parent` is a
+positional argument rather than one more keyword: `setTabOrder` silently does nothing
+unless both widgets are already in the same window, and a button only joins one once the
+layout holding it is attached, which happens after `button_row` returns.
+
+**One exception**, and only one: a `PromptDialog` whose *only* button is its action centres
+it, matching its centred heading and message — a lone right-aligned button under centred
+text reads as a mistake. The moment a second button appears the normal rule applies, which
+is why `PhaseDialog` is centred and `SessionCompleteDialog` is not.
+
+**Why not `QDialogButtonBox`.** It orders buttons per platform, and Qt's Windows layout is
+`stretch | PRIMARY | +New | Cancel` — primary on the *left*, with an `ActionRole` button
+wedged inside the commit pair. Both are wrong for this app. Qt's Mac layout is
+`+New | stretch | Cancel | PRIMARY`, which is exactly the rule above — so the rule is not
+invented here, it is macOS's (and the web's), pinned rather than left to the platform. The
+alternative way to pin it — a `QProxyStyle` forcing `SH_DialogButtonLayout` to `MacLayout` —
+was rejected as action-at-a-distance: reading `addButton(save, AcceptRole)` at a call site
+would tell you nothing about where the button lands, and changing the order later would
+mean understanding Qt's role table rather than reading one function.
+
+Being deliberately non-native on Windows is the accepted cost. Nothing else in the app is
+native either (dark palette, custom steppers, custom tree styling), and the ordering it
+commits to is the one macOS and every web UI already use.
+
+`test_ui_button_row.py` walks every dialog and asserts the accent button ends its row — the
+rule is only a property of the app if nothing quietly lays out its own row, and no
+per-dialog assertion would catch a new one that did.
 
 ## Icons
 

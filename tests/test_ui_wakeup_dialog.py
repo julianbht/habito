@@ -12,7 +12,6 @@ from datetime import date, datetime, time, timedelta, timezone
 
 import pytest
 from PySide6.QtCore import QTime
-from PySide6.QtWidgets import QDialogButtonBox
 
 from habito.actions.wakeup import build_wakeup_event
 from habito.config.models import TimeConfig
@@ -88,15 +87,6 @@ def test_submitting_builds_a_wakeup_event(dialog):
 # `replacing` only seeds the fields and renames the window; the void that makes it a
 # correction is the manager's to add (see EntryManagerDialog), so what this dialog
 # *writes* is the same single honest event either way.
-def ok_button(dialog):
-    """The dialog's primary button, out of its QDialogButtonBox."""
-    box = dialog.findChild(QDialogButtonBox)
-    assert box is not None
-    button = box.button(QDialogButtonBox.StandardButton.Ok)
-    assert button is not None
-    return button
-
-
 def logged_wakeup(wake_hour=7, wake_minute=30, bed_hour=23, bed_minute=15):
     """A wake-up on 2026-08-04 in CEST, as it would come back out of the log."""
     return build_wakeup_event(
@@ -148,14 +138,14 @@ def test_editing_renames_the_window_and_its_button(qtbot):
     dialog = editing(qtbot, logged_wakeup())
 
     assert dialog.windowTitle() == "Edit wake-up"
-    assert ok_button(dialog).text() == "Save && commit"
+    assert dialog.ok_button.text() == "Save && commit"
 
 
 def test_logging_afresh_keeps_the_log_wording(qtbot):
     dialog = editing(qtbot, None)
 
     assert dialog.windowTitle() == "Log wake-up"
-    assert ok_button(dialog).text() == "Log && commit"
+    assert dialog.ok_button.text() == "Log && commit"
 
 
 def test_editing_still_submits_one_plain_wakeup(qtbot):
