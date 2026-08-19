@@ -87,7 +87,7 @@ class SessionCompleteDialog(PromptDialog):
                 tag, description, habit=habit, now=now
             ),
             "tag",
-            checkable=True,
+            hint="Check a tag for what you were working on.",
         )
         self._tag_section = QWidget()
         section = QVBoxLayout(self._tag_section)

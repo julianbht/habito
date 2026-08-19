@@ -22,8 +22,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from habito.actions.tagging import build_tag_created_event, build_tag_described_event
-from habito.actions.workout import build_workout_created_event, build_workout_described_event
 from habito.config.editor import ConfigEditor
 from habito.config.models import Config
 from habito.domain.events import (
@@ -46,7 +44,6 @@ from habito.projections.workouts import known_workouts, workout_descriptions, wo
 from habito.storage.event_store import EventStore
 from habito.ui import theme
 from habito.ui.dialogs.backfill_dialog import BackfillDialog
-from habito.ui.dialogs.catalog_manager_dialog import CatalogManagerDialog
 from habito.ui.dialogs.entry_manager_dialog import EntryManagerDialog, ManagedEntry
 from habito.ui.dialogs.entry_summaries import describe_wakeup, describe_workout_log
 from habito.ui.dialogs.manage_sessions_dialog import ManageSessionsDialog, SessionsSnapshot
@@ -494,7 +491,6 @@ class HabitoApp(QMainWindow):
             habit=self._config.habit,
             now=self._clock.local_now,
             open_backfill=self._open_backfill_form,
-            open_tags=self._open_tag_catalog,
             parent=self._settings_dialog or self,
         ).exec()
 
@@ -525,7 +521,6 @@ class HabitoApp(QMainWindow):
             on_submit=self._append_workout,
             rollover_hour=self._config.time.rollover_hour,
             now=self._clock.local_now,
-            extra=("Workout types…", self._open_workout_catalog),
             parent=self._settings_dialog or self,
         ).exec()
 
@@ -613,46 +608,6 @@ class HabitoApp(QMainWindow):
             time_config=self._config.time,
             today=self._today(),
             replacing=replacing if isinstance(replacing, WorkoutLogged) else None,
-            parent=parent,
-        ).exec()
-
-    def _open_tag_catalog(self, parent: QWidget) -> None:
-        events = self._store.read_all()
-        now = self._clock.local_now()
-        CatalogManagerDialog(
-            title="Manage tags",
-            hint="Double-click a tag to change its description.",
-            noun="tag",
-            items=known_tags(events, self._config.habit),
-            descriptions=tag_descriptions(events, self._config.habit),
-            on_submit=lambda event: self._append_all([event]),
-            build_created=lambda tag: build_tag_created_event(
-                tag, habit=self._config.habit, now=now
-            ),
-            build_described=lambda tag, description: build_tag_described_event(
-                tag, description, habit=self._config.habit, now=now
-            ),
-            parent=parent,
-        ).exec()
-
-    def _open_workout_catalog(self, parent: QWidget) -> None:
-        assert self._workout_store is not None
-        habit = self._config.extras.workout.habit
-        events = self._workout_store.read_all()
-        now = self._clock.local_now()
-        CatalogManagerDialog(
-            title="Manage workouts",
-            hint="Double-click a workout to change its description.",
-            noun="workout",
-            items=known_workouts(events, habit),
-            descriptions=workout_descriptions(events, habit),
-            on_submit=lambda event: self._append_workout([event]),
-            build_created=lambda workout: build_workout_created_event(
-                workout, habit=habit, now=now
-            ),
-            build_described=lambda workout, description: build_workout_described_event(
-                workout, description, habit=habit, now=now
-            ),
             parent=parent,
         ).exec()
 

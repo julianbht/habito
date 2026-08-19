@@ -1,5 +1,5 @@
 """Dialog to log a workout done away from the app — the workout extra's mirror of
-``WakeUpDialog``, with a checkable ``CatalogPicker`` added so more than one workout can be
+``WakeUpDialog``, with a ``CatalogPicker`` added so more than one workout can be
 picked for the same date/time in one go (see CLAUDE.md § Extras for the wake-up shape this
 follows, and ``WorkoutLogged``'s own docstring for why a list, not one event per workout).
 
@@ -21,10 +21,11 @@ workouts start ticked) and renames the dialog and its button; it changes nothing
 this dialog *writes*, since the correction is the manager's to make by voiding the old entry
 alongside the new one this submits.
 
-The picker embedded here still doubles as the workout catalog — double-click a row to edit
-its description, "+ New workout" to add one — but the manager also reaches
-``CatalogManagerDialog`` directly, so fixing a description doesn't mean opening a logging
-form and cancelling out of it.
+The picker embedded here is also the workout catalog — double-click a row to edit its
+description, "+ New workout" to add one. That makes opening this dialog just to fix a
+description and cancelling out of it a normal use, not a workaround; it is the only way
+there, since a picker with its check boxes hidden would be a manager dialog with nothing of
+its own (see ``CatalogPicker``).
 """
 
 from __future__ import annotations
@@ -131,7 +132,7 @@ class WorkoutLogDialog(QDialog):
                 workout, description, habit=habit, now=now
             ),
             "workout",
-            checkable=True,
+            hint="Check the workouts you did.",
             checked=set(replacing.workouts) if replacing is not None else None,
         )
         root.addWidget(self.picker, 1)

@@ -55,10 +55,6 @@ FormOpener = Callable[[QWidget, SubmitCallback, Event | None], None]
 """Open this stream's logging dialog, parented to the manager, submitting through the given
 callback. The third argument is the entry being replaced, or ``None`` for a fresh one."""
 
-ExtraAction = tuple[str, Callable[[QWidget], None]]
-"""A second, plain button beside "add" — the workout catalog, which sleep has no equivalent
-of."""
-
 
 class EntryManagerDialog(QDialog):
     def __init__(
@@ -73,7 +69,6 @@ class EntryManagerDialog(QDialog):
         on_submit: SubmitCallback,
         rollover_hour: int,
         now: Callable[[], datetime],
-        extra: ExtraAction | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -89,10 +84,10 @@ class EntryManagerDialog(QDialog):
         self.setMinimumWidth(BROWSE_DIALOG_WIDTH)
         self.setMinimumHeight(BROWSE_DIALOG_HEIGHT)
         self.setModal(True)
-        self._build(hint, empty_text, add_text, extra)
+        self._build(hint, empty_text, add_text)
         self._refresh()
 
-    def _build(self, hint: str, empty_text: str, add_text: str, extra: ExtraAction | None) -> None:
+    def _build(self, hint: str, empty_text: str, add_text: str) -> None:
         root = QVBoxLayout(self)
         root.setContentsMargins(20, 18, 20, 18)
         root.setSpacing(10)
@@ -105,11 +100,6 @@ class EntryManagerDialog(QDialog):
         self.add_button = primary_button(add_text)
         self.add_button.clicked.connect(self._add)
         actions.addWidget(self.add_button)
-        if extra is not None:
-            text, open_extra = extra
-            extra_btn = button(text)
-            extra_btn.clicked.connect(lambda: self._open_extra(open_extra))
-            actions.addWidget(extra_btn)
         actions.addStretch(1)
         close_btn = button("Close")
         close_btn.clicked.connect(self.accept)
@@ -126,12 +116,6 @@ class EntryManagerDialog(QDialog):
 
     def _add(self) -> None:
         self._open_form(self, self._submit, None)
-
-    def _open_extra(self, open_extra: Callable[[QWidget], None]) -> None:
-        # The catalog writes its own events as they're made, so there is nothing to submit
-        # here — but a workout added or renamed there changes what a row can say.
-        open_extra(self)
-        self._refresh()
 
     def _on_row_menu(self, row: int, pos: QPoint) -> None:
         if not 0 <= row < len(self._entries):

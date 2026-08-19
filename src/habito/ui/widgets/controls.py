@@ -29,7 +29,7 @@ _DURATION_RE = re.compile(r"\d{0,3}(:\d{0,2})?")
 #   to fit it — that's what a scrollbar is for — so a size tier is about a dialog's *job*,
 #   not how much content it could hold.
 # - BROWSE: pick one thing from a list, or manage a small growing one — ManageSessionsDialog,
-#   ShortcutsDialog, CatalogManagerDialog, SessionTagDialog, WorkoutLogDialog,
+#   ShortcutsDialog, SessionTagDialog, WorkoutLogDialog, EntryManagerDialog,
 #   SessionCompleteDialog once its tag picker is showing.
 # - LARGE: everything at once — currently only SettingsDialog, scrolled internally rather
 #   than left to grow taller than the window that opened it.

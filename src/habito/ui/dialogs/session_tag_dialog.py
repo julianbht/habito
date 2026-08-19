@@ -2,8 +2,8 @@
 "Manage tags…" action, for the case a session finished without being tagged (or was tagged
 wrong) and the session-end prompt is long gone.
 
-Reuses the exact same `CatalogPicker` the session-end prompt and the ☰ tag manager both
-embed (see CLAUDE.md § Tags) — checkable, seeded with the session's current tags via
+Reuses the exact same `CatalogPicker` the session-end prompt and the log-workout dialog
+embed (see CLAUDE.md § Tags) — seeded with the session's current tags via
 `checked=` so unchecking one reads as "take this back off" rather than "I never touched
 this." Nothing is written per click, unlike `CatalogEditDialog`'s Save: checking and
 unchecking here is free until "Apply Tags", which diffs the tree's final state against what
@@ -12,8 +12,8 @@ the session had when this dialog opened and writes exactly the difference — a
 muted line above the buttons tracks that same diff live ("No changes" / "N tags changed"),
 off the tree's own `itemChanged` signal. Cancelling (Esc, the close button) discards that
 diff the same way any other dialog's Cancel does; a tag created or described via "+ New
-tag"/double-click along the way still stands, the same as it would from the tag manager,
-since that write already landed the moment it was saved.
+tag"/double-click along the way still stands, since that write already landed the moment it
+was saved.
 """
 
 from __future__ import annotations
@@ -70,9 +70,6 @@ class SessionTagDialog(QDialog):
         root.setContentsMargins(20, 18, 20, 18)
         root.setSpacing(10)
 
-        hint = "Check a tag to attach it, uncheck to remove it."
-        root.addWidget(label(hint, "muted"))
-
         self.tag_picker = CatalogPicker(
             known_tags,
             descriptions,
@@ -82,7 +79,7 @@ class SessionTagDialog(QDialog):
                 tag, description, habit=self._habit, now=self._now
             ),
             "tag",
-            checkable=True,
+            hint="Check a tag to attach it, uncheck to remove it.",
             checked=self._current_tags,
         )
         root.addWidget(self.tag_picker, 1)

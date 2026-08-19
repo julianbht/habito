@@ -1,28 +1,31 @@
-"""A ``Name | Description`` tree over a name-and-description catalog, shared by every
-place the app browses, manages, or picks from one — tags and workouts alike. ``checkable``
-is what differs between browsing/managing (the ☰ tag/workout manager, off) and picking
-which entries apply to something (on) — the session-end tag prompt, the retroactive
-per-session tag/untag picker, and the log-workout dialog all use the checkable form.
-``checked`` seeds which rows start ticked when checkable: empty where nothing's picked yet
-(the session-end prompt, a fresh log-workout dialog), an existing selection for the
-retroactive tag/untag picker, where unchecking one is how you take it back off. Everything
-else — the two-column tree, "+ New …", double-click to edit — is identical either way,
-because it's the same task (look at what's in the catalog, add or fix an entry) with or
-without a selection on top of it.
+"""A checkable ``Name | Description`` tree over a name-and-description catalog, shared by
+every place the app picks from one — tags and workouts alike.
 
-Generalized from what was ``TagPicker``: tags and workouts are unrelated domains (see
-``catalog_edit_dialog.py``'s module docstring) that happen to need the identical widget.
-``noun`` ("tag" / "workout") only reaches "+ New …"'s label and the ``CatalogEditDialog``
-it opens; ``build_created``/``build_described`` are the two event-builders the caller has
-already bound to their own ``habit``/``now`` via ``functools.partial`` — this widget writes
-nothing itself, it only hands events from ``CatalogEditDialog`` up through ``on_submit``.
+It is both the picker and the catalog manager: ticking rows says which entries apply to
+whatever the embedding dialog is about, while "+ New …" and double-click-to-edit maintain
+the catalog itself. There is no separate manager dialog, because one would be this widget
+with the checkboxes turned off and nothing of its own. ``CatalogEditDialog`` writes on Save,
+before this widget hears about it, so a description fixed here stands even if the embedding
+dialog is then cancelled.
+
+``checked`` seeds which rows start ticked: empty where nothing is picked yet (the
+session-end prompt, a fresh log-workout dialog), a session's existing tags in the
+retroactive tag/untag picker, where unchecking one is how you take it back off.
+
+``noun`` ("tag" / "workout") reaches "+ New …"'s label, the ``CatalogEditDialog`` it opens,
+and the hint; ``build_created``/``build_described`` are the two event-builders the caller
+has already bound to their own ``habit``/``now`` — this widget writes nothing itself, it
+only hands events from ``CatalogEditDialog`` up through ``on_submit``.
+
+``hint`` is the embedding dialog's own line about what ticking a row means; the
+double-click clause is appended here rather than left to each call site, because
+double-click is now the only way to reach the editor and a call site that forgot it would
+hide the catalog entirely.
 
 "+ New …" is built here (so every call site opens the same ``CatalogEditDialog``) but not
 laid out here: what, if anything, sits beside it is each embedding dialog's own layout
-choice. Its styling *is* decided here, though, tied to ``checkable`` the same way everything
-else is: creating an entry is the whole point of a manager dialog (``checkable=False``), so
-it's the primary button there; in a picker, some other button already is the primary
-action, so this one stays plain.
+choice. It stays a plain button — in every call site some other button is already the
+dialog's primary action.
 
 Rows are most-recently-touched first, not alphabetical — the caller hands ``items`` over
 already in that order (see ``projections.tags.known_tags`` / ``projections.workouts.
@@ -47,7 +50,7 @@ from habito.ui.dialogs.catalog_edit_dialog import (
     DescribedBuilder,
     SubmitCallback,
 )
-from habito.ui.widgets.controls import button, primary_button
+from habito.ui.widgets.controls import button, label
 
 # Tall enough to show a handful of entries before scrolling, not just the one that fit before.
 _TREE_MIN_HEIGHT = 140
@@ -73,7 +76,7 @@ class CatalogPicker(QWidget):
         build_created: CreatedBuilder,
         build_described: DescribedBuilder,
         noun: str,
-        checkable: bool,
+        hint: str = "",
         checked: set[str] | None = None,
         parent: QWidget | None = None,
     ) -> None:
@@ -82,12 +85,11 @@ class CatalogPicker(QWidget):
         self._build_created = build_created
         self._build_described = build_described
         self._noun = noun
-        self._checkable = checkable
-        # Only meaningful when checkable: which rows start checked, e.g. a session's
-        # existing tags in the retroactive tag/untag picker. Ignored (nothing is ever
-        # pre-checked) everywhere else, including the session-end prompt, where a
-        # session freshly ending has no tags yet to reflect.
         self._checked = checked or set[str]()
+
+        text = f"{hint} Double-click a {noun} to change its description.".strip()
+        self.hint = label(text, "muted")
+        self.hint.setWordWrap(True)
 
         self.tree = QTreeWidget()
         self.tree.setColumnCount(2)
@@ -97,32 +99,26 @@ class CatalogPicker(QWidget):
         self.tree.setAlternatingRowColors(True)
         self.tree.setEditTriggers(QTreeWidget.EditTrigger.NoEditTriggers)
         self.tree.setMinimumHeight(_TREE_MIN_HEIGHT)
-        self.tree.setSelectionMode(
-            QTreeWidget.SelectionMode.NoSelection
-            if checkable
-            else QTreeWidget.SelectionMode.SingleSelection
-        )
+        # The check boxes are the selection, so a second highlighted-row one would only be
+        # a second thing on screen saying which row you last touched.
+        self.tree.setSelectionMode(QTreeWidget.SelectionMode.NoSelection)
         self.tree.itemDoubleClicked.connect(self._on_row_double_clicked)
         for item in items:  # already most-recent-first; appending preserves that order
             self._add_row(item, descriptions.get(item, ""))
-        if items and not checkable:
-            first = self.tree.topLevelItem(0)
-            assert first is not None  # just populated above, from a non-empty items
-            self.tree.setCurrentItem(first)
 
-        self.new_button = button(f"+ New {noun}") if checkable else primary_button(f"+ New {noun}")
+        self.new_button = button(f"+ New {noun}")
         self.new_button.clicked.connect(self._on_new_item)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
+        root.addWidget(self.hint)
         root.addWidget(self.tree)
 
     def _style_row(self, item: QTreeWidgetItem, description: str) -> None:
         item.setForeground(1, QBrush(QColor(theme.MUTED)))
-        if self._checkable:
-            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            checked = item.text(0) in self._checked
-            item.setCheckState(0, Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
+        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+        checked = item.text(0) in self._checked
+        item.setCheckState(0, Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
         self._set_description(item, description)
 
     def _add_row(self, name: str, description: str) -> QTreeWidgetItem:
@@ -185,12 +181,10 @@ class CatalogPicker(QWidget):
         else:
             self._set_description(item, dialog.description)
             self._move_to_top(item)
-        if self._checkable:
-            item.setCheckState(0, Qt.CheckState.Checked)
-        self.tree.setCurrentItem(item)
+        item.setCheckState(0, Qt.CheckState.Checked)
 
     def selected(self) -> list[str]:
-        """Checked entries, in tree order. Meaningless (always empty) when not checkable."""
+        """Checked entries, in tree order."""
         names: list[str] = []
         for i in range(self.tree.topLevelItemCount()):
             item = self.tree.topLevelItem(i)

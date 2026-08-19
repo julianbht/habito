@@ -1,11 +1,12 @@
 """Manage the study habit's past sessions: back one, retract one, or tag it after the fact.
 
-The one place a session is acted on. "Backfill…" is its primary button, so adding a
-session and correcting one live in the same window rather than two menu entries you have
-to know are related; "Tags…" opens the shared catalog manager, since a tag only ever means
-something on a session. Row actions are a right-click menu (Manage tags…, Retract
-session…): two actions, one destructive and one not, kept visibly distinct instead of one
-button whose meaning depends on what else is selected.
+The one place a session is acted on. "Backfill…" is its primary button, so adding a session
+and correcting one live in the same window rather than two menu entries you have to know
+are related. Row actions are a right-click menu (Manage tags…, Retract session…): two
+actions, one destructive and one not, kept visibly distinct instead of one button whose
+meaning depends on what else is selected. The tag catalog is reached through "Manage
+tags…" as well — its picker is the catalog manager (see `CatalogPicker`), so there is no
+separate button for it.
 
 A session is voided as a whole by ``session_id`` (`RetractConfirmDialog`), not entry by
 entry — which is why sleep and workouts use `EntryManagerDialog` instead of this. The list
@@ -64,7 +65,6 @@ class ManageSessionsDialog(QDialog):
         habit: str,
         now: Callable[[], datetime],
         open_backfill: Callable[[QWidget], None],
-        open_tags: Callable[[QWidget], None],
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -75,7 +75,6 @@ class ManageSessionsDialog(QDialog):
         # when it was made, and this dialog can sit open for a long time.
         self._now = now
         self._open_backfill = open_backfill
-        self._open_tags = open_tags
         self._sessions: list[SessionSummary] = []
         self._snapshot = SessionsSnapshot((), {}, [], {})
         self.setWindowTitle("Manage sessions")
@@ -98,9 +97,6 @@ class ManageSessionsDialog(QDialog):
         self.backfill_button = primary_button("Backfill…")
         self.backfill_button.clicked.connect(self._backfill)
         actions.addWidget(self.backfill_button)
-        tags_btn = button("Tags…")
-        tags_btn.clicked.connect(self._tags)
-        actions.addWidget(tags_btn)
         actions.addStretch(1)
         close_btn = button("Close")
         close_btn.clicked.connect(self.accept)
@@ -120,12 +116,6 @@ class ManageSessionsDialog(QDialog):
 
     def _backfill(self) -> None:
         self._open_backfill(self)
-        self._refresh()
-
-    def _tags(self) -> None:
-        # The catalog dialog writes its own events as they're made, so there is nothing to
-        # submit here — but a description changed there changes what the tag picker shows.
-        self._open_tags(self)
         self._refresh()
 
     def _on_row_menu(self, row: int, pos: QPoint) -> None:
