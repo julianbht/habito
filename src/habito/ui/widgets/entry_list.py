@@ -52,15 +52,15 @@ class EntryList(QWidget):
         self.tree.itemDoubleClicked.connect(self._on_double_click)
         root.addWidget(self.tree, 1)
 
-        self._empty_lbl = label("", "muted")
-        root.addWidget(self._empty_lbl)
+        self.empty_label = label("", "muted")
+        root.addWidget(self.empty_label)
 
     def set_rows(self, rows: Sequence[str]) -> None:
         """Replace every row, and show the empty message when there are none left."""
         self.tree.clear()
         for text in rows:
             QTreeWidgetItem(self.tree, [text])
-        self._empty_lbl.setText("" if rows else self._empty_text)
+        self.empty_label.setText("" if rows else self._empty_text)
 
     def _on_double_click(self, item: QTreeWidgetItem, column: int) -> None:
         self.row_activated.emit(self.tree.indexOfTopLevelItem(item))

@@ -20,7 +20,7 @@ from habito.domain.events import (
     SessionEvent,
     SessionRetracted,
     SessionStarted,
-    drop_retracted,
+    drop_corrected,
     partition_date,
 )
 from habito.projections.daily import summarize_by_day
@@ -47,7 +47,7 @@ def _backfilled(store, day, hour=6, rounds=2):
     )
     for event in events:
         store.append(event)
-    session = summarize_sessions(store.read_all(include_retracted=True))[0]
+    session = summarize_sessions(store.read_all(raw=True))[0]
     return session
 
 
@@ -75,9 +75,7 @@ def test_retraction_keeps_its_own_timestamp(tmp_path):
     ):
         store.append(event)
 
-    retraction = next(
-        e for e in store.read_all(include_retracted=True) if isinstance(e, SessionRetracted)
-    )
+    retraction = next(e for e in store.read_all(raw=True) if isinstance(e, SessionRetracted))
     # When the correction was made stays truthful even though it files under another day.
     assert retraction.timestamp == LATER.astimezone(UTC)
     assert retraction.target_date == datetime(2026, 8, 4).date()
@@ -95,7 +93,7 @@ def test_read_all_drops_the_retracted_session(tmp_path):
         store.append(event)
 
     assert store.read_all() == []  # the retraction line goes too
-    assert len(store.read_all(include_retracted=True)) > 0
+    assert len(store.read_all(raw=True)) > 0
 
 
 def test_retraction_leaves_other_sessions_alone(tmp_path):
@@ -144,7 +142,7 @@ def test_session_spanning_the_rollover_is_retracted_in_both_files(tmp_path):
     assert store.read_all() == []
 
 
-def test_drop_retracted_ignores_stream_order():
+def test_drop_corrected_ignores_stream_order():
     """The retraction can precede its target, since it files under the earlier day."""
     sid = uuid4()
     retraction = SessionRetracted(
@@ -165,7 +163,7 @@ def test_drop_retracted_ignores_stream_order():
         break_minutes=5,
         planned_rounds=4,
     )
-    assert drop_retracted([retraction, started]) == []
+    assert drop_corrected([retraction, started]) == []
 
 
 def test_retraction_needs_a_target_day():
@@ -188,7 +186,7 @@ def test_summarize_sessions_marks_the_retracted_one(tmp_path):
     ):
         store.append(event)
 
-    sessions = summarize_sessions(store.read_all(include_retracted=True))
+    sessions = summarize_sessions(store.read_all(raw=True))
     assert [s.retracted for s in sessions] == [True]
     assert sessions[0].work_seconds == 6000  # what it claimed, still readable
 

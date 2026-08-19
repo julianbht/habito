@@ -1,6 +1,6 @@
-"""CatalogPicker on its own: the name-and-description tree shared by every tag and workout
-picker/manager in the app. ``checkable`` is the only thing that varies between call sites —
-see the module docstring on habito.ui.widgets.catalog_picker.
+"""CatalogPicker on its own: the checkable name-and-description tree shared by every tag
+and workout picker in the app, and the only way to reach the catalog editor — see the
+module docstring on habito.ui.widgets.catalog_picker.
 
 Driven here with the real tag event builders (``build_tag_created_event`` /
 ``build_tag_described_event``) purely as a concrete, already-correct stand-in for "some
@@ -27,7 +27,7 @@ CEST = timezone(timedelta(hours=2))
 NOW = datetime(2026, 8, 7, 14, 23, tzinfo=CEST)
 
 
-def picker_for(qtbot, items, descriptions=None, checkable=False, checked=None, captured=None):
+def picker_for(qtbot, items, descriptions=None, hint="", checked=None, captured=None):
     picker = CatalogPicker(
         items,
         descriptions or {},
@@ -37,7 +37,7 @@ def picker_for(qtbot, items, descriptions=None, checkable=False, checked=None, c
             name, description, habit="study", now=NOW
         ),
         "tag",
-        checkable=checkable,
+        hint=hint,
         checked=checked,
     )
     qtbot.addWidget(picker)
@@ -77,21 +77,14 @@ def test_items_are_listed_in_the_given_order_with_their_descriptions(qtbot):
     assert row(picker, 1).text(0) == "linear algebra"
 
 
-def test_not_checkable_has_no_check_state(qtbot):
-    picker = picker_for(qtbot, ["topology"], checkable=False)
-
-    assert row(picker, 0).data(0, Qt.ItemDataRole.CheckStateRole) is None
-    assert picker.selected() == []
-
-
-def test_checkable_rows_start_unchecked(qtbot):
-    picker = picker_for(qtbot, ["topology"], checkable=True)
+def test_rows_start_unchecked(qtbot):
+    picker = picker_for(qtbot, ["topology"])
 
     assert row(picker, 0).checkState(0) == Qt.CheckState.Unchecked
 
 
 def test_checking_a_row_reports_it_as_selected(qtbot):
-    picker = picker_for(qtbot, ["linear algebra", "topology"], checkable=True)
+    picker = picker_for(qtbot, ["linear algebra", "topology"])
 
     row(picker, 1).setCheckState(0, Qt.CheckState.Checked)
 
@@ -99,7 +92,7 @@ def test_checking_a_row_reports_it_as_selected(qtbot):
 
 
 def test_checked_rows_start_ticked(qtbot):
-    picker = picker_for(qtbot, ["linear algebra", "topology"], checkable=True, checked={"topology"})
+    picker = picker_for(qtbot, ["linear algebra", "topology"], checked={"topology"})
 
     assert row(picker, 0).checkState(0) == Qt.CheckState.Unchecked  # linear algebra
     assert row(picker, 1).checkState(0) == Qt.CheckState.Checked  # topology
@@ -107,36 +100,43 @@ def test_checked_rows_start_ticked(qtbot):
 
 
 def test_unchecking_a_pre_checked_row_removes_it_from_selected(qtbot):
-    picker = picker_for(qtbot, ["topology"], checkable=True, checked={"topology"})
+    picker = picker_for(qtbot, ["topology"], checked={"topology"})
 
     row(picker, 0).setCheckState(0, Qt.CheckState.Unchecked)
 
     assert picker.selected() == []
 
 
-def test_checked_is_ignored_when_not_checkable(qtbot):
-    picker = picker_for(qtbot, ["topology"], checkable=False, checked={"topology"})
+def test_the_hint_always_names_the_edit_gesture(qtbot):
+    """Double-click is the only way to the catalog editor, so the widget appends that
+    clause itself rather than trusting each call site to say it."""
+    picker = picker_for(qtbot, [])
 
-    assert row(picker, 0).data(0, Qt.ItemDataRole.CheckStateRole) is None
-
-
-def test_new_button_is_primary_when_not_checkable(qtbot):
-    picker = picker_for(qtbot, [], checkable=False)
-    assert picker.new_button.objectName() == "primary"
+    assert picker.hint.text() == "Double-click a tag to change its description."
 
 
-def test_new_button_is_plain_when_checkable(qtbot):
-    picker = picker_for(qtbot, [], checkable=True)
+def test_the_hint_keeps_the_callers_own_line_in_front(qtbot):
+    picker = picker_for(qtbot, [], hint="Check a tag to attach it.")
+
+    assert picker.hint.text() == (
+        "Check a tag to attach it. Double-click a tag to change its description."
+    )
+
+
+def test_new_button_is_plain(qtbot):
+    """Some other button is always the embedding dialog's primary action — Apply Tags,
+    Log & commit — so this one never competes with it."""
+    picker = picker_for(qtbot, [])
     assert picker.new_button.objectName() == ""
 
 
 def test_new_button_is_labelled_with_the_noun(qtbot):
-    picker = picker_for(qtbot, [], checkable=False)
+    picker = picker_for(qtbot, [])
     assert picker.new_button.text() == "+ New tag"
 
 
 def test_new_item_is_added_to_the_tree(qtbot, monkeypatch):
-    picker = picker_for(qtbot, ["topology"], checkable=False)
+    picker = picker_for(qtbot, ["topology"])
     drive_edit_dialog(monkeypatch, "probability")
 
     picker._on_new_item()
@@ -145,8 +145,8 @@ def test_new_item_is_added_to_the_tree(qtbot, monkeypatch):
     assert labels == ["probability", "topology"]
 
 
-def test_new_item_is_checked_when_checkable(qtbot, monkeypatch):
-    picker = picker_for(qtbot, [], checkable=True)
+def test_new_item_is_checked(qtbot, monkeypatch):
+    picker = picker_for(qtbot, [])
     drive_edit_dialog(monkeypatch, "topology")
 
     picker._on_new_item()
@@ -157,7 +157,7 @@ def test_new_item_is_checked_when_checkable(qtbot, monkeypatch):
 def test_a_second_new_item_does_not_uncheck_the_first(qtbot, monkeypatch):
     """Regression: adding an item used to rebuild the whole tree, wiping every other row's
     check state along with it."""
-    picker = picker_for(qtbot, [], checkable=True)
+    picker = picker_for(qtbot, [])
     drive_edit_dialog(monkeypatch, "linear algebra")
     picker._on_new_item()
 
@@ -168,7 +168,7 @@ def test_a_second_new_item_does_not_uncheck_the_first(qtbot, monkeypatch):
 
 
 def test_new_item_that_already_exists_is_not_duplicated(qtbot, monkeypatch):
-    picker = picker_for(qtbot, ["topology"], {"topology": "point-set basics"}, checkable=True)
+    picker = picker_for(qtbot, ["topology"], {"topology": "point-set basics"})
     drive_edit_dialog(monkeypatch, "topology", "point-set basics")
 
     picker._on_new_item()
@@ -178,7 +178,7 @@ def test_new_item_that_already_exists_is_not_duplicated(qtbot, monkeypatch):
 
 
 def test_a_new_item_appears_at_the_top(qtbot, monkeypatch):
-    picker = picker_for(qtbot, ["linear algebra", "topology"], checkable=False)
+    picker = picker_for(qtbot, ["linear algebra", "topology"])
     drive_edit_dialog(monkeypatch, "probability")
 
     picker._on_new_item()
@@ -187,7 +187,7 @@ def test_a_new_item_appears_at_the_top(qtbot, monkeypatch):
 
 
 def test_retyping_an_existing_name_moves_it_to_the_top(qtbot, monkeypatch):
-    picker = picker_for(qtbot, ["linear algebra", "topology"], checkable=False)
+    picker = picker_for(qtbot, ["linear algebra", "topology"])
     drive_edit_dialog(monkeypatch, "topology")
 
     picker._on_new_item()
@@ -197,7 +197,7 @@ def test_retyping_an_existing_name_moves_it_to_the_top(qtbot, monkeypatch):
 
 
 def test_cancelling_new_item_adds_nothing(qtbot, monkeypatch):
-    picker = picker_for(qtbot, ["topology"], checkable=False)
+    picker = picker_for(qtbot, ["topology"])
     drive_edit_dialog(monkeypatch, "probability", accepted=False)
 
     picker._on_new_item()
@@ -206,18 +206,18 @@ def test_cancelling_new_item_adds_nothing(qtbot, monkeypatch):
 
 
 def test_double_clicking_a_row_can_update_its_description(qtbot, monkeypatch):
-    picker = picker_for(qtbot, ["topology"], {"topology": "point-set basics"}, checkable=True)
+    picker = picker_for(qtbot, ["topology"], {"topology": "point-set basics"})
     drive_edit_dialog(monkeypatch, "topology", "chapters 1-3")
 
     picker._on_row_double_clicked(row(picker, 0), 0)
 
     assert row(picker, 0).text(1) == "chapters 1-3"
-    # Editing a description is not the same as selecting the row.
+    # Editing a description is not the same as ticking the row.
     assert picker.selected() == []
 
 
 def test_double_clicking_a_row_moves_it_to_the_top(qtbot, monkeypatch):
-    picker = picker_for(qtbot, ["linear algebra", "topology"], checkable=False)
+    picker = picker_for(qtbot, ["linear algebra", "topology"])
     drive_edit_dialog(monkeypatch, "topology", "chapters 1-3")
 
     picker._on_row_double_clicked(row(picker, 1), 0)
@@ -227,7 +227,7 @@ def test_double_clicking_a_row_moves_it_to_the_top(qtbot, monkeypatch):
 
 
 def test_moving_a_row_to_the_top_keeps_its_check_state(qtbot, monkeypatch):
-    picker = picker_for(qtbot, ["linear algebra", "topology"], checkable=True)
+    picker = picker_for(qtbot, ["linear algebra", "topology"])
     row(picker, 1).setCheckState(0, Qt.CheckState.Checked)  # "topology"
     drive_edit_dialog(monkeypatch, "topology", "chapters 1-3")
 

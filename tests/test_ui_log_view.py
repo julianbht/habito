@@ -15,6 +15,7 @@ from PySide6.QtCore import Qt
 
 from habito.domain.events import (
     BreakEnded,
+    EventVoided,
     Origin,
     RoundEnded,
     SessionEnded,
@@ -542,3 +543,68 @@ def test_rows_of_other_sessions_are_not_struck_through(view):
     view.set_events([at(9, cls=SessionPaused), _retraction(session=other)])
     day = view.tree.topLevelItem(0)
     assert not day.child(0).font(1).strikeOut()
+
+
+# --- voided entries -------------------------------------------------------
+def _wakeup(hour=7):
+    """A wake-up on the 4th, the kind of standalone entry a void targets."""
+    return WakeUpLogged(
+        timestamp=datetime(2026, 8, 4, hour, 30, tzinfo=UTC),
+        tz_offset_minutes=0,
+        origin=Origin.backfilled,
+        habit="sleep",
+        bedtime=datetime(2026, 8, 3, 23, 15, tzinfo=UTC),
+    )
+
+
+def _void(target, reason=""):
+    """A void written on the 7th, withdrawing an entry filed on the 4th."""
+    return EventVoided(
+        timestamp=datetime(2026, 8, 7, 12, 23, tzinfo=UTC),
+        tz_offset_minutes=0,
+        origin=Origin.live,
+        habit="sleep",
+        target_event_id=target.event_id,
+        target_date=date(2026, 8, 4),
+        reason=reason,
+    )
+
+
+def test_a_void_says_when_it_was_made():
+    """Its row sits under the day it corrects, same as a retraction's."""
+    line = describe(_void(_wakeup(), reason="logged the wrong day"))
+    assert line.what == "Entry voided"
+    assert "2026-08-07" in line.detail
+    assert "logged the wrong day" in line.detail
+
+
+def test_a_void_without_a_reason_still_reads():
+    assert describe(_void(_wakeup())).detail == "voided 2026-08-07"
+
+
+def test_a_void_groups_under_the_day_it_corrects():
+    wakeup = _wakeup()
+    days = group_by_day([wakeup, _void(wakeup)])
+    assert list(days) == [date(2026, 8, 4)]
+    assert len(days[date(2026, 8, 4)]) == 2
+
+
+def test_a_voided_entry_is_struck_through(view):
+    wakeup = _wakeup()
+    view.set_events([wakeup, _void(wakeup)])
+    day = view.tree.topLevelItem(0)
+    entry, void = day.child(0), day.child(1)
+
+    assert entry.font(1).strikeOut()
+    # The void is the statement that still stands, so it isn't struck out itself.
+    assert not void.font(1).strikeOut()
+
+
+def test_another_entry_is_not_struck_by_someone_elses_void(view):
+    """A void names one event_id, so it can't reach a second entry on the same day."""
+    voided, kept = _wakeup(hour=7), _wakeup(hour=8)
+    view.set_events([voided, kept, _void(voided)])
+    day = view.tree.topLevelItem(0)
+
+    assert day.child(0).font(1).strikeOut()
+    assert not day.child(1).font(1).strikeOut()

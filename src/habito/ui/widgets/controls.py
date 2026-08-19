@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDateTimeEdit,
     QHBoxLayout,
-    QInputDialog,
     QLabel,
     QPushButton,
     QSpinBox,
@@ -77,14 +76,6 @@ def parse_seconds(text: str) -> int | None:
         return round(float(text) * 60)
     except ValueError:
         return None
-
-
-def prompt_new_tag(parent: QWidget) -> str | None:
-    """The one-line "New tag" prompt — shared by the session-end picker and the tag
-    manager's "+ New tag", so it's the same window rather than two that merely match."""
-    text, ok = QInputDialog.getText(parent, "New tag", "Tag:")
-    text = text.strip()
-    return text if ok and text else None
 
 
 def label(text: str = "", object_name: str = "") -> QLabel:

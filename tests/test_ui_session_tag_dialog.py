@@ -1,6 +1,6 @@
-"""SessionTagDialog on its own: a thin shell around CatalogPicker, like CatalogManagerDialog,
-but checkable and pre-seeded with a session's current tags — see test_ui_catalog_picker.py
-for the tree/"+ New tag"/double-click behaviour this reuses unchanged.
+"""SessionTagDialog on its own: a thin shell around CatalogPicker, pre-seeded with a
+session's current tags — see test_ui_catalog_picker.py for the tree/"+ New tag"/double-click
+behaviour this reuses unchanged.
 
 What's actually this dialog's own job: diffing the tree's final checked state against what
 the session had when it opened into exactly the SessionTagged/SessionUntagged events that

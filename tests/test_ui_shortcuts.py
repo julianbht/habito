@@ -6,6 +6,8 @@ real event path — which is what ``qtbot.keyClick`` on the window gives us.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from PySide6.QtCore import Qt
 
@@ -28,6 +30,30 @@ def app(qtbot, tmp_path):
     qtbot.addWidget(window)
     window.show()
     qtbot.waitExposed(window)
+    return window
+
+
+def _window_with_extras(qtbot, tmp_path, wakeup: bool = False, workout: bool = False):
+    """A window with the extras stores the flags ask for — the composition root only
+    builds each when its habit is configured (see habito.app)."""
+    extras: dict[str, object] = {"enabled": True}
+    if wakeup:
+        extras["wakeup"] = {"habit": "sleep"}
+    if workout:
+        extras["workout"] = {"habit": "workout"}
+    config = Config.model_validate(
+        {"paths": {"data_repo": str(tmp_path)}, "project_root": tmp_path, "extras": extras}
+    )
+    engine, store = _build_engine_and_store(config, test_mode=False)
+    window = HabitoApp(
+        config,
+        engine,
+        store,
+        _build_wakeup_store(config, test_mode=False) if wakeup else None,
+        _build_workout_store(config, test_mode=False) if workout else None,
+        test_mode=True,
+    )
+    qtbot.addWidget(window)
     return window
 
 
@@ -144,146 +170,154 @@ def entries(app) -> list[str]:
 
 
 def test_settings_is_the_last_menu_entry(qtbot, app):
-    """The corrections sit above it, so Settings is where you'd expect: at the bottom."""
+    """One entry per stream you log, then Settings where you'd expect it: at the bottom."""
     assert entries(app) == [
         "Timer",
         "Calendar",
         "Log",
         "",
-        "Backfill…",
-        "Manage sessions…",
-        "Manage tags…",
+        "Sessions…",
         "Shortcuts…",
         "Settings…",
     ]
 
 
-def test_backfill_comes_before_settings(qtbot, app):
-    listed = entries(app)
-    assert listed.index("Backfill…") < listed.index("Settings…")
+def test_backfill_has_no_menu_entry_of_its_own(qtbot, app):
+    """It's the sessions manager's primary button — adding a session and correcting one
+    belong in the same window, not in two entries you have to know are related."""
+    assert "Backfill…" not in entries(app)
 
 
-def test_the_two_corrections_are_grouped(qtbot, app):
-    """Backfill and Manage sessions are the pair of by-hand corrections, so they sit
-    together."""
-    listed = entries(app)
-    assert listed.index("Manage sessions…") == listed.index("Backfill…") + 1
+def test_tags_have_no_menu_entry_of_their_own(qtbot, app):
+    """A tag only ever means something on a session, and the picker inside "Manage tags…"
+    is the catalog manager (see catalog_picker.py)."""
+    assert "Manage tags…" not in entries(app)
 
 
-def test_log_wakeup_is_absent_when_extras_are_disabled(qtbot, app):
+def test_opening_manage_sessions_launches_the_dialog(qtbot, app, monkeypatch):
+    from habito.ui.dialogs.manage_sessions_dialog import ManageSessionsDialog
+
+    opened = []
+    monkeypatch.setattr(ManageSessionsDialog, "exec", lambda self: opened.append(self) or 0)
+
+    app.on_open_manage_sessions()
+
+    assert len(opened) == 1
+
+
+def test_sleep_is_absent_when_extras_are_disabled(qtbot, app):
     """Off by default — the whole point of the flag (see CLAUDE.md § Extras)."""
-    assert "Log sleep" not in entries(app)
+    assert "Sleep…" not in entries(app)
 
 
-def test_log_wakeup_appears_grouped_with_the_other_corrections_when_enabled(qtbot, tmp_path):
-    config = Config.model_validate(
-        {
-            "paths": {"data_repo": str(tmp_path)},
-            "project_root": tmp_path,
-            "extras": {"enabled": True, "wakeup": {"habit": "sleep"}},
-        }
-    )
-    engine, store = _build_engine_and_store(config, test_mode=False)
-    wakeup_store = _build_wakeup_store(config, test_mode=False)
-    window = HabitoApp(config, engine, store, wakeup_store, test_mode=True)
-    qtbot.addWidget(window)
+def test_sleep_appears_between_sessions_and_shortcuts_when_enabled(qtbot, tmp_path):
+    window = _window_with_extras(qtbot, tmp_path, wakeup=True)
 
     listed = entries(window)
-    assert "Log sleep" in listed
-    assert listed.index("Manage tags…") < listed.index("Log sleep") < listed.index("Shortcuts…")
+    assert listed.index("Sessions…") < listed.index("Sleep…") < listed.index("Shortcuts…")
 
 
-def test_opening_wakeup_launches_the_dialog(qtbot, tmp_path, monkeypatch):
+def test_opening_manage_wakeups_launches_the_manager_not_the_log_form(qtbot, tmp_path, monkeypatch):
+    """The manager is the door; the logging form opens from its "Log wake-up…" button, so
+    you can see whether you already logged today before adding another."""
+    from habito.ui.dialogs.entry_manager_dialog import EntryManagerDialog
     from habito.ui.dialogs.wakeup_dialog import WakeUpDialog
 
-    config = Config.model_validate(
-        {
-            "paths": {"data_repo": str(tmp_path)},
-            "project_root": tmp_path,
-            "extras": {"enabled": True, "wakeup": {"habit": "sleep"}},
-        }
-    )
-    engine, store = _build_engine_and_store(config, test_mode=False)
-    wakeup_store = _build_wakeup_store(config, test_mode=False)
-    window = HabitoApp(config, engine, store, wakeup_store, test_mode=True)
-    qtbot.addWidget(window)
+    window = _window_with_extras(qtbot, tmp_path, wakeup=True)
+    opened, forms = [], []
+    monkeypatch.setattr(EntryManagerDialog, "exec", lambda self: opened.append(self) or 0)
+    monkeypatch.setattr(WakeUpDialog, "exec", lambda self: forms.append(self) or 0)
 
+    window.on_open_manage_wakeups()
+
+    assert len(opened) == 1
+    assert forms == []
+
+
+def test_the_wakeup_form_opens_from_the_manager_seeded_from_config(qtbot, tmp_path, monkeypatch):
+    from habito.ui.dialogs.wakeup_dialog import WakeUpDialog
+
+    window = _window_with_extras(qtbot, tmp_path, wakeup=True)
     opened = []
     monkeypatch.setattr(WakeUpDialog, "exec", lambda self: opened.append(self) or 0)
 
-    window.on_open_wakeup()
+    window._open_wakeup_form(window, lambda events: None, None)
 
     assert len(opened) == 1
+    assert opened[0].windowTitle() == "Log wake-up"
 
 
-def test_log_workout_is_absent_when_extras_are_disabled(qtbot, app):
+def test_workouts_are_absent_when_extras_are_disabled(qtbot, app):
     """Off by default — the whole point of the flag (see CLAUDE.md § Extras)."""
-    assert "Log workout" not in entries(app)
+    assert "Workouts…" not in entries(app)
 
 
-def test_log_workout_appears_grouped_with_log_sleep_when_enabled(qtbot, tmp_path):
-    config = Config.model_validate(
-        {
-            "paths": {"data_repo": str(tmp_path)},
-            "project_root": tmp_path,
-            "extras": {
-                "enabled": True,
-                "wakeup": {"habit": "sleep"},
-                "workout": {"habit": "workout"},
-            },
-        }
-    )
-    engine, store = _build_engine_and_store(config, test_mode=False)
-    wakeup_store = _build_wakeup_store(config, test_mode=False)
-    workout_store = _build_workout_store(config, test_mode=False)
-    window = HabitoApp(config, engine, store, wakeup_store, workout_store, test_mode=True)
-    qtbot.addWidget(window)
+def test_workouts_appear_after_sleep_when_enabled(qtbot, tmp_path):
+    window = _window_with_extras(qtbot, tmp_path, wakeup=True, workout=True)
 
     listed = entries(window)
-    assert "Log workout" in listed
-    assert listed.index("Log sleep") + 1 == listed.index("Log workout")
-    assert listed.index("Log workout") < listed.index("Shortcuts…")
+    assert listed.index("Sleep…") + 1 == listed.index("Workouts…")
+    assert listed.index("Workouts…") < listed.index("Shortcuts…")
 
 
-def test_no_separate_manage_workouts_entry(qtbot, tmp_path):
-    """Unlike tags, workouts don't get a standalone manager — the picker embedded in
-    "Log workout" already covers create/edit (see workout_log_dialog.py's docstring)."""
-    config = Config.model_validate(
-        {
-            "paths": {"data_repo": str(tmp_path)},
-            "project_root": tmp_path,
-            "extras": {"enabled": True, "workout": {"habit": "workout"}},
-        }
-    )
-    engine, store = _build_engine_and_store(config, test_mode=False)
-    workout_store = _build_workout_store(config, test_mode=False)
-    window = HabitoApp(config, engine, store, None, workout_store, test_mode=True)
-    qtbot.addWidget(window)
+def test_no_separate_workout_catalog_entry(qtbot, tmp_path):
+    """The picker inside "Log workout" is the catalog manager, so there is nothing a
+    standalone one would add (see catalog_picker.py)."""
+    window = _window_with_extras(qtbot, tmp_path, workout=True)
 
+    assert "Workout types…" not in entries(window)
     assert "Manage workouts…" not in entries(window)
 
 
-def test_opening_log_workout_launches_the_dialog(qtbot, tmp_path, monkeypatch):
+def test_opening_manage_workouts_launches_the_manager_not_the_log_form(
+    qtbot, tmp_path, monkeypatch
+):
+    from habito.ui.dialogs.entry_manager_dialog import EntryManagerDialog
     from habito.ui.dialogs.workout_log_dialog import WorkoutLogDialog
 
-    config = Config.model_validate(
-        {
-            "paths": {"data_repo": str(tmp_path)},
-            "project_root": tmp_path,
-            "extras": {"enabled": True, "workout": {"habit": "workout"}},
-        }
-    )
-    engine, store = _build_engine_and_store(config, test_mode=False)
-    workout_store = _build_workout_store(config, test_mode=False)
-    window = HabitoApp(config, engine, store, None, workout_store, test_mode=True)
-    qtbot.addWidget(window)
+    window = _window_with_extras(qtbot, tmp_path, workout=True)
+    opened, forms = [], []
+    monkeypatch.setattr(EntryManagerDialog, "exec", lambda self: opened.append(self) or 0)
+    monkeypatch.setattr(WorkoutLogDialog, "exec", lambda self: forms.append(self) or 0)
 
+    window.on_open_manage_workouts()
+
+    assert len(opened) == 1
+    assert forms == []
+
+
+def test_the_workout_form_opens_from_the_manager(qtbot, tmp_path, monkeypatch):
+    from habito.ui.dialogs.workout_log_dialog import WorkoutLogDialog
+
+    window = _window_with_extras(qtbot, tmp_path, workout=True)
     opened = []
     monkeypatch.setattr(WorkoutLogDialog, "exec", lambda self: opened.append(self) or 0)
 
-    window.on_open_log_workout()
+    window._open_workout_form(window, lambda events: None, None)
 
     assert len(opened) == 1
+    assert opened[0].windowTitle() == "Log workout"
+
+
+def test_editing_an_entry_opens_the_same_form_pre_filled(qtbot, tmp_path, monkeypatch):
+    """One form for both, so "Edit…" can't drift out of step with "Log workout…"."""
+    from habito.actions.workout import build_workout_logged_event
+    from habito.ui.dialogs.workout_log_dialog import WorkoutLogDialog
+
+    window = _window_with_extras(qtbot, tmp_path, workout=True)
+    logged = build_workout_logged_event(
+        datetime(2026, 8, 4, 18, 0, tzinfo=timezone(timedelta(hours=2))),
+        ["running"],
+        habit="workout",
+    )
+    window._append_workout([logged])  # it is a standing entry, so its workout is known
+    opened = []
+    monkeypatch.setattr(WorkoutLogDialog, "exec", lambda self: opened.append(self) or 0)
+
+    window._open_workout_form(window, lambda events: None, logged)
+
+    assert opened[0].windowTitle() == "Edit workout log"
+    assert opened[0].picker.selected() == ["running"]
 
 
 def test_the_current_view_is_ticked_in_the_menu(qtbot, app):

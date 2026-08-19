@@ -1,5 +1,6 @@
-"""known_workouts/workout_descriptions: what the workout picker offers, and what each one
-means — all derived from the log itself, mirroring test_projections_tags.py. There is no
+"""The workout projections: the catalog (known_workouts/workout_descriptions — what the
+picker offers and what each one means) and workout_entries (the rows ManageWorkoutsDialog
+lists). All derived from the log itself, mirroring test_projections_tags.py. There is no
 session_workouts equivalent to test: a workout is never attached to a Pomodoro session (see
 WorkoutLogged's own docstring)."""
 
@@ -8,7 +9,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from habito.domain.events import Origin, WorkoutCreated, WorkoutDescribed, WorkoutLogged
-from habito.projections.workouts import known_workouts, workout_descriptions
+from habito.projections.workouts import known_workouts, workout_descriptions, workout_entries
 
 WHEN = datetime(2026, 8, 4, 9, 0, tzinfo=UTC)
 
@@ -30,9 +31,9 @@ def described(workout: str, description: str, habit: str = "workout") -> Workout
     )
 
 
-def logged(workouts: list[str], habit: str = "workout") -> WorkoutLogged:
+def logged(workouts: list[str], habit: str = "workout", day: int = 4) -> WorkoutLogged:
     return WorkoutLogged(
-        timestamp=WHEN,
+        timestamp=WHEN.replace(day=day),
         tz_offset_minutes=0,
         origin=Origin.backfilled,
         habit=habit,
@@ -102,3 +103,31 @@ def test_the_latest_description_wins():
 def test_descriptions_are_scoped_to_their_habit():
     events = [described("linear algebra", "Strang", habit="study")]
     assert workout_descriptions(events, "workout") == {}
+
+
+# --- workout_entries ------------------------------------------------------
+# Fed the standing stream, so a voided entry is already gone before this runs — that rule
+# lives in `read_all` and is tested in test_voiding.py. What is this projection's own is
+# the habit filter and the newest-first order.
+def test_entries_come_back_newest_first():
+    older, newer = logged(["running"], day=3), logged(["yoga"], day=5)
+
+    assert workout_entries([older, newer], "workout") == [newer, older]
+
+
+def test_only_this_habits_entries_are_listed():
+    mine, someone_elses = logged(["running"]), logged(["running"], habit="study")
+
+    assert workout_entries([mine, someone_elses], "workout") == [mine]
+
+
+def test_catalog_events_are_not_log_entries():
+    entry = logged(["running"])
+
+    assert workout_entries([created("running"), described("running", "5k"), entry], "workout") == [
+        entry
+    ]
+
+
+def test_an_empty_log_lists_nothing():
+    assert workout_entries([], "workout") == []
