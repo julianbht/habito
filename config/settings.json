@@ -37,6 +37,9 @@
       "habit": "sleep",
       "default_wake_time": "04:00:00",
       "default_bedtime": "20:00:00"
+    },
+    "workout": {
+      "habit": "workout"
     }
   },
   "paths": {

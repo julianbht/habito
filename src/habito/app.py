@@ -107,6 +107,7 @@ def _build_workout_store(config: Config, test_mode: bool = False) -> EventStore 
 
 
 def run_gui(config: Config, test_mode: bool = False) -> int:
+    from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import QApplication
 
     from habito.ui import theme
@@ -114,6 +115,7 @@ def run_gui(config: Config, test_mode: bool = False) -> int:
 
     existing = QApplication.instance()
     qt_app = existing if isinstance(existing, QApplication) else QApplication(sys.argv[:1])
+    qt_app.setWindowIcon(QIcon(str(Path(__file__).parent / "ui" / "app_icon.ico")))
     theme.apply(qt_app, theme.Theme.resolve(config.ui.theme, test_mode))
 
     if test_mode:
