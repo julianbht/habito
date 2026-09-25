@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="branding/logo.svg" alt="Habito logo" width="128">
+</p>
+
 # Habito
 
 A minimalist, keyboard-navigable cross-platform Pomodoro tracker for developers.

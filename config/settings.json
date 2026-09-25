@@ -3,7 +3,7 @@
   "pomodoro": {
     "work_minutes": 25.0,
     "break_minutes": 5,
-    "rounds": 4,
+    "rounds": 2,
     "resume_window_minutes": 10
   },
   "time": {
