@@ -2,6 +2,11 @@
   <img src="branding/logo.svg" alt="Habito logo" width="128">
 </p>
 
+<p align="center">
+  <em>"No man is free who is not master of himself."</em><br>
+  — Epictetus
+</p>
+
 # Habito
 
 A minimalist, keyboard-navigable cross-platform Pomodoro tracker for developers.
