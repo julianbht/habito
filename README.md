@@ -63,7 +63,7 @@ Launch the timer UI:
 uv run habito
 ```
 
-Run against a throwaway log, without touching the data repo — see [Test mode](#test-mode):
+Run against a throwaway log, without touching the data repo:
 
 ```bash
 uv run habito --test-mode
