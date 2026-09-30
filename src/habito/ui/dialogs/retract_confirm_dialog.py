@@ -78,7 +78,7 @@ class RetractConfirmDialog(QDialog):
         root.addWidget(question)
 
         self.reason = QLineEdit()
-        self.reason.setPlaceholderText("Reason (optional) — e.g. entered under the wrong date")
+        self.reason.setPlaceholderText("Reason (optional), e.g. entered under the wrong date")
         self.reason.setMaxLength(200)
         root.addWidget(self.reason)
 

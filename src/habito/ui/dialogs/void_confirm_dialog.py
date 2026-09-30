@@ -60,7 +60,7 @@ class VoidConfirmDialog(QDialog):
         root.addWidget(question)
 
         self.reason = QLineEdit()
-        self.reason.setPlaceholderText("Reason (optional) — e.g. logged the wrong day")
+        self.reason.setPlaceholderText("Reason (optional), e.g. logged the wrong day")
         self.reason.setMaxLength(200)
         root.addWidget(self.reason)
 

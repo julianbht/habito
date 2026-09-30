@@ -126,19 +126,19 @@ def describe(event: Event, tag_description: str | None = None) -> Line:
     elif isinstance(event, SessionTagged):
         what, detail = "Tagged", event.tag
         if tag_description:
-            detail = f"{event.tag} — {tag_description}"
+            detail = f"{event.tag} · {tag_description}"
     elif isinstance(event, SessionUntagged):
         what, detail = "Untagged", event.tag
     elif isinstance(event, TagCreated):
         what, detail = "Tag created", event.tag
     elif isinstance(event, TagDescribed):
         what = "Tag described"
-        detail = f"{event.tag} — {event.description}" if event.description else event.tag
+        detail = f"{event.tag} · {event.description}" if event.description else event.tag
     elif isinstance(event, WorkoutCreated):
         what, detail = "Workout created", event.workout
     elif isinstance(event, WorkoutDescribed):
         what = "Workout described"
-        detail = f"{event.workout} — {event.description}" if event.description else event.workout
+        detail = f"{event.workout} · {event.description}" if event.description else event.workout
     elif isinstance(event, SessionRetracted):
         what = "Session retracted"
         # Says when the correction was made, since the row sits under the day it corrects
@@ -238,7 +238,7 @@ class LogView(QWidget):
         self._summary_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self._summary_lbl)
 
-        self._hint_lbl = label("Read-only — the log is append-only", "muted")
+        self._hint_lbl = label("Read-only: the log is append-only", "muted")
         self._hint_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self._hint_lbl)
 

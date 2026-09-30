@@ -53,8 +53,8 @@ class PomodoroConfig(BaseModel):
     def _active_template_exists(self) -> PomodoroConfig:
         if self.active_template >= len(self.templates):
             raise ValueError(
-                f"active_template {self.active_template} is out of range — there are "
-                f"{len(self.templates)} templates"
+                f"active_template {self.active_template} is out of range (there are "
+                f"{len(self.templates)} templates)"
             )
         return self
 
@@ -114,7 +114,7 @@ class TimeConfig(BaseModel):
             ZoneInfo(value)
         except (ZoneInfoNotFoundError, ValueError) as exc:
             raise ValueError(
-                f"unknown timezone {value!r} — use an IANA name like 'Europe/Berlin', "
+                f"unknown timezone {value!r}. Use an IANA name like 'Europe/Berlin', "
                 f"or '{SYSTEM_TZ}' to follow this computer"
             ) from exc
         return value
@@ -234,7 +234,7 @@ class GoalsConfig(BaseModel):
             if upper_buffered < lower_buffered:
                 raise ValueError(
                     f"the {upper} allowance makes the {upper} goal easier to reach than the "
-                    f"{lower} one — lower it, or raise the {upper} goal"
+                    f"{lower} one. Lower it, or raise the {upper} goal"
                 )
         return self
 

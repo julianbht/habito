@@ -141,7 +141,7 @@ class HabitoApp(QMainWindow):
         self._awaiting_break_over_since: float | None = None
         self._break_reminded = False
 
-        self.setWindowTitle("Habito — TEST MODE" if test_mode else "Habito")
+        self.setWindowTitle("Habito · TEST MODE" if test_mode else "Habito")
         self._page_sizes = dict(_PAGE_SIZES)
         self.setMinimumSize(_PAGE_MINIMUMS[_TIMER_PAGE])
         self.resize(_PAGE_SIZES[_TIMER_PAGE])
@@ -181,7 +181,7 @@ class HabitoApp(QMainWindow):
         self._menu_btn.setFixedSize(30, 28)
         self._menu_btn.setIcon(icon("menu"))
         self._menu_btn.setIconSize(QSize(18, 18))
-        self._menu_btn.setToolTip("Menu — switch view, settings")
+        self._menu_btn.setToolTip("Menu: switch view, settings")
         self._menu_btn.clicked.connect(self._open_menu)
         top.addWidget(self._menu_btn)
         root.addLayout(top)

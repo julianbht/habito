@@ -24,7 +24,7 @@ def describe_resumable(resumable: ResumableSession) -> str:
     phase = "work" if resumable.phase is ResumePhase.work else "break"
     return (
         f"Round {resumable.round_index} of {resumable.planned_rounds} was cut short. "
-        f"{format_duration(resumable.remaining_seconds)} left on the {phase} — resume it?"
+        f"{format_duration(resumable.remaining_seconds)} left on the {phase}. Resume it?"
     )
 
 

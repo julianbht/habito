@@ -54,7 +54,7 @@ class TemplateDialog(QDialog):
         form.setSpacing(8)
 
         self.name_edit = QLineEdit(seed.name or "")
-        self.name_edit.setPlaceholderText("Optional — e.g. Deep work")
+        self.name_edit.setPlaceholderText("Optional, e.g. Deep work")
         self.name_edit.setMaxLength(40)
         form.addRow("Name", self.name_edit)
 

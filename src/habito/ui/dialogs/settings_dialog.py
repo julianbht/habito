@@ -231,7 +231,7 @@ class SettingsDialog(QDialog):
         form = QFormLayout()
         form.setSpacing(8)
         self._low_spin = self._spin(goals.low_minutes, maximum=24 * 60, suffix=" min", step=5)
-        self._low_spin.setToolTip("Study time that makes a day count — turns it green")
+        self._low_spin.setToolTip("Study time that makes a day count and turns it green")
         self._low_buffer_spin = self._allowance_spin(goals.low_buffer_minutes, "the low goal")
 
         self._middle_spin = self._optional_goal_spin(goals.middle_minutes, "earns a ★")
@@ -308,7 +308,7 @@ class SettingsDialog(QDialog):
             self._time.rollover_hour, minimum=0, maximum=23, suffix=":00"
         )
         self._rollover_spin.setToolTip(
-            "Studying past this hour still counts toward the day before — so a session "
+            "Studying past this hour still counts toward the day before, so a session "
             "running past midnight isn't split in two"
         )
 
@@ -319,7 +319,7 @@ class SettingsDialog(QDialog):
             self._tz_box.addItem(name, name)
         self._tz_box.setCurrentIndex(max(0, self._tz_box.findData(self._last_timezone)))
         self._tz_box.setToolTip(
-            "The wall clock your log and calendar use — set this if the computer's zone "
+            "The wall clock your log and calendar use. Set this if the computer's zone "
             "isn't where you are"
         )
 
@@ -406,5 +406,5 @@ class SettingsDialog(QDialog):
             self._status.setText(error)
             self._status.setStyleSheet(f"color: {theme.ERROR};")
         else:
-            self._status.setText("Saved — applies to your next session")
+            self._status.setText("Saved. Applies to your next session.")
             self._status.setStyleSheet(f"color: {theme.OK};")

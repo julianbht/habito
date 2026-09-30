@@ -98,7 +98,7 @@ class SessionCompleteDialog(PromptDialog):
         self._root.addWidget(self._tag_section, 1)
 
         self._attach_tag_link = button("+ Attach tag", "link")
-        self._attach_tag_link.setToolTip("Optional — attach a tag for what you were working on")
+        self._attach_tag_link.setToolTip("Optional: attach a tag for what you were working on")
         self._attach_tag_link.clicked.connect(self._reveal_tag_picker)
         self.tag_picker.new_button.setVisible(False)
         self.action_button = primary_button(action)

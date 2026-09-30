@@ -47,7 +47,7 @@ def describe_template(template: SessionTemplate, active: bool) -> str:
     details = (
         f"{template.rounds} × {template.work_minutes:g} min, {template.break_minutes} min break"
     )
-    text = f"{template.name} — {details}" if template.name else details
+    text = f"{template.name} · {details}" if template.name else details
     return f"{text}  · active" if active else text
 
 

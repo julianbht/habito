@@ -83,7 +83,7 @@ def fill_and_submit(monkeypatch, **fields):
 def test_rows_describe_each_template_and_mark_the_active_one(manager):
     assert rows(manager) == [
         "4 × 25 min, 5 min break  · active",
-        "Short — 2 × 25 min, 5 min break",
+        "Short · 2 × 25 min, 5 min break",
     ]
 
 
@@ -95,7 +95,7 @@ def test_adding_a_template_appends_it(manager, config, monkeypatch):
     assert config.pomodoro.templates[-1] == SessionTemplate(
         name="Deep work", work_minutes=50, rounds=6
     )
-    assert rows(manager)[-1] == "Deep work — 6 × 50 min, 5 min break"
+    assert rows(manager)[-1] == "Deep work · 6 × 50 min, 5 min break"
     assert config.pomodoro.active_template == 0  # adding doesn't switch to it
 
 

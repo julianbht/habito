@@ -171,7 +171,7 @@ class TimerView(QWidget):
         self._spin.setValue(work_seconds)
         self._spin.setSingleStep(_STEP_SECONDS)
         self._spin.setToolTip(
-            "Work length for the next session — type 30 for minutes, or 0:10 for seconds"
+            "Work length for the next session: type 30 for minutes, or 0:10 for seconds"
         )
         self._spin.valueChanged.connect(self._on_planned_changed)
         self._stack.addWidget(self._spin)

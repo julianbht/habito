@@ -133,7 +133,7 @@ def run_gui(config: Config, test_mode: bool = False) -> int:
 
     if test_mode:
         # No GitRepo, no worker, no recorder: nothing can reach the data repo from here.
-        print(f"TEST MODE — events go to {_log_root(config, test_mode) / config.habit}")
+        print(f"TEST MODE: events go to {_log_root(config, test_mode) / config.habit}")
         print("            the data repo is not touched and settings.json is not written")
         app.set_status_mode("status: TEST MODE · not recorded", theme.ACCENT_TEST)
     else:
@@ -155,7 +155,7 @@ def _attach_evidence(
 
     repo = GitRepo(config.data_repo_path())
     if not repo.is_repo():
-        app.set_status_mode("status: not set up — run 'habito doctor'", theme.WARN)
+        app.set_status_mode("status: not set up · run 'habito doctor'", theme.WARN)
         return
 
     # "." rather than one habit's directory: the data repo holds nothing but habit

@@ -43,7 +43,7 @@ from habito.ui.widgets.entry_list import EntryList
 SubmitCallback = Callable[[Iterable[Event]], None]
 
 _HINT = "Right-click a session to retract it or manage its tags."
-_EMPTY = "Nothing to manage — the log has no standing sessions."
+_EMPTY = "Nothing to manage. The log has no standing sessions."
 
 
 @dataclass(frozen=True)

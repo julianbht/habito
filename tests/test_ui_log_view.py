@@ -110,7 +110,7 @@ def test_a_tagged_session_shows_its_description_when_known():
         at(11, cls=SessionTagged, tag="LinAlg-S"),
         tag_description="Strang — Linear Algebra and Its Applications",
     )
-    assert line.detail == "LinAlg-S — Strang — Linear Algebra and Its Applications"
+    assert line.detail == "LinAlg-S · Strang — Linear Algebra and Its Applications"
 
 
 def test_an_untagged_session_shows_which_tag_was_removed():
@@ -122,7 +122,7 @@ def test_an_untagged_session_shows_which_tag_was_removed():
 def test_a_tag_described_event_shows_what_it_means():
     line = describe(at(11, cls=TagDescribed, tag="LinAlg-S", description="Strang's book"))
     assert line.what == "Tag described"
-    assert line.detail == "LinAlg-S — Strang's book"
+    assert line.detail == "LinAlg-S · Strang's book"
 
 
 def test_a_tag_described_event_without_text_still_reads():
@@ -154,7 +154,7 @@ def test_a_workout_created_event_shows_its_name():
 def test_a_workout_described_event_shows_what_it_means():
     line = describe(at(11, cls=WorkoutDescribed, workout="running", description="5k loop"))
     assert line.what == "Workout described"
-    assert line.detail == "running — 5k loop"
+    assert line.detail == "running · 5k loop"
 
 
 def test_a_workout_described_event_without_text_still_reads():
