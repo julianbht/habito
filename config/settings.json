@@ -3,13 +3,13 @@
   "pomodoro": {
     "templates": [
       {
-        "name": null,
+        "name": "Long",
         "work_minutes": 25.0,
         "break_minutes": 5,
         "rounds": 4
       },
       {
-        "name": null,
+        "name": "Short",
         "work_minutes": 25.0,
         "break_minutes": 5,
         "rounds": 2

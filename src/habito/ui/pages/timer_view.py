@@ -117,6 +117,9 @@ class TimerView(QWidget):
 
         self._template_btn = button(template_label, "template")
         self._template_btn.setToolTip("Switch to the next template  (Ctrl+T)")
+        # Tab reaches it, a click doesn't focus it: the ring shows only when you arrived by
+        # keyboard, and clicking leaves focus on Play, so Space still starts the session.
+        self._template_btn.setFocusPolicy(Qt.FocusPolicy.TabFocus)
         self._template_btn.clicked.connect(self._c.on_next_template)
         template_row = QHBoxLayout()
         template_row.addStretch(1)

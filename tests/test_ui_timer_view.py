@@ -381,6 +381,28 @@ def test_clicking_the_template_asks_for_the_next_one(view, qtbot):
     assert controller.template_switches == 1
 
 
+def test_clicking_the_template_leaves_focus_where_it_was(view, qtbot):
+    """No lingering focus ring after a mouse click, and Space still means Play."""
+    widget, controller = view
+    widget.render_state(snapshot(State.idle), 0)
+    widget.focus_first()
+
+    qtbot.mouseClick(widget._template_btn, Qt.MouseButton.LeftButton)
+
+    assert controller.template_switches == 1
+    assert widget._primary_btn.hasFocus()
+
+
+def test_tab_still_reaches_the_template(view, qtbot):
+    widget, _ = view
+    widget.render_state(snapshot(State.idle), 0)
+    widget._spin.setFocus()
+
+    qtbot.keyClick(widget._spin, Qt.Key.Key_Backtab)
+
+    assert widget._template_btn.hasFocus()
+
+
 def test_showing_a_template_is_not_echoed_back_as_an_edit(view):
     """The new template's work length is the config's own value, not a user edit."""
     widget, controller = view
