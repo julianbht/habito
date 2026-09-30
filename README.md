@@ -85,20 +85,6 @@ control draws a visible focus ring.
 | `Ctrl+,` | Open Settings |
 | `Esc` | Close a dialog |
 
-## Test mode
-
-```bash
-uv run habito --test-mode
-```
-
-For trying the UI out without polluting your real record. In this mode Habito:
-
-- writes events to a **throwaway file in your temp directory** (the path is printed on
-  startup) — the data repo is never touched;
-- starts **no evidence worker**, so nothing is committed or pushed;
-- leaves **`settings.json` unwritten** — format changes apply to the run only;
-- paints the entire app **red**, so it can't be mistaken for a real session.
-
 ## Log
 
 - Every event, grouped by day, newest first — what started when, how long each round actually
@@ -135,6 +121,17 @@ Only `habito.ui` knows about Qt. The views are purely presentational and talk to
 UI-agnostic.
 
 ## Tests
+
+Launch the UI in test-mode:
+
+```bash
+uv run habito --test-mode
+```
+
+For trying the UI out without polluting your real record. In this mode Habito:
+- writes events to a throwaway file in your temp directory
+- leaves `settings.json` unwritten — format changes apply to the run only;
+- paints the entire app red, so it can't be mistaken for a real session.
 
 Run the suite — unit tests, UI tests, and a hermetic end-to-end evidence test:
 
