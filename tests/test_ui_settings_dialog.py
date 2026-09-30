@@ -41,16 +41,12 @@ def dialog(qtbot):
 
 def test_edits_are_passed_to_the_controller(dialog, qtbot):
     widget, controller = dialog
-    widget._break_spin.setValue(12)
-    widget._rounds_spin.setValue(6)
     widget._low_spin.setValue(120)
     widget._low_buffer_spin.setValue(10)
     qtbot.mouseClick(widget._save_btn, Qt.MouseButton.LeftButton)
 
     assert controller.saved == [
         SettingsValues(
-            break_minutes=12,
-            rounds=6,
             low_minutes=120,
             low_buffer_minutes=10,
             sound="notification",
@@ -61,10 +57,10 @@ def test_edits_are_passed_to_the_controller(dialog, qtbot):
 
 def test_a_rejected_save_is_reported(dialog, qtbot):
     widget, controller = dialog
-    controller.error = "rounds: must be positive"
+    controller.error = "timezone: unknown timezone"
     qtbot.mouseClick(widget._save_btn, Qt.MouseButton.LeftButton)
 
-    assert widget._status.text() == "rounds: must be positive"
+    assert widget._status.text() == "timezone: unknown timezone"
 
 
 def test_enter_presses_the_focused_button_not_the_default(dialog, qtbot):
@@ -81,23 +77,20 @@ def test_enter_saves_when_the_save_button_has_focus(dialog, qtbot):
     widget._save_btn.setFocus()
     qtbot.keyClick(widget._save_btn, Qt.Key.Key_Return)
 
-    assert controller.saved[0].break_minutes == 5
-    assert controller.saved[0].rounds == 4
+    assert controller.saved[0].low_minutes == 100
     assert controller.saved[0].sound == "notification"
 
 
 def test_tab_reaches_every_control(dialog, qtbot):
     widget, _ = dialog
-    widget._break_spin.setFocus()
+    widget._resume_window_spin.setFocus()
 
     seen = []
-    for _ in range(14):
+    for _ in range(12):
         qtbot.keyClick(widget.focusWidget(), Qt.Key.Key_Tab)
         seen.append(widget.focusWidget())
 
     assert seen == [
-        widget._rounds_spin,
-        widget._resume_window_spin,
         widget._low_spin,
         widget._low_buffer_spin,
         widget._middle_spin,
@@ -194,8 +187,6 @@ def test_resume_window_edits_reach_the_controller(dialog, qtbot):
 def test_every_number_field_is_wrapped_in_a_stepper(dialog):
     widget, _ = dialog
     fields = (
-        widget._break_spin,
-        widget._rounds_spin,
         widget._resume_window_spin,
         widget._low_spin,
         widget._low_buffer_spin,
@@ -210,15 +201,13 @@ def test_every_number_field_is_wrapped_in_a_stepper(dialog):
 
 
 def test_the_step_size_follows_how_the_value_is_used(dialog):
-    """A goal is picked roughly, so it moves in 5s; a break is tuned against how long it
-    actually feels, so it moves in 1s. Same widget, different `singleStep`."""
+    """A goal is picked roughly, so it moves in 5s; an allowance is tuned against how
+    short of it still feels fine, so it moves in 1s. Same widget, different `singleStep`."""
     widget, _ = dialog
 
     assert widget._low_spin.singleStep() == 5
     assert widget._middle_spin.singleStep() == 5
     assert widget._high_spin.singleStep() == 5
-    assert widget._break_spin.singleStep() == 1
-    assert widget._rounds_spin.singleStep() == 1
     assert widget._low_buffer_spin.singleStep() == 1
     assert widget._middle_buffer_spin.singleStep() == 1
     assert widget._high_buffer_spin.singleStep() == 1

@@ -19,7 +19,7 @@ def test_saving_preserves_the_settings_the_ui_cannot_reach(tmp_path):
         json.dumps(
             {
                 "habit": "reading",
-                "pomodoro": {"work_minutes": 25, "break_minutes": 5, "rounds": 4},
+                "pomodoro": {"templates": [{"name": "Deep work", "rounds": 6}]},
                 "evidence": {"branch": "trunk", "auto_push": False},
                 "paths": {"data_repo": "../elsewhere"},
             }
@@ -28,11 +28,12 @@ def test_saving_preserves_the_settings_the_ui_cannot_reach(tmp_path):
     )
 
     config = load_config(project_root=tmp_path, config_path=cfg_file)
-    config.pomodoro = config.pomodoro.model_copy(update={"work_minutes": 50})
+    config.pomodoro = config.pomodoro.model_copy(update={"resume_window_minutes": 20})
     save_config(config)
 
     reloaded = load_config(project_root=tmp_path, config_path=cfg_file)
-    assert reloaded.pomodoro.work_minutes == 50
+    assert reloaded.pomodoro.resume_window_minutes == 20
+    assert reloaded.pomodoro.active().name == "Deep work"
     # None of these have a widget, so only the round-trip keeps them.
     assert reloaded.habit == "reading"
     assert reloaded.evidence.branch == "trunk"
@@ -55,7 +56,8 @@ def test_the_injected_paths_are_not_written_to_the_file(tmp_path):
 def test_a_missing_file_loads_the_defaults(tmp_path):
     config = load_config(project_root=tmp_path, config_path=tmp_path / "nope.json")
 
-    assert config.pomodoro.rounds == 4
+    assert [t.label() for t in config.pomodoro.templates] == ["4 × 25 · 5", "2 × 25 · 5"]
+    assert config.pomodoro.active().rounds == 4
     assert config.goals.low_minutes == 100
 
 

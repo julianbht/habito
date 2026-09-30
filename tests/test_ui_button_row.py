@@ -30,6 +30,9 @@ from habito.ui.dialogs.retract_confirm_dialog import RetractConfirmDialog
 from habito.ui.dialogs.session_tag_dialog import SessionTagDialog
 from habito.ui.dialogs.settings_dialog import SettingsDialog
 from habito.ui.dialogs.shortcuts_dialog import ShortcutsDialog
+from habito.ui.dialogs.template_delete_confirm_dialog import TemplateDeleteConfirmDialog
+from habito.ui.dialogs.template_dialog import TemplateDialog
+from habito.ui.dialogs.template_manager_dialog import TemplateManagerDialog
 from habito.ui.dialogs.void_confirm_dialog import VoidConfirmDialog
 from habito.ui.dialogs.wakeup_dialog import WakeUpDialog
 from habito.ui.dialogs.workout_log_dialog import WorkoutLogDialog
@@ -203,6 +206,11 @@ def _dialog_factories():
             controller=_StubSettingsController(), pomodoro=PomodoroConfig()
         ),
         "ShortcutsDialog": ShortcutsDialog,
+        "TemplateDeleteConfirmDialog": lambda: TemplateDeleteConfirmDialog("4 × 25 · 5"),
+        "TemplateDialog": lambda: TemplateDialog(on_submit=noop),
+        "TemplateManagerDialog": lambda: TemplateManagerDialog(
+            reload=PomodoroConfig, on_apply=noop
+        ),
         "VoidConfirmDialog": lambda: VoidConfirmDialog(_wakeup(), "a wake-up", noop, 3, NOW),
         "WakeUpDialog": lambda: WakeUpDialog(
             on_submit=noop,

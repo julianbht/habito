@@ -122,7 +122,7 @@ def test_the_rollover_hour_keeps_the_small_hours_on_the_previous_day():
 # --- what the log actually records ---------------------------------------
 def test_events_land_on_the_configured_zones_day_not_the_machines():
     """The bug this setting fixes: a Berlin evening filed under the New York day."""
-    from habito.config.models import PomodoroConfig
+    from habito.config.models import SessionTemplate
     from habito.engine.pomodoro import PomodoroEngine
 
     # 22:30 Berlin on Aug 5 — which is 16:30 on Aug 5 in New York, same day here, but
@@ -131,20 +131,20 @@ def test_events_land_on_the_configured_zones_day_not_the_machines():
     events = []
     clock = FakeClock(start=instant)
     clock.set_zone(BERLIN)
-    PomodoroEngine(PomodoroConfig(), sink=events.append, clock=clock, habit="study").start()
+    PomodoroEngine(SessionTemplate(), sink=events.append, clock=clock, habit="study").start()
 
     assert events[0].tz_offset_minutes == 120
     assert logical_date(events[0]) == date(2026, 8, 5)
 
 
 def test_changing_the_zone_moves_which_day_new_events_belong_to():
-    from habito.config.models import PomodoroConfig
+    from habito.config.models import SessionTemplate
     from habito.engine.pomodoro import PomodoroEngine
 
     instant = datetime(2026, 8, 5, 23, 30, tzinfo=UTC)  # 01:30 Aug 6 Berlin
     events = []
     clock = FakeClock(start=instant)
-    engine = PomodoroEngine(PomodoroConfig(), sink=events.append, clock=clock, habit="study")
+    engine = PomodoroEngine(SessionTemplate(), sink=events.append, clock=clock, habit="study")
 
     clock.set_zone(NEW_YORK)
     engine.start()

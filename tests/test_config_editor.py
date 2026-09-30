@@ -10,11 +10,9 @@ from __future__ import annotations
 from datetime import time
 
 from habito.config.editor import ConfigEditor
-from habito.config.models import Config
+from habito.config.models import Config, PomodoroConfig, SessionTemplate
 
 _VALID = {
-    "break_minutes": 5,
-    "rounds": 4,
     "resume_window_minutes": 10,
     "low_minutes": 100,
     "low_buffer_minutes": 5,
@@ -80,16 +78,21 @@ def test_an_unwritable_settings_file_still_applies_the_change(tmp_path):
     assert config.goals.low_minutes == 60  # applied regardless
 
 
-def test_the_timer_changes_only_the_round_length(tmp_path):
-    """The duration field edits work_minutes; break and rounds are not its business."""
+def test_the_timer_changes_only_the_active_templates_round_length(tmp_path):
+    """The duration field edits work_minutes; break, rounds and the other templates are
+    not its business."""
     config = build_config(tmp_path)
+    config.pomodoro = PomodoroConfig(
+        templates=[SessionTemplate(rounds=4), SessionTemplate(rounds=2)], active_template=1
+    )
 
     outcome = ConfigEditor(config).apply_work_minutes(0.5)
 
     assert outcome.ok
-    assert config.pomodoro.work_minutes == 0.5  # fractional survives the trip
-    assert config.pomodoro.break_minutes == 5
-    assert config.pomodoro.rounds == 4
+    first, second = config.pomodoro.templates
+    assert second.work_minutes == 0.5  # fractional survives the trip
+    assert (second.break_minutes, second.rounds) == (5, 2)
+    assert first.work_minutes == 25
 
 
 def test_the_timer_rejects_a_zero_length_round(tmp_path):
@@ -100,7 +103,51 @@ def test_the_timer_rejects_a_zero_length_round(tmp_path):
     assert not outcome.ok
     assert outcome.message is not None
     assert outcome.message.startswith("work_minutes: ")
-    assert config.pomodoro.work_minutes == 25
+    assert config.pomodoro.active().work_minutes == 25
+
+
+def test_templates_are_replaced_as_one_list(tmp_path):
+    config = build_config(tmp_path)
+    templates = [SessionTemplate(name="Deep work", rounds=6), SessionTemplate(rounds=1)]
+
+    outcome = ConfigEditor(config).apply_templates(templates, 1)
+
+    assert outcome.ok
+    assert config.pomodoro.templates == templates
+    assert config.pomodoro.active().rounds == 1
+    assert config.pomodoro.resume_window_minutes == 10  # untouched
+
+
+def test_an_empty_template_list_is_refused(tmp_path):
+    """There is always a template to run."""
+    config = build_config(tmp_path)
+    before = config.pomodoro
+
+    outcome = ConfigEditor(config).apply_templates([], 0)
+
+    assert not outcome.ok
+    assert config.pomodoro is before
+
+
+def test_an_active_index_past_the_end_is_refused(tmp_path):
+    config = build_config(tmp_path)
+
+    outcome = ConfigEditor(config).apply_templates([SessionTemplate()], 1)
+
+    assert not outcome.ok
+    assert outcome.message is not None
+    assert "out of range" in outcome.message
+
+
+def test_settings_leave_the_templates_alone(tmp_path):
+    config = build_config(tmp_path)
+    before = config.pomodoro.templates
+
+    outcome = ConfigEditor(config).apply_settings(**{**_VALID, "resume_window_minutes": 30})
+
+    assert outcome.ok
+    assert config.pomodoro.templates == before
+    assert config.pomodoro.resume_window_minutes == 30
 
 
 def test_omitting_the_wakeup_defaults_leaves_them_unchanged(tmp_path):

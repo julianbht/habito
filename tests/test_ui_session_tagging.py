@@ -28,7 +28,7 @@ def build(qtbot, tmp_path, *, rounds: int = 1):
         {
             "paths": {"data_repo": str(tmp_path)},
             "project_root": tmp_path,
-            "pomodoro": {"rounds": rounds},
+            "pomodoro": {"templates": [{"rounds": rounds}]},
         }
     )
     engine, store = _build_engine_and_store(config, test_mode=False)
@@ -42,7 +42,7 @@ def build(qtbot, tmp_path, *, rounds: int = 1):
 def finish_the_session(window):
     """Drive a whole session to completion, whatever its round count."""
     window.on_start()
-    for _ in range(window._config.pomodoro.rounds * 2 - 1):
+    for _ in range(window._config.pomodoro.active().rounds * 2 - 1):
         window._engine.skip()
         window._repaint()
         window._engine.acknowledge()
@@ -174,12 +174,14 @@ def build_with_fake_clock(qtbot, tmp_path, *, rounds: int = 2):
         {
             "paths": {"data_repo": str(tmp_path)},
             "project_root": tmp_path,
-            "pomodoro": {"rounds": rounds},
+            "pomodoro": {"templates": [{"rounds": rounds}]},
         }
     )
     store = EventStore(config.data_repo_path(), config.habit, config.time.rollover_hour)
     clock = FakeClock()
-    engine = PomodoroEngine(config.pomodoro, sink=store.append, clock=clock, habit=config.habit)
+    engine = PomodoroEngine(
+        config.pomodoro.active(), sink=store.append, clock=clock, habit=config.habit
+    )
     window = HabitoApp(config, engine, store, test_mode=True)
     qtbot.addWidget(window)
     return window, store, clock
@@ -189,7 +191,7 @@ def finish_the_session_with_elapsed_time(window, clock):
     """Like `finish_the_session`, but each phase elapses a minute before it's skipped, so
     the recorded work/break seconds — and therefore today's total — are nonzero."""
     window.on_start()
-    for _ in range(window._config.pomodoro.rounds * 2 - 1):
+    for _ in range(window._config.pomodoro.active().rounds * 2 - 1):
         clock.advance(60)
         window._engine.skip()
         window._repaint()

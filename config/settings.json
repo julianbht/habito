@@ -1,9 +1,21 @@
 {
   "habit": "study",
   "pomodoro": {
-    "work_minutes": 25.0,
-    "break_minutes": 5,
-    "rounds": 4,
+    "templates": [
+      {
+        "name": null,
+        "work_minutes": 25.0,
+        "break_minutes": 5,
+        "rounds": 4
+      },
+      {
+        "name": null,
+        "work_minutes": 25.0,
+        "break_minutes": 5,
+        "rounds": 2
+      }
+    ],
+    "active_template": 0,
     "resume_window_minutes": 10
   },
   "time": {
@@ -26,11 +38,11 @@
     "break_reminder_minutes": 5
   },
   "goals": {
-    "low_minutes": 100,
+    "low_minutes": 50,
     "low_buffer_minutes": 5,
-    "middle_minutes": 200,
+    "middle_minutes": 100,
     "middle_buffer_minutes": 10,
-    "high_minutes": null,
+    "high_minutes": 200,
     "high_buffer_minutes": 15
   },
   "extras": {

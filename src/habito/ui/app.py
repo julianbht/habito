@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from habito.config.editor import ConfigEditor
-from habito.config.models import Config
+from habito.config.models import Config, SessionTemplate
 from habito.domain.events import (
     Event,
     Origin,
@@ -52,6 +52,7 @@ from habito.ui.dialogs.resume_dialog import ResumePromptDialog
 from habito.ui.dialogs.session_complete_dialog import SessionCompleteDialog
 from habito.ui.dialogs.settings_dialog import SettingsDialog, SettingsValues
 from habito.ui.dialogs.shortcuts_dialog import SHORTCUTS, ShortcutsDialog
+from habito.ui.dialogs.template_manager_dialog import TemplateManagerDialog
 from habito.ui.dialogs.wakeup_dialog import WakeUpDialog
 from habito.ui.dialogs.workout_log_dialog import WorkoutLogDialog
 from habito.ui.notifier import (
@@ -185,9 +186,11 @@ class HabitoApp(QMainWindow):
         top.addWidget(self._menu_btn)
         root.addLayout(top)
 
+        template = self._config.pomodoro.active()
         self._view = TimerView(
             controller=self,
-            work_minutes=self._config.pomodoro.work_minutes,
+            work_minutes=template.work_minutes,
+            template_label=template.label(),
             ui_theme=self._theme,
         )
         self._pages = QStackedWidget()
@@ -242,17 +245,18 @@ class HabitoApp(QMainWindow):
             action.triggered.connect(lambda _c=False, i=index: self.show_page(i))
             group.addAction(action)
 
-        # One entry per stream of things you log, each opening that stream's manager:
-        # the list of what's there, plus the button that adds one. Backfill and the tag
-        # catalog are reached from inside the sessions manager rather than from here.
+        # One entry per manager: the list of what's there, plus the button that adds one.
+        # Backfill and the tag catalog are reached from inside the sessions manager rather
+        # than from here.
         menu.addSeparator()
-        menu.addAction(icon("calendar_add_on"), "Sessions…", self.on_open_manage_sessions)
+        menu.addAction(icon("calendar_add_on"), "Sessions", self.on_open_manage_sessions)
         if self._wakeup_store is not None:
-            menu.addAction(icon("alarm"), "Sleep…", self.on_open_manage_wakeups)
+            menu.addAction(icon("alarm"), "Sleep", self.on_open_manage_wakeups)
         if self._workout_store is not None:
-            menu.addAction(icon("fitness_center"), "Workouts…", self.on_open_manage_workouts)
-        menu.addAction(icon("keyboard"), "Shortcuts…", self.on_open_shortcuts)
-        menu.addAction(icon("settings"), "Settings…", self._open_settings)
+            menu.addAction(icon("fitness_center"), "Workouts", self.on_open_manage_workouts)
+        menu.addAction(icon("tune"), "Templates", self.on_open_manage_templates)
+        menu.addAction(icon("keyboard"), "Shortcuts", self.on_open_shortcuts)
+        menu.addAction(icon("settings"), "Settings", self._open_settings)
         return menu
 
     def show_page(self, page: int) -> None:
@@ -316,6 +320,7 @@ class HabitoApp(QMainWindow):
             self._open_settings,
             self._view.nudge_up,
             self._view.nudge_down,
+            self.on_next_template,
         )
         for (key, _description), slot in zip(SHORTCUTS, slots, strict=True):
             QShortcut(QKeySequence(key), self).activated.connect(slot)
@@ -369,7 +374,7 @@ class HabitoApp(QMainWindow):
         if self._engine.state not in (State.idle, State.done):
             return
         resumable = find_resumable(
-            self._store.read_all(), self._config.habit, self._config.pomodoro.rounds
+            self._store.read_all(), self._config.habit, self._config.pomodoro.active().rounds
         )
         if resumable is None:
             return
@@ -423,21 +428,39 @@ class HabitoApp(QMainWindow):
     # needs widgets. A rejected change left the config untouched, so its side effects are
     # skipped — but an accepted-yet-unwritten one is still in force, so those still run.
     def on_set_work_minutes(self, minutes: float) -> str | None:
-        """Set the work length from the timer's duration field.
+        """Set the active template's work length from the timer's duration field.
 
-        Fractional: the view sends ``seconds / 60``, and ``PomodoroConfig.work_minutes`` is
+        Fractional: the view sends ``seconds / 60``, and ``SessionTemplate.work_minutes`` is
         a float so a sub-minute round survives the trip.
         """
         outcome = self._config_editor.apply_work_minutes(minutes)
         if outcome.ok:
-            self._engine.update_config(self._config.pomodoro)
+            self._retune_template()
         return outcome.message
+
+    def on_next_template(self) -> None:
+        """Move on to the next template, wrapping round. Only before a session starts —
+        the timer hides the switch once one has, and the shortcut checks the same."""
+        if self._engine.state not in (State.idle, State.done):
+            return
+        pomodoro = self._config.pomodoro
+        following = (pomodoro.active_template + 1) % len(pomodoro.templates)
+        self._apply_templates(pomodoro.templates, following)
+
+    def _apply_templates(self, templates: list[SessionTemplate], active: int) -> str | None:
+        outcome = self._config_editor.apply_templates(templates, active)
+        if outcome.ok:
+            self._retune_template()
+        return outcome.message
+
+    def _retune_template(self) -> None:
+        template = self._config.pomodoro.active()
+        self._engine.update_config(template)
+        self._view.set_template(template.label(), template.work_minutes)
 
     def on_save_settings(self, values: SettingsValues) -> str | None:
         """Apply everything the Settings dialog can change, all of it or none of it."""
         outcome = self._config_editor.apply_settings(
-            break_minutes=values.break_minutes,
-            rounds=values.rounds,
             resume_window_minutes=values.resume_window_minutes,
             low_minutes=values.low_minutes,
             low_buffer_minutes=values.low_buffer_minutes,
@@ -453,7 +476,6 @@ class HabitoApp(QMainWindow):
             default_bedtime=values.default_bedtime,
         )
         if outcome.ok:
-            self._engine.update_config(self._config.pomodoro)
             self._retune_goals()
             self._retune_sound()
             self._retune_clock()
@@ -529,6 +551,13 @@ class HabitoApp(QMainWindow):
             parent=self._settings_dialog or self,
         ).exec()
 
+    def on_open_manage_templates(self) -> None:
+        TemplateManagerDialog(
+            reload=lambda: self._config.pomodoro,
+            on_apply=self._apply_templates,
+            parent=self._settings_dialog or self,
+        ).exec()
+
     def on_open_shortcuts(self) -> None:
         ShortcutsDialog(parent=self._settings_dialog or self).exec()
 
@@ -567,9 +596,9 @@ class HabitoApp(QMainWindow):
             on_submit=self._append_all,
             # Backfilled sessions are described in whole minutes; a sub-minute test round
             # isn't a sensible default for one.
-            default_work=max(1, round(self._config.pomodoro.work_minutes)),
-            default_break=self._config.pomodoro.break_minutes,
-            default_rounds=self._config.pomodoro.rounds,
+            default_work=max(1, round(self._config.pomodoro.active().work_minutes)),
+            default_break=self._config.pomodoro.active().break_minutes,
+            default_rounds=self._config.pomodoro.active().rounds,
             habit=self._config.habit,
             time_config=self._config.time,
             today=self._today(),

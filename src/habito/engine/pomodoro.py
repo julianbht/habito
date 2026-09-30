@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from uuid import UUID
 
-from habito.config.models import PomodoroConfig
+from habito.config.models import SessionTemplate
 from habito.domain.events import (
     BreakEnded,
     BreakStarted,
@@ -60,7 +60,7 @@ class EngineState:
 class PomodoroEngine:
     def __init__(
         self,
-        config: PomodoroConfig,
+        config: SessionTemplate,
         sink: EventSink,
         clock: Clock | None = None,
         *,
@@ -409,6 +409,6 @@ class PomodoroEngine:
         tag the session it's about."""
         return self._session_id
 
-    def update_config(self, config: PomodoroConfig) -> None:
-        """Apply new Pomodoro settings. Takes effect from the next phase/session."""
+    def update_config(self, config: SessionTemplate) -> None:
+        """Run another template, or an edited one, from the next phase/session on."""
         self._config = config

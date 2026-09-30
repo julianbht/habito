@@ -26,6 +26,7 @@ class FakeController:
         self.stopped = 0
         self.added: list[float] = []
         self.work_minutes: list[float] = []
+        self.template_switches = 0
 
     def on_start(self) -> None:
         self.started += 1
@@ -42,6 +43,9 @@ class FakeController:
     def on_set_work_minutes(self, minutes: float) -> str | None:
         self.work_minutes.append(minutes)
         return None
+
+    def on_next_template(self) -> None:
+        self.template_switches += 1
 
 
 def snapshot(state: State, remaining: int = 0, target: int = 0, work: int = 0) -> EngineState:
@@ -60,7 +64,7 @@ def snapshot(state: State, remaining: int = 0, target: int = 0, work: int = 0) -
 @pytest.fixture
 def view(qtbot):
     controller = FakeController()
-    widget = TimerView(controller=controller, work_minutes=25)
+    widget = TimerView(controller=controller, work_minutes=25, template_label="4 × 25 · 5")
     qtbot.addWidget(widget)
     widget.show()
     qtbot.waitExposed(widget)
@@ -335,12 +339,14 @@ def test_icons_take_the_palette_colour(qtbot):
     light = TimerView(
         controller=FakeController(),
         work_minutes=25,
+        template_label="4 × 25 · 5",
         ui_theme=theme.Theme(accent=theme.ACCENT_LIVE, palette=theme.LIGHT),
     )
     qtbot.addWidget(light)
     dark = TimerView(
         controller=FakeController(),
         work_minutes=25,
+        template_label="4 × 25 · 5",
         ui_theme=theme.Theme(accent=theme.ACCENT_LIVE, palette=theme.DARK),
     )
     qtbot.addWidget(dark)
@@ -348,3 +354,37 @@ def test_icons_take_the_palette_colour(qtbot):
     assert light._theme.palette.text != dark._theme.palette.text
     assert not light._stop_btn.icon().isNull()
     assert not dark._stop_btn.icon().isNull()
+
+
+# --- the template switch -------------------------------------------------
+def test_idle_the_line_above_the_time_names_the_template(view):
+    widget, _ = view
+    widget.render_state(snapshot(State.idle), 0)
+    assert widget._template_btn.isVisible()
+    assert widget._template_btn.text() == "4 × 25 · 5"
+    assert not widget._round_lbl.isVisible()
+
+
+def test_running_the_same_line_counts_rounds_instead(view):
+    """Switching mid-session isn't offered, so the control is gone rather than greyed."""
+    widget, _ = view
+    widget.render_state(snapshot(State.work, remaining=900, target=1500), 0)
+    assert not widget._template_btn.isVisible()
+    assert widget._round_lbl.isVisible()
+    assert widget._round_lbl.text() == "Round 1 / 4"
+
+
+def test_clicking_the_template_asks_for_the_next_one(view, qtbot):
+    widget, controller = view
+    widget.render_state(snapshot(State.idle), 0)
+    qtbot.mouseClick(widget._template_btn, Qt.MouseButton.LeftButton)
+    assert controller.template_switches == 1
+
+
+def test_showing_a_template_is_not_echoed_back_as_an_edit(view):
+    """The new template's work length is the config's own value, not a user edit."""
+    widget, controller = view
+    widget.set_template("Deep work", 50)
+    assert widget._template_btn.text() == "Deep work"
+    assert widget._spin.value() == 50 * 60
+    assert controller.work_minutes == []

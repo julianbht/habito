@@ -159,7 +159,7 @@ def test_the_suppression_only_applies_to_the_stop_that_set_it(app):
 
 def test_a_full_session_announces_every_phase_change(app):
     app.on_start()
-    for _ in range(app._config.pomodoro.rounds * 2 - 1):
+    for _ in range(app._config.pomodoro.active().rounds * 2 - 1):
         app._engine.skip()
         app._repaint()
         app._engine.acknowledge()  # the prompt's button, pressed

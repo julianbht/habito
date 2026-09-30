@@ -264,10 +264,11 @@ voided entry logged again.
 
 ## Managing
 
-**One ☰ entry per stream of things you log, each opening that stream's manager.** The menu
-is `Sessions… / Sleep… / Workouts…` (the last two only when extras are on), and a manager is
-always the same three parts: the list of what's there, a primary button that opens that
-stream's own logging form, and a right-click menu per row. Backfill and the tag catalog have
+**One ☰ entry per manager.** The menu is `Sessions / Sleep / Workouts / Templates` (Sleep
+and Workouts only when extras are on), with no trailing "…" on any ☰ entry — every one of
+them opens something, so the ellipsis said nothing. A manager is always the same three
+parts: the list of what's there, a primary button that opens its own form, and a
+right-click menu per row. Backfill and the tag catalog have
 no menu entries of their own — adding a session and correcting one belong in the same
 window, and a tag only ever means something on a session.
 
@@ -276,6 +277,18 @@ window, and a tag only ever means something on a session.
 | `ManageSessionsDialog` | `BackfillDialog` | Manage tags…, Retract session… | a whole session, by `session_id` |
 | `EntryManagerDialog` (Sleep) | `WakeUpDialog` | Edit…, Void… | one `WakeUpLogged` |
 | `EntryManagerDialog` (Workouts) | `WorkoutLogDialog` | Edit…, Void… | one `WorkoutLogged` |
+| `TemplateManagerDialog` | `TemplateDialog` | Edit…, Delete… | one `SessionTemplate` in `settings.json` |
+
+**Templates are the one manager over config, not the log.** Same three parts, same
+`EntryList`, same double-click-to-edit — but an edit replaces the template in place and a
+delete is gone rather than struck through, since a setting has no history to keep. Every
+change goes through `ConfigEditor.apply_templates` as the whole list plus the active index.
+The last template can't be deleted: there is always one to run. On the timer, the line above
+the time names the active template while idle and a click (or Ctrl+T) moves to the next;
+once a session starts it's the round counter again, so switching mid-session isn't offered.
+The timer's duration field edits the active template's work length. Two templates with the
+same label are refused by `TemplateManagerDialog`, not by the config, because the config
+check would also refuse the duration field on its way *past* another template's value.
 
 **Sleep and workouts share one class; sessions don't.** A wake-up and a workout log differ
 only in what a row says and which form adds one, so `EntryManagerDialog` takes those as data
@@ -549,8 +562,10 @@ exception, earned by a concrete reason (e.g. `paths.data_repo` and the git remot
 set once per machine, and `extras.enabled` is a which-build-is-this choice — see § Extras).
 When in doubt, wire it up.
 
-Two entry points, because there are two ways to change a setting: `apply_work_minutes` for
-the timer's duration field, and `apply_settings` for the whole dialog. The dialog's values
+Three entry points, one per way a setting changes: `apply_work_minutes` for the timer's
+duration field, `apply_templates` for the templates manager and the timer's template
+switch, and `apply_settings` for the whole dialog. The session format (work, break, rounds)
+lives only in templates, not in the Settings dialog. The dialog's values
 are validated **as one config and rejected as one** — applying section by section could
 leave the goals saved and the timezone refused, with the file disagreeing with the dialog
 still on screen. It also makes a Save one write instead of four.
@@ -564,8 +579,8 @@ growing tag list) scrolls rather than earning its dialog a bigger window:
 
 | Tier | Width | Height | Job | Dialogs |
 |---|---|---|---|---|
-| Compact | 320 | content-driven | one ask, or a short form | `PhaseDialog`, `SessionCompleteDialog` (collapsed), `CatalogEditDialog`, `BackfillDialog`, `WakeUpDialog`, `ResumePromptDialog`, `RetractConfirmDialog`, `VoidConfirmDialog` |
-| Browse | 440 | 360 | pick one thing from a list, or manage a small growing one | `ManageSessionsDialog`, `EntryManagerDialog`, `ShortcutsDialog`, `SessionTagDialog`, `WorkoutLogDialog`, `SessionCompleteDialog` (tag picker showing) |
+| Compact | 320 | content-driven | one ask, or a short form | `PhaseDialog`, `SessionCompleteDialog` (collapsed), `CatalogEditDialog`, `BackfillDialog`, `WakeUpDialog`, `TemplateDialog`, `ResumePromptDialog`, `RetractConfirmDialog`, `VoidConfirmDialog`, `TemplateDeleteConfirmDialog` |
+| Browse | 440 | 360 | pick one thing from a list, or manage a small growing one | `ManageSessionsDialog`, `EntryManagerDialog`, `TemplateManagerDialog`, `ShortcutsDialog`, `SessionTagDialog`, `WorkoutLogDialog`, `SessionCompleteDialog` (tag picker showing) |
 | Large | 460 | 580 | everything at once | `SettingsDialog` only — reuses the size `HabitoApp` already gives the calendar/log pages (`_PAGE_SIZES`) rather than a fourth number, and scrolls its form internally (see its own module docstring) instead of growing past it |
 
 Compact is the one tier that isn't a fixed box: nothing sets a minimum height, so it's the

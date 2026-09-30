@@ -11,14 +11,55 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from habito.domain.events import HABIT_PATTERN
 
 
-class PomodoroConfig(BaseModel):
+class SessionTemplate(BaseModel):
+    """One session format — how long a round is, the break after it, and how many rounds."""
+
+    # Optional: without one, the numbers themselves are the label.
+    name: str | None = None
     work_minutes: float = Field(default=25, gt=0)  # fractional for sub-minute rounds
     break_minutes: int = Field(default=5, gt=0)
     rounds: int = Field(default=4, gt=0)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def _blank_means_unnamed(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
+
+    def format(self) -> str:
+        """The numbers alone, e.g. ``4 × 25 · 5``."""
+        return f"{self.rounds} × {self.work_minutes:g} · {self.break_minutes}"
+
+    def label(self) -> str:
+        """What the timer and the picker show: the name if there is one, else the format."""
+        return self.name or self.format()
+
+
+def _default_templates() -> list[SessionTemplate]:
+    return [SessionTemplate(rounds=4), SessionTemplate(rounds=2)]
+
+
+class PomodoroConfig(BaseModel):
+    templates: list[SessionTemplate] = Field(default_factory=_default_templates, min_length=1)
+    # An index rather than a name, since names are optional.
+    active_template: int = Field(default=0, ge=0)
     # How long after a session was cut short (closing the window mid-round) the next
     # launch still offers to resume it. Past this, the prompt would be asking about work
     # from a sitting long over, so it's left alone rather than offered back.
     resume_window_minutes: int = Field(default=10, gt=0)
+
+    @model_validator(mode="after")
+    def _active_template_exists(self) -> PomodoroConfig:
+        if self.active_template >= len(self.templates):
+            raise ValueError(
+                f"active_template {self.active_template} is out of range — there are "
+                f"{len(self.templates)} templates"
+            )
+        return self
+
+    def active(self) -> SessionTemplate:
+        return self.templates[self.active_template]
 
 
 SYSTEM_TZ = "system"

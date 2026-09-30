@@ -30,13 +30,15 @@ def build(qtbot, tmp_path, *, break_reminder_minutes: int = 3, rounds: int = 4):
         {
             "paths": {"data_repo": str(tmp_path)},
             "project_root": tmp_path,
-            "pomodoro": {"rounds": rounds},
+            "pomodoro": {"templates": [{"rounds": rounds}]},
             "ui": {"break_reminder_minutes": break_reminder_minutes},
         }
     )
     store = EventStore(config.data_repo_path(), config.habit, config.time.rollover_hour)
     clock = FakeClock()
-    engine = PomodoroEngine(config.pomodoro, sink=store.append, clock=clock, habit=config.habit)
+    engine = PomodoroEngine(
+        config.pomodoro.active(), sink=store.append, clock=clock, habit=config.habit
+    )
     window = HabitoApp(config, engine, store, test_mode=True)
     qtbot.addWidget(window)
     sink = RecordingSink()

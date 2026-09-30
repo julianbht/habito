@@ -177,6 +177,19 @@ def build_stylesheet(accent: str, palette: Palette = DARK) -> str:
     QPushButton#transport {{ font-size: 19px; }}
     QPushButton#nudge {{ padding: 0px; font-size: 13px; border-radius: 5px; }}
     QPushButton#gear {{ font-size: 15px; padding: 2px 7px; }}
+    /* The timer's template name: reads as the heading line it replaces while idle, and
+       only shows it's clickable on hover. */
+    QPushButton#template {{
+        background: transparent;
+        border: 1px solid transparent;
+        padding: 2px 10px;
+        font-size: 14px;
+    }}
+    QPushButton#template:hover {{ background-color: {p.surface_hi}; border-color: {p.border}; }}
+    /* Restated for the same reason as #primary's below: the ID rule's transparent border
+       would otherwise beat the general :focus one and hide the ring. */
+    QPushButton#template:focus {{ border: 2px solid {accent}; }}
+
     /* An affordance that reads as text, not a button — the session-complete prompt's
        "+ Add tag", so the tag picker stays out of sight until asked for. */
     QPushButton#link {{

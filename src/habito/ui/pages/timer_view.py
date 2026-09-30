@@ -4,8 +4,12 @@ Purely presentational: it renders an :class:`EngineState` snapshot and forwards 
 the controller. It never talks to storage or git directly.
 
 The big time doubles as the work-length control. While idle it is a :class:`MinutesSpinBox`
-— type a value or use its arrows — that sets the next session's work length; once running
+— type a value or use its arrows — that sets the active template's work length; once running
 it swaps to the live countdown with a compact ▲/▼ pair that adjusts the round on the fly.
+
+The line above it does the same double duty: while idle it names the active template and a
+click moves on to the next one; once running it is the round counter. Switching only makes
+sense before a session starts, so the control simply isn't there once one has.
 """
 
 from __future__ import annotations
@@ -87,6 +91,7 @@ class Controller(Protocol):
     def on_stop(self) -> None: ...
     def on_add_time(self, minutes: float) -> None: ...
     def on_set_work_minutes(self, minutes: float) -> str | None: ...
+    def on_next_template(self) -> None: ...
 
 
 class TimerView(QWidget):
@@ -94,6 +99,7 @@ class TimerView(QWidget):
         self,
         controller: Controller,
         work_minutes: float,
+        template_label: str,
         ui_theme: theme.Theme | None = None,
         parent: QWidget | None = None,
     ) -> None:
@@ -101,16 +107,26 @@ class TimerView(QWidget):
         self._c = controller
         self._theme = ui_theme or theme.Theme.resolve("dark", test_mode=False)
         self._is_idle = True
-        self._build(round(work_minutes * 60))
+        self._build(round(work_minutes * 60), template_label)
 
     # --- layout ----------------------------------------------------------
-    def _build(self, work_seconds: int) -> None:
+    def _build(self, work_seconds: int, template_label: str) -> None:
         root = QVBoxLayout(self)
         root.setContentsMargins(20, 14, 20, 12)
         root.setSpacing(6)
 
+        self._template_btn = button(template_label, "template")
+        self._template_btn.setToolTip("Switch to the next template  (Ctrl+T)")
+        self._template_btn.clicked.connect(self._c.on_next_template)
+        template_row = QHBoxLayout()
+        template_row.addStretch(1)
+        template_row.addWidget(self._template_btn)
+        template_row.addStretch(1)
+        root.addLayout(template_row)
+
         self._round_lbl = label("Round – / –", "round")
         self._round_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._round_lbl.hide()
         root.addWidget(self._round_lbl)
 
         self._state_lbl = label("Ready", "state")
@@ -219,6 +235,7 @@ class TimerView(QWidget):
     def _apply_tab_order(self) -> None:
         """Walk Tab through the controls in the order you'd actually use them."""
         chain = [
+            self._template_btn,
             self._spin,
             self._up_btn,
             self._down_btn,
@@ -241,6 +258,14 @@ class TimerView(QWidget):
     def stop_button(self) -> QPushButton:
         """Last control in the view's tab chain, so the window can continue it."""
         return self._stop_btn
+
+    def set_template(self, template_label: str, work_minutes: float) -> None:
+        """Show the active template — after a switch, or an edit that changed its label."""
+        self._template_btn.setText(template_label)
+        # Not echoed back as an edit: this *is* the config's value.
+        self._spin.blockSignals(True)
+        self._spin.setValue(round(work_minutes * 60))
+        self._spin.blockSignals(False)
 
     # --- work-length editing (idle) --------------------------------------
     def _on_planned_changed(self, seconds: int) -> None:
@@ -282,6 +307,9 @@ class TimerView(QWidget):
         self._is_idle = snap.state in (State.idle, State.done)
 
         self._round_lbl.setText(f"Round {snap.round_index} / {snap.total_rounds}")
+        # Idle, the line names the template you'd start; running, it counts rounds.
+        self._template_btn.setVisible(self._is_idle)
+        self._round_lbl.setVisible(not self._is_idle)
         self._state_lbl.setText(_STATE_LABEL[snap.state])
         self._state_lbl.setStyleSheet(f"color: {_STATE_COLOR.get(snap.state, theme.MUTED)};")
         self._render_time(snap)

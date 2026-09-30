@@ -1,8 +1,9 @@
 """Validate, apply and persist the settings the UI can change.
 
-Two entry points, because there are two ways to change a setting: the timer's duration
-field edits one value on its own, and the Settings dialog changes everything at once.
-Nothing else needs to reach the config, so nothing else is offered.
+Three entry points, one per way a setting changes: the timer's duration field edits one
+value on its own, the templates manager and the timer's template switch replace the
+template list, and the Settings dialog changes everything else at once. Nothing else needs
+to reach the config, so nothing else is offered.
 
 The dialog's changes are validated **as one config**. Rejecting the whole set rather than
 applying it section by section is what keeps a partly-applied Save from happening — the
@@ -31,6 +32,7 @@ from habito.config.models import (
     Config,
     GoalsConfig,
     PomodoroConfig,
+    SessionTemplate,
     TimeConfig,
     UIConfig,
     WakeUpConfig,
@@ -71,21 +73,37 @@ class ConfigEditor:
         self._test_mode = test_mode
 
     def apply_work_minutes(self, minutes: float) -> Applied:
-        """Set the round length from the timer, leaving the rest of the Pomodoro alone."""
+        """Set the active template's round length from the timer, leaving the rest alone."""
+        pomodoro = self._config.pomodoro
+        templates = list(pomodoro.templates)
+        active = pomodoro.active_template
+        templates[active] = templates[active].model_copy(update={"work_minutes": minutes})
+        return self.apply_templates(templates, active)
+
+    def apply_templates(self, templates: list[SessionTemplate], active_template: int) -> Applied:
+        """Replace the whole template list and which one is active, as one validated piece.
+
+        Adding, editing, deleting and switching all come through here, so the rules about
+        the list as a whole — at least one, an active index in range — are checked in one
+        place whichever of them made the change.
+        """
         try:
-            updated = self._config.pomodoro.model_copy(update={"work_minutes": minutes})
-            PomodoroConfig.model_validate(updated.model_dump())
+            pomodoro = PomodoroConfig.model_validate(
+                {
+                    "templates": [t.model_dump() for t in templates],
+                    "active_template": active_template,
+                    "resume_window_minutes": self._config.pomodoro.resume_window_minutes,
+                }
+            )
         except ValidationError as exc:
             return _rejected(exc)
 
-        self._config.pomodoro = updated
+        self._config.pomodoro = pomodoro
         return self._save()
 
     def apply_settings(
         self,
         *,
-        break_minutes: int,
-        rounds: int,
         resume_window_minutes: int,
         low_minutes: int,
         low_buffer_minutes: int,
@@ -107,12 +125,10 @@ class ConfigEditor:
         was rather than validating fields nobody had a chance to edit.
         """
         try:
-            pomodoro = PomodoroConfig(
-                work_minutes=self._config.pomodoro.work_minutes,
-                break_minutes=break_minutes,
-                rounds=rounds,
-                resume_window_minutes=resume_window_minutes,
+            pomodoro = self._config.pomodoro.model_copy(
+                update={"resume_window_minutes": resume_window_minutes}
             )
+            PomodoroConfig.model_validate(pomodoro.model_dump())
             goals = GoalsConfig(
                 low_minutes=low_minutes,
                 low_buffer_minutes=low_buffer_minutes,

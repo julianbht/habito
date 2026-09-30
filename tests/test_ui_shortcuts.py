@@ -103,10 +103,10 @@ def test_ctrl_arrows_set_the_planned_length_while_idle(qtbot, app):
     assert app._engine.state is State.idle
 
     press(qtbot, app, Qt.Key.Key_Up)
-    assert app._config.pomodoro.work_minutes == 26
+    assert app._config.pomodoro.active().work_minutes == 26
 
     press(qtbot, app, Qt.Key.Key_Down)
-    assert app._config.pomodoro.work_minutes == 25
+    assert app._config.pomodoro.active().work_minutes == 25
 
 
 def test_ctrl_comma_opens_settings_and_escape_closes_it(qtbot, app):
@@ -170,15 +170,16 @@ def entries(app) -> list[str]:
 
 
 def test_settings_is_the_last_menu_entry(qtbot, app):
-    """One entry per stream you log, then Settings where you'd expect it: at the bottom."""
+    """One entry per manager, then Settings where you'd expect it: at the bottom."""
     assert entries(app) == [
         "Timer",
         "Calendar",
         "Log",
         "",
-        "Sessions…",
-        "Shortcuts…",
-        "Settings…",
+        "Sessions",
+        "Templates",
+        "Shortcuts",
+        "Settings",
     ]
 
 
@@ -207,14 +208,14 @@ def test_opening_manage_sessions_launches_the_dialog(qtbot, app, monkeypatch):
 
 def test_sleep_is_absent_when_extras_are_disabled(qtbot, app):
     """Off by default — the whole point of the flag (see CLAUDE.md § Extras)."""
-    assert "Sleep…" not in entries(app)
+    assert "Sleep" not in entries(app)
 
 
 def test_sleep_appears_between_sessions_and_shortcuts_when_enabled(qtbot, tmp_path):
     window = _window_with_extras(qtbot, tmp_path, wakeup=True)
 
     listed = entries(window)
-    assert listed.index("Sessions…") < listed.index("Sleep…") < listed.index("Shortcuts…")
+    assert listed.index("Sessions") < listed.index("Sleep") < listed.index("Shortcuts")
 
 
 def test_opening_manage_wakeups_launches_the_manager_not_the_log_form(qtbot, tmp_path, monkeypatch):
@@ -249,15 +250,15 @@ def test_the_wakeup_form_opens_from_the_manager_seeded_from_config(qtbot, tmp_pa
 
 def test_workouts_are_absent_when_extras_are_disabled(qtbot, app):
     """Off by default — the whole point of the flag (see CLAUDE.md § Extras)."""
-    assert "Workouts…" not in entries(app)
+    assert "Workouts" not in entries(app)
 
 
 def test_workouts_appear_after_sleep_when_enabled(qtbot, tmp_path):
     window = _window_with_extras(qtbot, tmp_path, wakeup=True, workout=True)
 
     listed = entries(window)
-    assert listed.index("Sleep…") + 1 == listed.index("Workouts…")
-    assert listed.index("Workouts…") < listed.index("Shortcuts…")
+    assert listed.index("Sleep") + 1 == listed.index("Workouts")
+    assert listed.index("Workouts") + 1 == listed.index("Templates")
 
 
 def test_no_separate_workout_catalog_entry(qtbot, tmp_path):
@@ -348,3 +349,20 @@ def test_always_on_top_builds_the_window(qtbot, tmp_path):
 
 def test_always_on_top_off_by_default(qtbot, app):
     assert not (app.windowFlags() & Qt.WindowType.WindowStaysOnTopHint)
+
+
+def test_menu_entries_carry_no_ellipsis(qtbot, tmp_path):
+    """Every ☰ entry opens something; an ellipsis on each would say nothing."""
+    window = _window_with_extras(qtbot, tmp_path, wakeup=True, workout=True)
+    assert not any(entry.endswith("…") for entry in entries(window))
+
+
+def test_opening_templates_launches_the_manager(qtbot, app, monkeypatch):
+    from habito.ui.dialogs.template_manager_dialog import TemplateManagerDialog
+
+    opened = []
+    monkeypatch.setattr(TemplateManagerDialog, "exec", lambda self: opened.append(self) or 0)
+
+    app.on_open_manage_templates()
+
+    assert len(opened) == 1

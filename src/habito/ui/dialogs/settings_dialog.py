@@ -1,4 +1,4 @@
-"""The Settings dialog: Pomodoro format, goals, notification sound.
+"""The Settings dialog: resume window, goals, notification sound, timezone.
 
 Kept off the main timer window so the timer stays uncluttered. Saving validates through the
 controller (which persists to settings.json and applies to the engine) and reports back a
@@ -52,8 +52,6 @@ class SettingsValues:
     picked up a section per feature and would otherwise be passing five loose ints.
     """
 
-    break_minutes: int
-    rounds: int
     low_minutes: int
     low_buffer_minutes: int
     sound: str
@@ -138,12 +136,11 @@ class SettingsDialog(QDialog):
         root.setContentsMargins(20, 18, 20, 12)
         root.setSpacing(8)
 
-        root.addWidget(label("Session format", "heading"))
+        # The session format itself lives in templates (☰ Templates), not here.
+        root.addWidget(label("Sessions", "heading"))
 
         form = QFormLayout()
         form.setSpacing(8)
-        self._break_spin = self._spin(pomodoro.break_minutes, maximum=120, suffix=" min")
-        self._rounds_spin = self._spin(pomodoro.rounds, maximum=24)
         self._resume_window_spin = self._spin(
             pomodoro.resume_window_minutes, maximum=180, suffix=" min"
         )
@@ -151,8 +148,6 @@ class SettingsDialog(QDialog):
             "Closing the app mid-round still offers to resume it, but only if you're back "
             "within this long"
         )
-        form.addRow("Break length", Stepper(self._break_spin))
-        form.addRow("Rounds", Stepper(self._rounds_spin))
         form.addRow("Resume window", Stepper(self._resume_window_spin))
         root.addLayout(form)
 
@@ -195,8 +190,6 @@ class SettingsDialog(QDialog):
         outer.addLayout(footer)
 
         chain: list[QWidget] = [
-            self._break_spin,
-            self._rounds_spin,
             self._resume_window_spin,
             self._low_spin,
             self._low_buffer_spin,
@@ -381,8 +374,6 @@ class SettingsDialog(QDialog):
 
     def values(self) -> SettingsValues:
         return SettingsValues(
-            break_minutes=self._break_spin.value(),
-            rounds=self._rounds_spin.value(),
             resume_window_minutes=self._resume_window_spin.value(),
             low_minutes=self._low_spin.value(),
             low_buffer_minutes=self._low_buffer_spin.value(),

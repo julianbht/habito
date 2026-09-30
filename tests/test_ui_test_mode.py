@@ -15,7 +15,7 @@ from habito.ui.app import HabitoApp
 from habito.ui.dialogs.settings_dialog import SettingsValues
 
 SETTINGS = """\
-{"pomodoro": {"work_minutes": 25, "break_minutes": 5, "rounds": 4}}
+{"pomodoro": {"templates": [{"rounds": 4}, {"rounds": 2}]}}
 """
 
 
@@ -35,12 +35,11 @@ def config(tmp_path) -> Config:
     )
 
 
-def settings(*, brk: int = 5, rounds: int = 4, sound: str = "asterisk") -> SettingsValues:
+def settings(*, resume_window: int = 10, sound: str = "asterisk") -> SettingsValues:
     return SettingsValues(
-        break_minutes=brk,
-        rounds=rounds,
         low_minutes=100,
         low_buffer_minutes=5,
+        resume_window_minutes=resume_window,
         sound=sound,
     )
 
@@ -80,20 +79,22 @@ def test_the_settings_file_is_not_rewritten(qtbot, config):
     before = config.settings_file().read_text(encoding="utf-8")
 
     app = build_app(qtbot, config, test_mode=True)
-    assert app.on_save_settings(settings(brk=17, rounds=9)) is None
+    assert app.on_save_settings(settings(resume_window=17)) is None
     assert app.on_set_work_minutes(42) is None
+    app.on_next_template()
 
     assert config.settings_file().read_text(encoding="utf-8") == before
     # ...but the change still applies to this run, so the mode stays useful for trying things.
-    assert app._config.pomodoro.break_minutes == 17
-    assert app._config.pomodoro.work_minutes == 42
+    assert app._config.pomodoro.resume_window_minutes == 17
+    assert app._config.pomodoro.templates[0].work_minutes == 42
+    assert app._config.pomodoro.active_template == 1
 
 
 def test_live_mode_does_rewrite_the_settings_file(qtbot, config):
     app = build_app(qtbot, config, test_mode=False)
-    assert app.on_save_settings(settings(brk=17, rounds=9)) is None
+    assert app.on_save_settings(settings(resume_window=17)) is None
 
-    assert '"break_minutes": 17' in config.settings_file().read_text(encoding="utf-8")
+    assert '"resume_window_minutes": 17' in config.settings_file().read_text(encoding="utf-8")
 
 
 # --- unmistakable ---------------------------------------------------------

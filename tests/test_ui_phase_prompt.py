@@ -114,7 +114,7 @@ def test_pressing_the_button_starts_the_break(app, qtbot):
 
     assert app._engine.state is State.break_
     assert app._phase_dialog is None
-    assert app._engine.remaining_seconds() == app._config.pomodoro.break_minutes * 60
+    assert app._engine.remaining_seconds() == app._config.pomodoro.active().break_minutes * 60
 
 
 def test_answering_the_prompt_brings_the_timer_back_to_the_front(app, qtbot):
@@ -156,7 +156,7 @@ def test_the_primary_button_also_starts_the_waiting_phase(app, qtbot):
 
 
 def test_the_session_end_prompt_does_not_gate_anything(app):
-    config = app._config.pomodoro
+    config = app._config.pomodoro.active()
     app.on_start()
     for _ in range(config.rounds * 2 - 1):
         app._engine.skip()

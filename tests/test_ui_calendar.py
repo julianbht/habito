@@ -395,8 +395,6 @@ def test_a_view_opened_after_a_settings_change_is_born_with_it(qtbot, tmp_path):
     app, _ = build_app(qtbot, tmp_path)
     app.on_save_settings(
         SettingsValues(
-            break_minutes=5,
-            rounds=4,
             low_minutes=100,
             low_buffer_minutes=0,
             middle_minutes=180,
@@ -594,8 +592,6 @@ def test_changing_the_goal_recolours_the_calendar_without_a_restart(qtbot, tmp_p
 
     app.on_save_settings(
         SettingsValues(
-            break_minutes=5,
-            rounds=4,
             low_minutes=60,
             low_buffer_minutes=5,
             sound="asterisk",
@@ -611,8 +607,6 @@ def test_the_goal_is_written_back_to_the_settings_file(qtbot, tmp_path):
     app, config = build_app(qtbot, tmp_path)
     app.on_save_settings(
         SettingsValues(
-            break_minutes=5,
-            rounds=4,
             low_minutes=150,
             low_buffer_minutes=15,
             sound="asterisk",
@@ -634,8 +628,6 @@ def test_setting_a_middle_goal_stars_days_without_a_restart(qtbot, tmp_path):
 
     app.on_save_settings(
         SettingsValues(
-            break_minutes=5,
-            rounds=4,
             low_minutes=100,
             low_buffer_minutes=5,
             middle_minutes=180,
@@ -654,8 +646,6 @@ def test_turning_the_middle_goal_off_again_removes_the_star(qtbot, tmp_path):
     def save(middle: int) -> str | None:
         return app.on_save_settings(
             SettingsValues(
-                break_minutes=5,
-                rounds=4,
                 low_minutes=100,
                 low_buffer_minutes=5,
                 middle_minutes=middle,
@@ -678,8 +668,6 @@ def test_a_middle_goal_under_the_low_goal_is_reported_not_applied(qtbot, tmp_pat
     app, _ = build_app(qtbot, tmp_path)
     error = app.on_save_settings(
         SettingsValues(
-            break_minutes=5,
-            rounds=4,
             low_minutes=100,
             low_buffer_minutes=5,
             middle_minutes=60,
@@ -699,8 +687,6 @@ def test_the_middle_goal_round_trips_through_the_settings_file(qtbot, tmp_path):
     app, config = build_app(qtbot, tmp_path)
     app.on_save_settings(
         SettingsValues(
-            break_minutes=5,
-            rounds=4,
             low_minutes=100,
             low_buffer_minutes=5,
             middle_minutes=180,
@@ -721,8 +707,6 @@ def test_the_high_goal_round_trips_through_the_settings_file(qtbot, tmp_path):
     app, config = build_app(qtbot, tmp_path)
     error = app.on_save_settings(
         SettingsValues(
-            break_minutes=5,
-            rounds=4,
             low_minutes=100,
             low_buffer_minutes=5,
             middle_minutes=180,

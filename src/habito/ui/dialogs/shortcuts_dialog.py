@@ -30,15 +30,16 @@ from habito.ui.widgets.controls import (
 # click — confirmed empirically, not just suspected. Plain Space is safe only because
 # TimerView.focus_first() always puts focus on the Play button, never a text-editable
 # widget, so Space means the same thing whether it's caught by the button or by this
-# shortcut. Stop, Settings and the round-length adjustment stay Ctrl-prefixed because
-# their bare keys (".", ",", the arrow keys a spin box already binds natively) don't have
-# that guarantee.
+# shortcut. Stop, Settings, the round-length adjustment and the template switch stay
+# Ctrl-prefixed because their bare keys (".", ",", the arrow keys a spin box already binds
+# natively, "t" typed into the duration field) don't have that guarantee.
 SHORTCUTS: tuple[tuple[str, str], ...] = (
     ("Space", "Start / pause / resume"),
     ("Ctrl+.", "Stop"),
     ("Ctrl+,", "Settings"),
     ("Ctrl+Up", "Extend the round (or +1 min while idle)"),
     ("Ctrl+Down", "Shorten the round (or -1 min while idle)"),
+    ("Ctrl+T", "Switch to the next template (while idle)"),
 )
 
 
