@@ -13,18 +13,18 @@ A minimalist, keyboard-navigable cross-platform Pomodoro tracker for developers.
 
 ## Core Features
 
-- **[All data on your Github repository](#tamper-evident-log)** — every event is appended
-  to a machine-readable log and pushed to YOUR GitHub repo the moment it happens.
-  You and only you have complete record of all activity entirely under your control.
-- **[Fully keyboard-driven](#keyboard)** — Tab reaches every control, with shortcuts for
+- All data on your repository: every event is appended to a machine-readable log
+  and pushed to YOUR GitHub repo the moment it happens. You and only you have complete
+  record of all activity entirely under your control.
+- Fully keyboard-driven: Tab reaches every control, with shortcuts for
   start, stop and adjust.
-- **[A calendar of your streak](#calendar)** — a month at a glance, green on every day you
+- A calendar of your streak: a month at a glance, green on every day you
   hit your goal.
-- **[Goal Tracking](#calendar)** — low, middle and high goal each with indicators on the
+- Goal Tracking: low, middle and high goal each with indicators on the
   calendar if they have been hit
-- **[Timer Templates](#calendar)** — you can setup several pomodoro templates with different
+- Timer Templates: you can setup several pomodoro templates with different
   study and break timers
-- **[Backfilling](#calendar)** — you can backfill sessions and they get marked as such.
+- Backfilling: you can backfill sessions and they get marked as such.
   Useful if you forgot to track a session or want to migrate.
 
 ## Requirements
