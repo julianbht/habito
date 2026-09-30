@@ -38,7 +38,11 @@ class EntryList(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(10)
 
-        root.addWidget(label(hint, "muted"))
+        # Both texts wrap, so their length never sets the dialog's width — every manager
+        # opens at the same Browse size whatever its hint or empty message says.
+        hint_label = label(hint, "muted")
+        hint_label.setWordWrap(True)
+        root.addWidget(hint_label)
 
         self.tree = QTreeWidget()
         self.tree.setHeaderHidden(True)
@@ -53,6 +57,7 @@ class EntryList(QWidget):
         root.addWidget(self.tree, 1)
 
         self.empty_label = label("", "muted")
+        self.empty_label.setWordWrap(True)
         root.addWidget(self.empty_label)
 
     def set_rows(self, rows: Sequence[str]) -> None:

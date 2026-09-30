@@ -76,8 +76,7 @@ class TemplateManagerDialog(QDialog):
         root.setSpacing(10)
 
         self.list = EntryList(
-            "Double-click a template to edit it, or right-click to delete it. "
-            "Click the template name on the timer to switch.",
+            "Double-click a template to edit it, or right-click to delete it.",
             empty_text="",  # never empty: the config always holds at least one
         )
         self.list.row_menu_requested.connect(self._on_row_menu)
