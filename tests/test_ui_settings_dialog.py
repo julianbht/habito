@@ -43,16 +43,16 @@ def test_edits_are_passed_to_the_controller(dialog, qtbot):
     widget, controller = dialog
     widget._break_spin.setValue(12)
     widget._rounds_spin.setValue(6)
-    widget._goal_spin.setValue(120)
-    widget._buffer_spin.setValue(10)
+    widget._low_spin.setValue(120)
+    widget._low_buffer_spin.setValue(10)
     qtbot.mouseClick(widget._save_btn, Qt.MouseButton.LeftButton)
 
     assert controller.saved == [
         SettingsValues(
             break_minutes=12,
             rounds=6,
-            daily_minutes=120,
-            buffer_minutes=10,
+            low_minutes=120,
+            low_buffer_minutes=10,
             sound="notification",
         )
     ]
@@ -91,17 +91,19 @@ def test_tab_reaches_every_control(dialog, qtbot):
     widget._break_spin.setFocus()
 
     seen = []
-    for _ in range(12):
+    for _ in range(14):
         qtbot.keyClick(widget.focusWidget(), Qt.Key.Key_Tab)
         seen.append(widget.focusWidget())
 
     assert seen == [
         widget._rounds_spin,
         widget._resume_window_spin,
-        widget._goal_spin,
-        widget._buffer_spin,
-        widget._stretch_spin,
-        widget._stretch_buffer_spin,
+        widget._low_spin,
+        widget._low_buffer_spin,
+        widget._middle_spin,
+        widget._middle_buffer_spin,
+        widget._high_spin,
+        widget._high_buffer_spin,
         widget._sound_box,
         widget._preview_btn,
         widget._reminder_spin,
@@ -111,43 +113,43 @@ def test_tab_reaches_every_control(dialog, qtbot):
     ]
 
 
-# --- the daily goal -------------------------------------------------------
+# --- the goals -----------------------------------------------------------
 def test_the_goal_fields_start_from_the_config(qtbot):
     controller = FakeController()
     widget = SettingsDialog(
         controller=controller,
         pomodoro=PomodoroConfig(),
-        goals=GoalsConfig(daily_minutes=120, buffer_minutes=10, stretch_buffer_minutes=20),
+        goals=GoalsConfig(low_minutes=120, low_buffer_minutes=10, middle_buffer_minutes=20),
     )
     qtbot.addWidget(widget)
 
-    assert widget._goal_spin.value() == 120
-    assert widget._buffer_spin.value() == 10
-    assert widget._stretch_buffer_spin.value() == 20
+    assert widget._low_spin.value() == 120
+    assert widget._low_buffer_spin.value() == 10
+    assert widget._middle_buffer_spin.value() == 20
 
 
 def test_the_allowance_may_be_zero_but_the_goal_may_not(dialog):
     widget, _ = dialog
-    assert widget._buffer_spin.minimum() == 0
-    assert widget._goal_spin.minimum() == 1
+    assert widget._low_buffer_spin.minimum() == 0
+    assert widget._low_spin.minimum() == 1
 
 
 def test_goal_edits_reach_the_controller(dialog, qtbot):
     widget, controller = dialog
-    widget._goal_spin.setValue(150)
-    widget._buffer_spin.setValue(15)
+    widget._low_spin.setValue(150)
+    widget._low_buffer_spin.setValue(15)
     qtbot.mouseClick(widget._save_btn, Qt.MouseButton.LeftButton)
 
-    assert controller.saved[0].daily_minutes == 150
-    assert controller.saved[0].buffer_minutes == 15
+    assert controller.saved[0].low_minutes == 150
+    assert controller.saved[0].low_buffer_minutes == 15
 
 
-def test_stretch_buffer_edits_reach_the_controller(dialog, qtbot):
+def test_middle_buffer_edits_reach_the_controller(dialog, qtbot):
     widget, controller = dialog
-    widget._stretch_buffer_spin.setValue(20)
+    widget._middle_buffer_spin.setValue(20)
     qtbot.mouseClick(widget._save_btn, Qt.MouseButton.LeftButton)
 
-    assert controller.saved[0].stretch_buffer_minutes == 20
+    assert controller.saved[0].middle_buffer_minutes == 20
 
 
 def test_reminder_delay_starts_from_the_config(qtbot):
@@ -195,10 +197,12 @@ def test_every_number_field_is_wrapped_in_a_stepper(dialog):
         widget._break_spin,
         widget._rounds_spin,
         widget._resume_window_spin,
-        widget._goal_spin,
-        widget._buffer_spin,
-        widget._stretch_spin,
-        widget._stretch_buffer_spin,
+        widget._low_spin,
+        widget._low_buffer_spin,
+        widget._middle_spin,
+        widget._middle_buffer_spin,
+        widget._high_spin,
+        widget._high_buffer_spin,
         widget._reminder_spin,
         widget._rollover_spin,
     )
@@ -210,12 +214,14 @@ def test_the_step_size_follows_how_the_value_is_used(dialog):
     actually feels, so it moves in 1s. Same widget, different `singleStep`."""
     widget, _ = dialog
 
-    assert widget._goal_spin.singleStep() == 5
-    assert widget._stretch_spin.singleStep() == 5
+    assert widget._low_spin.singleStep() == 5
+    assert widget._middle_spin.singleStep() == 5
+    assert widget._high_spin.singleStep() == 5
     assert widget._break_spin.singleStep() == 1
     assert widget._rounds_spin.singleStep() == 1
-    assert widget._buffer_spin.singleStep() == 1
-    assert widget._stretch_buffer_spin.singleStep() == 1
+    assert widget._low_buffer_spin.singleStep() == 1
+    assert widget._middle_buffer_spin.singleStep() == 1
+    assert widget._high_buffer_spin.singleStep() == 1
     assert widget._reminder_spin.singleStep() == 1
     assert widget._resume_window_spin.singleStep() == 1
 

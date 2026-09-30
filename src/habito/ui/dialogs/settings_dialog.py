@@ -1,4 +1,4 @@
-"""The Settings dialog: Pomodoro format, daily goal, notification sound.
+"""The Settings dialog: Pomodoro format, goals, notification sound.
 
 Kept off the main timer window so the timer stays uncluttered. Saving validates through the
 controller (which persists to settings.json and applies to the engine) and reports back a
@@ -54,11 +54,13 @@ class SettingsValues:
 
     break_minutes: int
     rounds: int
-    daily_minutes: int
-    buffer_minutes: int
+    low_minutes: int
+    low_buffer_minutes: int
     sound: str
-    stretch_minutes: int = 0  # 0 means "no stretch goal", matching the spin's "Off"
-    stretch_buffer_minutes: int = 10
+    middle_minutes: int = 0  # 0 means "no middle goal", matching the spin's "Off"
+    middle_buffer_minutes: int = 10
+    high_minutes: int = 0
+    high_buffer_minutes: int = 15
     break_reminder_minutes: int = 3
     resume_window_minutes: int = 10
     timezone: str = SYSTEM_TZ
@@ -155,7 +157,7 @@ class SettingsDialog(QDialog):
         root.addLayout(form)
 
         root.addWidget(_rule())
-        root.addWidget(label("Daily goal", "heading"))
+        root.addWidget(label("Goals", "heading"))
         root.addLayout(self._build_goal_form(goals))
 
         root.addWidget(_rule())
@@ -196,10 +198,12 @@ class SettingsDialog(QDialog):
             self._break_spin,
             self._rounds_spin,
             self._resume_window_spin,
-            self._goal_spin,
-            self._buffer_spin,
-            self._stretch_spin,
-            self._stretch_buffer_spin,
+            self._low_spin,
+            self._low_buffer_spin,
+            self._middle_spin,
+            self._middle_buffer_spin,
+            self._high_spin,
+            self._high_buffer_spin,
             self._sound_box,
             self._preview_btn,
             self._reminder_spin,
@@ -230,40 +234,40 @@ class SettingsDialog(QDialog):
         return form
 
     def _build_goal_form(self, goals: GoalsConfig) -> QFormLayout:
-        """How much study time earns a green day on the calendar."""
+        """How much study time earns a green day, and a star or two on top."""
         form = QFormLayout()
         form.setSpacing(8)
-        self._goal_spin = self._spin(goals.daily_minutes, maximum=24 * 60, suffix=" min", step=5)
-        self._goal_spin.setToolTip("Study time that makes a day count")
+        self._low_spin = self._spin(goals.low_minutes, maximum=24 * 60, suffix=" min", step=5)
+        self._low_spin.setToolTip("Study time that makes a day count — turns it green")
+        self._low_buffer_spin = self._allowance_spin(goals.low_buffer_minutes, "the low goal")
 
-        self._buffer_spin = self._spin(goals.buffer_minutes, minimum=0, maximum=60, suffix=" min")
-        self._buffer_spin.setToolTip("Falling this far short still counts")
-
-        # 0 is "no stretch goal" rather than a real value, so the spin shows Off there
-        # instead of an absurd "0 min" the validator would then have to reject.
-        self._stretch_spin = self._spin(
-            goals.stretch_minutes or 0,
-            minimum=0,
-            maximum=24 * 60,
-            suffix=" min",
-            step=5,
+        self._middle_spin = self._optional_goal_spin(goals.middle_minutes, "earns a ★")
+        self._middle_buffer_spin = self._allowance_spin(
+            goals.middle_buffer_minutes, "the middle goal"
         )
-        self._stretch_spin.setSpecialValueText("Off")
-        self._stretch_spin.setToolTip("A great day — earns a ★ on the calendar")
+        self._high_spin = self._optional_goal_spin(goals.high_minutes, "earns ★★")
+        self._high_buffer_spin = self._allowance_spin(goals.high_buffer_minutes, "the high goal")
 
-        # Its own allowance rather than reusing buffer_minutes: a great day is a bigger
-        # ask, so it reasonably gets more slack for the same reason the daily goal has a
-        # buffer at all.
-        self._stretch_buffer_spin = self._spin(
-            goals.stretch_buffer_minutes, minimum=0, maximum=60, suffix=" min"
-        )
-        self._stretch_buffer_spin.setToolTip("Falling this far short of the great day still counts")
-
-        form.addRow("Goal", Stepper(self._goal_spin))
-        form.addRow("Allowance", Stepper(self._buffer_spin))
-        form.addRow("Great day", Stepper(self._stretch_spin))
-        form.addRow("Great-day allowance", Stepper(self._stretch_buffer_spin))
+        form.addRow("Low", Stepper(self._low_spin))
+        form.addRow("Low allowance", Stepper(self._low_buffer_spin))
+        form.addRow("Middle", Stepper(self._middle_spin))
+        form.addRow("Middle allowance", Stepper(self._middle_buffer_spin))
+        form.addRow("High", Stepper(self._high_spin))
+        form.addRow("High allowance", Stepper(self._high_buffer_spin))
         return form
+
+    def _optional_goal_spin(self, minutes: int | None, reward: str) -> StepSpinBox:
+        # 0 is "no such goal" rather than a real value, so the spin shows Off there
+        # instead of an absurd "0 min" the validator would then have to reject.
+        spin = self._spin(minutes or 0, minimum=0, maximum=24 * 60, suffix=" min", step=5)
+        spin.setSpecialValueText("Off")
+        spin.setToolTip(f"Reaching it {reward} on the calendar")
+        return spin
+
+    def _allowance_spin(self, minutes: int, goal: str) -> StepSpinBox:
+        spin = self._spin(minutes, minimum=0, maximum=60, suffix=" min")
+        spin.setToolTip(f"Falling this far short of {goal} still counts")
+        return spin
 
     def _build_sound_row(self, sound: str) -> QHBoxLayout:
         """The picker, plus a button to hear the choice before committing to it."""
@@ -380,10 +384,12 @@ class SettingsDialog(QDialog):
             break_minutes=self._break_spin.value(),
             rounds=self._rounds_spin.value(),
             resume_window_minutes=self._resume_window_spin.value(),
-            daily_minutes=self._goal_spin.value(),
-            buffer_minutes=self._buffer_spin.value(),
-            stretch_minutes=self._stretch_spin.value(),
-            stretch_buffer_minutes=self._stretch_buffer_spin.value(),
+            low_minutes=self._low_spin.value(),
+            low_buffer_minutes=self._low_buffer_spin.value(),
+            middle_minutes=self._middle_spin.value(),
+            middle_buffer_minutes=self._middle_buffer_spin.value(),
+            high_minutes=self._high_spin.value(),
+            high_buffer_minutes=self._high_buffer_spin.value(),
             break_reminder_minutes=self._reminder_spin.value(),
             sound=self.selected_sound(),
             timezone=self.selected_timezone(),

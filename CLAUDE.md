@@ -530,15 +530,17 @@ test asserting one id and the right origin across a whole session.
 
 ## Goals
 
-Two goals, deliberately different in kind. `daily_minutes` is the one you mean to hit every
-day; `stretch_minutes` is the great-day mark and adds a star.
+Three goals, each a step up: `low_minutes` is the one you mean to hit every day and turns
+the calendar cell green; `middle_minutes` adds one star, `high_minutes` a second. Middle and
+high are optional (`null`, shown as "Off" in Settings), and high needs a middle below it — a
+second star with no first would skip a level. The month readout counts one- and two-star
+days separately (`· 3 ★ · 1 ★★`).
 
-Each has its **own** buffer — `buffer_minutes` for the daily goal, `stretch_buffer_minutes`
-for the stretch one — rather than sharing one. A great day is a bigger ask, so it reasonably
-gets more slack for the same reason the daily goal has a buffer at all; the two amounts have
-no reason to move together. `GoalsConfig` still refuses a config where the *buffered* stretch
-threshold would sit at or below the *buffered* daily one — a generous stretch buffer can't
-let the star trigger before the day would even read as met.
+Each has its **own** buffer (`low_/middle_/high_buffer_minutes`) rather than sharing one. A
+bigger ask reasonably gets more slack for the same reason the low goal has a buffer at all;
+the amounts have no reason to move together. `GoalsConfig` still refuses a config where a
+*buffered* threshold would sit below the *buffered* one beneath it — a generous buffer can't
+let a star trigger before the level under it would.
 
 ## Settings
 

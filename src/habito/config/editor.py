@@ -54,7 +54,7 @@ class Applied:
 def _rejected(exc: ValidationError) -> Applied:
     """Report the first complaint, named by the field it came from.
 
-    A model-level validator — "the stretch goal must be above the daily goal" — belongs to
+    A model-level validator — "the middle goal must be above the low goal" — belongs to
     no single field and arrives with a ``loc`` naming only the section, so the section name
     is what gets shown. Either way the message points at somewhere on the dialog.
     """
@@ -87,10 +87,12 @@ class ConfigEditor:
         break_minutes: int,
         rounds: int,
         resume_window_minutes: int,
-        daily_minutes: int,
-        buffer_minutes: int,
-        stretch_minutes: int,
-        stretch_buffer_minutes: int,
+        low_minutes: int,
+        low_buffer_minutes: int,
+        middle_minutes: int,
+        middle_buffer_minutes: int,
+        high_minutes: int,
+        high_buffer_minutes: int,
         break_reminder_minutes: int,
         sound: str,
         timezone: str,
@@ -112,11 +114,13 @@ class ConfigEditor:
                 resume_window_minutes=resume_window_minutes,
             )
             goals = GoalsConfig(
-                daily_minutes=daily_minutes,
-                buffer_minutes=buffer_minutes,
-                # The spin's "Off" is 0; the config says "no stretch goal" with null.
-                stretch_minutes=stretch_minutes or None,
-                stretch_buffer_minutes=stretch_buffer_minutes,
+                low_minutes=low_minutes,
+                low_buffer_minutes=low_buffer_minutes,
+                # A spin's "Off" is 0; the config says "no such goal" with null.
+                middle_minutes=middle_minutes or None,
+                middle_buffer_minutes=middle_buffer_minutes,
+                high_minutes=high_minutes or None,
+                high_buffer_minutes=high_buffer_minutes,
             )
             # model_copy skips validation, so the copy is re-validated to catch a bad value
             # before it reaches the config.

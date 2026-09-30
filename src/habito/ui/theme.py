@@ -32,7 +32,7 @@ class Palette:
     border: str
     text: str
     text_disabled: str
-    # The stretch-goal star, drawn on top of the green "met" fill. Per-palette because one
+    # The middle/high-goal star, drawn on top of the green "met" fill. Per-palette because one
     # amber can't carry both: the light fill is bright enough that a mid amber nearly
     # matches its luminance, so light gets a deeper one. Still a single colour per theme
     # rather than a gradient — a two-ended ramp would need this tuning three times over,

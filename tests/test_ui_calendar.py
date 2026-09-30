@@ -1,4 +1,4 @@
-"""The calendar view: per-day study time, green once the day's goal is met.
+"""The calendar view: per-day study time, green at the low goal, stars above it.
 
 The colouring is painted rather than set on a widget, so the "is it green" checks read the
 pixels back out of the cell.
@@ -21,7 +21,7 @@ from habito.ui.pages.calendar_view import CalendarView, StudyCalendar
 
 DARK = theme.Theme(accent=theme.ACCENT_LIVE, palette=theme.DARK)
 GOAL = GoalsConfig()
-THRESHOLD = GOAL.threshold_seconds()
+LOW = GOAL.low_seconds()
 
 TODAY = date.today()
 # A day mid-month, so "is it in the month shown" never depends on today's date.
@@ -34,7 +34,7 @@ def summary(day: date, verified: int = 0, backfilled: int = 0) -> DailySummary:
 
 @pytest.fixture
 def view(qtbot):
-    widget = CalendarView(DARK, THRESHOLD)
+    widget = CalendarView(DARK, LOW)
     qtbot.addWidget(widget)
     widget.resize(360, 400)
     widget.show()
@@ -65,11 +65,11 @@ def green_pixels(calendar: StudyCalendar, day: date) -> int:
 # --- the goal -------------------------------------------------------------
 def test_the_goal_allows_a_buffer():
     """Four 25-minute rounds is 100 minutes; missing it by a couple still counts."""
-    assert GoalsConfig(daily_minutes=100, buffer_minutes=5).threshold_seconds() == 95 * 60
+    assert GoalsConfig(low_minutes=100, low_buffer_minutes=5).low_seconds() == 95 * 60
 
 
 def test_the_buffer_can_be_removed():
-    assert GoalsConfig(daily_minutes=100, buffer_minutes=0).threshold_seconds() == 100 * 60
+    assert GoalsConfig(low_minutes=100, low_buffer_minutes=0).low_seconds() == 100 * 60
 
 
 @pytest.mark.parametrize(
@@ -112,16 +112,18 @@ def test_a_day_with_no_entry_at_all_is_plain(view):
     assert FILL not in cell_pixels(view.calendar, ANCHOR)
 
 
-# --- the stretch goal -----------------------------------------------------
+# --- the middle and high goals -------------------------------------------
 _STAR_COLOR = QColor(theme.DARK.star)
 STAR = (_STAR_COLOR.red(), _STAR_COLOR.green(), _STAR_COLOR.blue())
 
 
 @pytest.fixture
-def stretch_view(qtbot):
-    """A calendar with both goals set: green at 95m (buffered), star at 175m."""
-    goals = GoalsConfig(stretch_minutes=180, stretch_buffer_minutes=5)
-    widget = CalendarView(DARK, THRESHOLD, goals.stretch_seconds())
+def stars_view(qtbot):
+    """All three goals set: green at 95m, one star at 175m, two at 235m (all buffered)."""
+    goals = GoalsConfig(
+        middle_minutes=180, middle_buffer_minutes=5, high_minutes=240, high_buffer_minutes=5
+    )
+    widget = CalendarView(DARK, LOW, goals.middle_seconds(), goals.high_seconds())
     qtbot.addWidget(widget)
     widget.resize(360, 400)
     widget.show()
@@ -129,77 +131,113 @@ def stretch_view(qtbot):
     return widget
 
 
-def test_the_stretch_goal_has_its_own_buffer():
-    """Not shared with the daily goal's — a great day is a bigger ask, so it reasonably
-    gets more slack."""
+def star_pixels(calendar: StudyCalendar, day: date) -> int:
+    return cell_pixels(calendar, day).count(STAR)
+
+
+def test_each_goal_has_its_own_buffer():
+    """Not shared — a bigger ask reasonably gets more slack."""
     goals = GoalsConfig(
-        daily_minutes=100, buffer_minutes=5, stretch_minutes=180, stretch_buffer_minutes=10
+        low_minutes=100,
+        low_buffer_minutes=5,
+        middle_minutes=180,
+        middle_buffer_minutes=10,
+        high_minutes=240,
+        high_buffer_minutes=20,
     )
-    assert goals.threshold_seconds() == 95 * 60
-    assert goals.stretch_seconds() == 170 * 60  # buffered by 10, not the daily goal's 5
+    assert goals.low_seconds() == 95 * 60
+    assert goals.middle_seconds() == 170 * 60
+    assert goals.high_seconds() == 220 * 60
 
 
-def test_the_stretch_buffer_defaults_more_lenient_than_the_daily_one():
-    assert GoalsConfig().stretch_buffer_minutes > GoalsConfig().buffer_minutes
-
-
-def test_too_generous_a_stretch_buffer_is_refused():
-    """however lenient the great-day allowance is, it can't make the star trigger before
-    the day would even read as met."""
-    with pytest.raises(ValidationError, match="easier to reach than the daily goal"):
-        GoalsConfig(
-            daily_minutes=100, buffer_minutes=5, stretch_minutes=101, stretch_buffer_minutes=10
-        )
-
-
-def test_no_stretch_goal_by_default():
-    assert GoalsConfig().stretch_seconds() is None
-
-
-def test_zero_means_off_so_the_toml_can_round_trip():
-    """TOML has no null and the spin bottoms out at Off; both write 0."""
-    assert GoalsConfig(stretch_minutes=0).stretch_minutes is None
-
-
-def test_a_stretch_goal_below_the_daily_goal_is_refused():
-    with pytest.raises(ValidationError, match="stretch goal must be above"):
-        GoalsConfig(daily_minutes=100, stretch_minutes=60)
+def test_buffers_default_more_lenient_the_higher_the_goal():
+    goals = GoalsConfig()
+    assert goals.low_buffer_minutes < goals.middle_buffer_minutes < goals.high_buffer_minutes
 
 
 @pytest.mark.parametrize(
-    ("minutes", "starred"),
-    [(100, False), (174, False), (175, True), (240, True)],
+    ("overrides", "message"),
+    [
+        ({"middle_minutes": 101, "middle_buffer_minutes": 10}, "easier to reach than the low"),
+        (
+            {"middle_minutes": 180, "high_minutes": 181, "high_buffer_minutes": 15},
+            "easier to reach than the middle",
+        ),
+    ],
 )
-def test_only_great_days_are_starred(stretch_view, minutes, starred):
-    assert stretch_view.calendar.meets_stretch(summary(ANCHOR, verified=minutes * 60)) is starred
+def test_too_generous_a_buffer_is_refused(overrides, message):
+    """However lenient an allowance is, it can't make a level trigger before the one below."""
+    with pytest.raises(ValidationError, match=message):
+        GoalsConfig(low_minutes=100, low_buffer_minutes=5, **overrides)
 
 
-def test_a_starred_day_is_painted_with_a_star(stretch_view):
-    stretch_view.set_summaries({ANCHOR: summary(ANCHOR, verified=200 * 60)})
-    assert STAR in cell_pixels(stretch_view.calendar, ANCHOR)
+def test_no_middle_or_high_goal_by_default():
+    goals = GoalsConfig()
+    assert goals.middle_seconds() is None
+    assert goals.high_seconds() is None
 
 
-def test_a_merely_green_day_gets_no_star(stretch_view):
-    stretch_view.set_summaries({ANCHOR: summary(ANCHOR, verified=100 * 60)})
-    assert FILL in cell_pixels(stretch_view.calendar, ANCHOR)  # still green...
-    assert STAR not in cell_pixels(stretch_view.calendar, ANCHOR)  # ...but no star
+def test_zero_means_off_matching_the_spin():
+    goals = GoalsConfig(middle_minutes=0, high_minutes=0)
+    assert goals.middle_minutes is None and goals.high_minutes is None
 
 
-def test_no_star_is_ever_drawn_without_a_stretch_goal(view):
-    """The default calendar has no second goal, so a huge day is still just green."""
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"middle_minutes": 60}, "middle goal must be above the low"),
+        ({"middle_minutes": 180, "high_minutes": 150}, "high goal must be above the middle"),
+        ({"high_minutes": 240}, "high goal needs a middle goal"),
+    ],
+)
+def test_goals_must_ascend(overrides, message):
+    with pytest.raises(ValidationError, match=message):
+        GoalsConfig(low_minutes=100, **overrides)
+
+
+@pytest.mark.parametrize(
+    ("minutes", "stars"),
+    [(100, 0), (174, 0), (175, 1), (234, 1), (235, 2), (600, 2)],
+)
+def test_stars_follow_the_buffered_goals(stars_view, minutes, stars):
+    assert stars_view.calendar.stars(summary(ANCHOR, verified=minutes * 60)) == stars
+
+
+def test_a_high_day_is_painted_with_twice_the_stars_of_a_middle_one(stars_view):
+    stars_view.set_summaries({ANCHOR: summary(ANCHOR, verified=200 * 60)})
+    one = star_pixels(stars_view.calendar, ANCHOR)
+    stars_view.set_summaries({ANCHOR: summary(ANCHOR, verified=240 * 60)})
+    two = star_pixels(stars_view.calendar, ANCHOR)
+    assert one > 0
+    assert two == 2 * one
+
+
+def test_a_merely_green_day_gets_no_star(stars_view):
+    stars_view.set_summaries({ANCHOR: summary(ANCHOR, verified=100 * 60)})
+    assert FILL in cell_pixels(stars_view.calendar, ANCHOR)  # still green...
+    assert STAR not in cell_pixels(stars_view.calendar, ANCHOR)  # ...but no star
+
+
+def test_no_star_is_ever_drawn_without_a_middle_goal(view):
+    """The default calendar has only the low goal, so a huge day is still just green."""
     view.set_summaries({ANCHOR: summary(ANCHOR, verified=600 * 60)})
     assert STAR not in cell_pixels(view.calendar, ANCHOR)
 
 
-def test_the_month_readout_counts_starred_days(stretch_view):
-    other = ANCHOR + timedelta(days=1)
-    stretch_view.set_summaries(
-        {
-            ANCHOR: summary(ANCHOR, verified=200 * 60),
-            other: summary(other, verified=100 * 60),
-        }
+def test_the_month_readout_counts_one_and_two_star_days_apart(stars_view):
+    days = [ANCHOR + timedelta(days=i) for i in range(4)]
+    minutes = [200, 200, 240, 100]
+    stars_view.set_summaries(
+        {day: summary(day, verified=m * 60) for day, m in zip(days, minutes, strict=True)}
     )
-    assert "1 ★" in stretch_view._total_lbl.text()
+    text = stars_view._total_lbl.text()
+    assert "· 2 ★ · 1 ★★" in text
+
+
+def test_the_month_readout_leaves_out_a_level_nobody_reached(stars_view):
+    stars_view.set_summaries({ANCHOR: summary(ANCHOR, verified=200 * 60)})
+    text = stars_view._total_lbl.text()
+    assert text.endswith("· 1 ★")
 
 
 def test_backfilled_time_is_painted_the_same_as_live(view):
@@ -359,18 +397,18 @@ def test_a_view_opened_after_a_settings_change_is_born_with_it(qtbot, tmp_path):
         SettingsValues(
             break_minutes=5,
             rounds=4,
-            daily_minutes=100,
-            buffer_minutes=0,
-            stretch_minutes=180,
-            stretch_buffer_minutes=0,
+            low_minutes=100,
+            low_buffer_minutes=0,
+            middle_minutes=180,
+            middle_buffer_minutes=0,
             sound="asterisk",
         )
     )
 
     assert app._calendar is None  # never opened, so nothing was applied to it
     calendar = app._calendar_view().calendar
-    assert calendar.threshold_seconds() == 100 * 60
-    assert calendar.stretch_seconds() == 180 * 60
+    assert calendar.goal_seconds()[0] == 100 * 60
+    assert calendar.goal_seconds()[1] == 180 * 60
 
 
 def test_opening_the_calendar_reads_the_log(qtbot, tmp_path):
@@ -530,7 +568,9 @@ def build_app(qtbot, tmp_path):
 
     settings = tmp_path / "config" / "settings.json"
     settings.parent.mkdir(parents=True, exist_ok=True)
-    settings.write_text('{"goals": {"daily_minutes": 100, "buffer_minutes": 5}}', encoding="utf-8")
+    settings.write_text(
+        '{"goals": {"low_minutes": 100, "low_buffer_minutes": 5}}', encoding="utf-8"
+    )
     config = Config.model_validate(
         {
             "paths": {"data_repo": str(tmp_path)},
@@ -556,8 +596,8 @@ def test_changing_the_goal_recolours_the_calendar_without_a_restart(qtbot, tmp_p
         SettingsValues(
             break_minutes=5,
             rounds=4,
-            daily_minutes=60,
-            buffer_minutes=5,
+            low_minutes=60,
+            low_buffer_minutes=5,
             sound="asterisk",
         )
     )
@@ -573,66 +613,66 @@ def test_the_goal_is_written_back_to_the_settings_file(qtbot, tmp_path):
         SettingsValues(
             break_minutes=5,
             rounds=4,
-            daily_minutes=150,
-            buffer_minutes=15,
+            low_minutes=150,
+            low_buffer_minutes=15,
             sound="asterisk",
         )
     )
 
     written = config.settings_file().read_text(encoding="utf-8")
-    assert '"daily_minutes": 150' in written
-    assert '"buffer_minutes": 15' in written
+    assert '"low_minutes": 150' in written
+    assert '"low_buffer_minutes": 15' in written
 
 
-def test_setting_a_stretch_goal_stars_days_without_a_restart(qtbot, tmp_path):
+def test_setting_a_middle_goal_stars_days_without_a_restart(qtbot, tmp_path):
     from habito.ui.dialogs.settings_dialog import SettingsValues
 
     app, _ = build_app(qtbot, tmp_path)
     great = summary(ANCHOR, verified=200 * 60)
     app._calendar_view().set_summaries({ANCHOR: great})
-    assert not app._calendar_view().calendar.meets_stretch(great)  # no stretch goal yet
+    assert not app._calendar_view().calendar.stars(great) >= 1  # no middle goal yet
 
     app.on_save_settings(
         SettingsValues(
             break_minutes=5,
             rounds=4,
-            daily_minutes=100,
-            buffer_minutes=5,
-            stretch_minutes=180,
+            low_minutes=100,
+            low_buffer_minutes=5,
+            middle_minutes=180,
             sound="asterisk",
         )
     )
 
-    assert app._calendar_view().calendar.meets_stretch(great)
+    assert app._calendar_view().calendar.stars(great) >= 1
 
 
-def test_turning_the_stretch_goal_off_again_removes_the_star(qtbot, tmp_path):
+def test_turning_the_middle_goal_off_again_removes_the_star(qtbot, tmp_path):
     from habito.ui.dialogs.settings_dialog import SettingsValues
 
     app, config = build_app(qtbot, tmp_path)
 
-    def save(stretch: int) -> str | None:
+    def save(middle: int) -> str | None:
         return app.on_save_settings(
             SettingsValues(
                 break_minutes=5,
                 rounds=4,
-                daily_minutes=100,
-                buffer_minutes=5,
-                stretch_minutes=stretch,
+                low_minutes=100,
+                low_buffer_minutes=5,
+                middle_minutes=middle,
                 sound="asterisk",
             )
         )
 
     save(180)
-    assert app._calendar_view().calendar.stretch_seconds() is not None
+    assert app._calendar_view().calendar.goal_seconds()[1] is not None
 
     save(0)  # the spin's "Off"
-    assert app._calendar_view().calendar.stretch_seconds() is None
-    # JSON has a null, so "no stretch goal" is written as one rather than as a 0 standing in.
-    assert '"stretch_minutes": null' in config.settings_file().read_text(encoding="utf-8")
+    assert app._calendar_view().calendar.goal_seconds()[1] is None
+    # JSON has a null, so "no middle goal" is written as one rather than as a 0 standing in.
+    assert '"middle_minutes": null' in config.settings_file().read_text(encoding="utf-8")
 
 
-def test_a_stretch_goal_under_the_daily_goal_is_reported_not_applied(qtbot, tmp_path):
+def test_a_middle_goal_under_the_low_goal_is_reported_not_applied(qtbot, tmp_path):
     from habito.ui.dialogs.settings_dialog import SettingsValues
 
     app, _ = build_app(qtbot, tmp_path)
@@ -640,19 +680,19 @@ def test_a_stretch_goal_under_the_daily_goal_is_reported_not_applied(qtbot, tmp_
         SettingsValues(
             break_minutes=5,
             rounds=4,
-            daily_minutes=100,
-            buffer_minutes=5,
-            stretch_minutes=60,
+            low_minutes=100,
+            low_buffer_minutes=5,
+            middle_minutes=60,
             sound="asterisk",
         )
     )
 
     assert error is not None
-    assert "stretch goal must be above" in error
-    assert app._calendar_view().calendar.stretch_seconds() is None  # nothing was applied
+    assert "middle goal must be above" in error
+    assert app._calendar_view().calendar.goal_seconds()[1] is None  # nothing was applied
 
 
-def test_the_stretch_goal_round_trips_through_the_settings_file(qtbot, tmp_path):
+def test_the_middle_goal_round_trips_through_the_settings_file(qtbot, tmp_path):
     from habito.config.loader import load_config
     from habito.ui.dialogs.settings_dialog import SettingsValues
 
@@ -661,14 +701,38 @@ def test_the_stretch_goal_round_trips_through_the_settings_file(qtbot, tmp_path)
         SettingsValues(
             break_minutes=5,
             rounds=4,
-            daily_minutes=100,
-            buffer_minutes=5,
-            stretch_minutes=180,
-            stretch_buffer_minutes=10,
+            low_minutes=100,
+            low_buffer_minutes=5,
+            middle_minutes=180,
+            middle_buffer_minutes=10,
             sound="asterisk",
         )
     )
 
     reloaded = load_config(project_root=tmp_path, config_path=config.settings_file())
-    assert reloaded.goals.stretch_minutes == 180
-    assert reloaded.goals.stretch_seconds() == 170 * 60
+    assert reloaded.goals.middle_minutes == 180
+    assert reloaded.goals.middle_seconds() == 170 * 60
+
+
+def test_the_high_goal_round_trips_through_the_settings_file(qtbot, tmp_path):
+    from habito.config.loader import load_config
+    from habito.ui.dialogs.settings_dialog import SettingsValues
+
+    app, config = build_app(qtbot, tmp_path)
+    error = app.on_save_settings(
+        SettingsValues(
+            break_minutes=5,
+            rounds=4,
+            low_minutes=100,
+            low_buffer_minutes=5,
+            middle_minutes=180,
+            high_minutes=240,
+            high_buffer_minutes=15,
+            sound="asterisk",
+        )
+    )
+
+    assert error is None
+    assert app._calendar_view().calendar.stars(summary(ANCHOR, verified=225 * 60)) == 2
+    reloaded = load_config(project_root=tmp_path, config_path=config.settings_file())
+    assert reloaded.goals.high_seconds() == 225 * 60

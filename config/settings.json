@@ -3,7 +3,7 @@
   "pomodoro": {
     "work_minutes": 25.0,
     "break_minutes": 5,
-    "rounds": 2,
+    "rounds": 4,
     "resume_window_minutes": 10
   },
   "time": {
@@ -26,17 +26,19 @@
     "break_reminder_minutes": 5
   },
   "goals": {
-    "daily_minutes": 100,
-    "buffer_minutes": 5,
-    "stretch_minutes": 200,
-    "stretch_buffer_minutes": 10
+    "low_minutes": 100,
+    "low_buffer_minutes": 5,
+    "middle_minutes": 200,
+    "middle_buffer_minutes": 10,
+    "high_minutes": null,
+    "high_buffer_minutes": 15
   },
   "extras": {
     "enabled": true,
     "wakeup": {
       "habit": "sleep",
-      "default_wake_time": "04:00:00",
-      "default_bedtime": "20:00:00"
+      "default_wake_time": "06:00:00",
+      "default_bedtime": "20:30:00"
     },
     "workout": {
       "habit": "workout"

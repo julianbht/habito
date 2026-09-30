@@ -16,10 +16,12 @@ _VALID = {
     "break_minutes": 5,
     "rounds": 4,
     "resume_window_minutes": 10,
-    "daily_minutes": 100,
-    "buffer_minutes": 5,
-    "stretch_minutes": 0,
-    "stretch_buffer_minutes": 10,
+    "low_minutes": 100,
+    "low_buffer_minutes": 5,
+    "middle_minutes": 0,
+    "middle_buffer_minutes": 10,
+    "high_minutes": 0,
+    "high_buffer_minutes": 15,
     "break_reminder_minutes": 3,
     "sound": "asterisk",
     "timezone": "Europe/Berlin",
@@ -38,15 +40,15 @@ def test_a_rejected_change_leaves_the_whole_config_untouched(tmp_path):
     config = build_config(tmp_path)
     before_goals, before_time = config.goals, config.time
 
-    # The stretch goal has to sit above the daily one — a model-level rule, so it arrives
+    # The middle goal has to sit above the low one — a model-level rule, so it arrives
     # named by its section rather than by a field.
     outcome = ConfigEditor(config).apply_settings(
-        **{**_VALID, "stretch_minutes": 60, "rollover_hour": 5}
+        **{**_VALID, "middle_minutes": 60, "rollover_hour": 5}
     )
 
     assert not outcome.ok
     assert outcome.message is not None
-    assert "stretch goal must be above" in outcome.message
+    assert "middle goal must be above" in outcome.message
     assert config.goals is before_goals
     assert config.time is before_time  # the valid part of the same Save didn't land either
 
@@ -70,12 +72,12 @@ def test_an_unwritable_settings_file_still_applies_the_change(tmp_path):
     blocked.write_text("not a directory", encoding="utf-8")
     config.config_path = blocked / "settings.json"
 
-    outcome = ConfigEditor(config).apply_settings(**{**_VALID, "daily_minutes": 60})
+    outcome = ConfigEditor(config).apply_settings(**{**_VALID, "low_minutes": 60})
 
     assert outcome.ok
     assert outcome.message is not None
     assert "couldn't write settings.json" in outcome.message
-    assert config.goals.daily_minutes == 60  # applied regardless
+    assert config.goals.low_minutes == 60  # applied regardless
 
 
 def test_the_timer_changes_only_the_round_length(tmp_path):

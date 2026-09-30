@@ -209,8 +209,9 @@ class HabitoApp(QMainWindow):
         if self._calendar is None:
             self._calendar = CalendarView(
                 self._theme,
-                self._config.goals.threshold_seconds(),
-                self._config.goals.stretch_seconds(),
+                self._config.goals.low_seconds(),
+                self._config.goals.middle_seconds(),
+                self._config.goals.high_seconds(),
             )
             self._pages.addWidget(self._calendar)
         return self._calendar
@@ -438,10 +439,12 @@ class HabitoApp(QMainWindow):
             break_minutes=values.break_minutes,
             rounds=values.rounds,
             resume_window_minutes=values.resume_window_minutes,
-            daily_minutes=values.daily_minutes,
-            buffer_minutes=values.buffer_minutes,
-            stretch_minutes=values.stretch_minutes,
-            stretch_buffer_minutes=values.stretch_buffer_minutes,
+            low_minutes=values.low_minutes,
+            low_buffer_minutes=values.low_buffer_minutes,
+            middle_minutes=values.middle_minutes,
+            middle_buffer_minutes=values.middle_buffer_minutes,
+            high_minutes=values.high_minutes,
+            high_buffer_minutes=values.high_buffer_minutes,
             break_reminder_minutes=values.break_reminder_minutes,
             sound=values.sound,
             timezone=values.timezone,
@@ -474,7 +477,9 @@ class HabitoApp(QMainWindow):
     def _retune_goals(self) -> None:
         if self._calendar is not None:
             goals = self._config.goals
-            self._calendar.set_goals(goals.threshold_seconds(), goals.stretch_seconds())
+            self._calendar.set_goals(
+                goals.low_seconds(), goals.middle_seconds(), goals.high_seconds()
+            )
 
     def _retune_sound(self) -> None:
         self._notifier.set_sound(self._config.ui.sound)

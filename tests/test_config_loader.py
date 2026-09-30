@@ -56,7 +56,7 @@ def test_a_missing_file_loads_the_defaults(tmp_path):
     config = load_config(project_root=tmp_path, config_path=tmp_path / "nope.json")
 
     assert config.pomodoro.rounds == 4
-    assert config.goals.daily_minutes == 100
+    assert config.goals.low_minutes == 100
 
 
 def test_extras_defaults_off_and_missing_key_falls_back(tmp_path):

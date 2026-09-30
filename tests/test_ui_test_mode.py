@@ -39,8 +39,8 @@ def settings(*, brk: int = 5, rounds: int = 4, sound: str = "asterisk") -> Setti
     return SettingsValues(
         break_minutes=brk,
         rounds=rounds,
-        daily_minutes=100,
-        buffer_minutes=5,
+        low_minutes=100,
+        low_buffer_minutes=5,
         sound=sound,
     )
 

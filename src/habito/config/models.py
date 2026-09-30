@@ -135,56 +135,86 @@ class UIConfig(BaseModel):
 class GoalsConfig(BaseModel):
     """What counts as a day's work done, for the calendar.
 
-    Two goals, deliberately different in kind: ``daily_minutes`` is the one you mean to hit
-    every day and it colours the day green; ``stretch_minutes`` is the great-day mark and
-    earns a star on top. Two thresholds rather than a gradient — "met" and "well past it"
-    are categories, and a colour ramp would encode a continuum nobody can read back off a
-    calendar cell.
+    Three goals, each a step up: ``low_minutes`` is the one you mean to hit every day and
+    it colours the day green; ``middle_minutes`` earns one star on top, ``high_minutes`` a
+    second. Thresholds rather than a gradient — "met" and "well past it" are categories,
+    and a colour ramp would encode a continuum nobody can read back off a calendar cell.
 
-    Each has its own buffer rather than sharing one: a great day is a bigger ask, so it
-    reasonably gets more slack for the same "missed it by a bit still counts" reason the
-    daily goal has one at all. ``_stretch_sits_above_daily`` still requires the *buffered*
-    stretch threshold to sit above the *buffered* daily one — a generous stretch buffer
-    can't let the star trigger before the day would even read as met.
+    Each has its own buffer rather than sharing one: a bigger ask reasonably gets more
+    slack for the same "missed it by a bit still counts" reason the low goal has one at
+    all. ``_goals_ascend`` still requires each *buffered* threshold to sit above the one
+    below it — a generous buffer can't let a star trigger before the level under it would.
     """
 
-    daily_minutes: int = Field(default=100, gt=0)  # 4 rounds x 25 minutes
+    low_minutes: int = Field(default=100, gt=0)  # 4 rounds x 25 minutes
     # Missing the target by a couple of minutes still means you did the work, so the
     # calendar accepts anything within this of the goal.
-    buffer_minutes: int = Field(default=5, ge=0)
-    # The great-day mark. None means there isn't one, and no star is ever drawn.
-    stretch_minutes: int | None = Field(default=None, gt=0)
-    # Its own allowance, separate from buffer_minutes — see the class docstring.
-    stretch_buffer_minutes: int = Field(default=10, ge=0)
+    low_buffer_minutes: int = Field(default=5, ge=0)
+    # None means there isn't one, and no star is ever drawn for it.
+    middle_minutes: int | None = Field(default=None, gt=0)
+    middle_buffer_minutes: int = Field(default=10, ge=0)
+    # Needs a middle goal: a second star with no first would skip a level.
+    high_minutes: int | None = Field(default=None, gt=0)
+    high_buffer_minutes: int = Field(default=15, ge=0)
 
-    @field_validator("stretch_minutes", mode="before")
+    @field_validator("middle_minutes", "high_minutes", mode="before")
     @classmethod
     def _zero_means_off(cls, value: object) -> object:
-        """The Settings spin bottoms out at "Off", which it reports as 0 rather than null."""
+        """The Settings spins bottom out at "Off", which they report as 0 rather than null."""
         return None if value == 0 else value
 
     @model_validator(mode="after")
-    def _stretch_sits_above_daily(self) -> GoalsConfig:
-        if self.stretch_minutes is None:
-            return self
-        if self.stretch_minutes <= self.daily_minutes:
-            raise ValueError("the stretch goal must be above the daily goal")
-        stretch_seconds = max(0, self.stretch_minutes - self.stretch_buffer_minutes) * 60
-        if stretch_seconds < self.threshold_seconds():
-            raise ValueError(
-                "the stretch allowance makes the great-day mark easier to reach than the "
-                "daily goal — lower it, or raise the stretch goal"
+    def _goals_ascend(self) -> GoalsConfig:
+        if self.high_minutes is not None and self.middle_minutes is None:
+            raise ValueError("the high goal needs a middle goal below it")
+        # (name, raw minutes, buffered seconds) for each goal that is set, lowest first.
+        steps: list[tuple[str, int, int]] = [("low", self.low_minutes, self.low_seconds())]
+        if self.middle_minutes is not None:
+            steps.append(
+                (
+                    "middle",
+                    self.middle_minutes,
+                    _buffered_seconds(self.middle_minutes, self.middle_buffer_minutes),
+                )
             )
+        if self.high_minutes is not None:
+            steps.append(
+                (
+                    "high",
+                    self.high_minutes,
+                    _buffered_seconds(self.high_minutes, self.high_buffer_minutes),
+                )
+            )
+        for (lower, lower_raw, lower_buffered), (upper, upper_raw, upper_buffered) in zip(
+            steps, steps[1:], strict=False
+        ):
+            if upper_raw <= lower_raw:
+                raise ValueError(f"the {upper} goal must be above the {lower} goal")
+            if upper_buffered < lower_buffered:
+                raise ValueError(
+                    f"the {upper} allowance makes the {upper} goal easier to reach than the "
+                    f"{lower} one — lower it, or raise the {upper} goal"
+                )
         return self
 
-    def threshold_seconds(self) -> int:
-        return max(0, self.daily_minutes - self.buffer_minutes) * 60
+    def low_seconds(self) -> int:
+        return _buffered_seconds(self.low_minutes, self.low_buffer_minutes)
 
-    def stretch_seconds(self) -> int | None:
-        """The buffered stretch threshold, or ``None`` when no stretch goal is set."""
-        if self.stretch_minutes is None:
+    def middle_seconds(self) -> int | None:
+        """The buffered middle threshold, or ``None`` when no middle goal is set."""
+        if self.middle_minutes is None:
             return None
-        return max(0, self.stretch_minutes - self.stretch_buffer_minutes) * 60
+        return _buffered_seconds(self.middle_minutes, self.middle_buffer_minutes)
+
+    def high_seconds(self) -> int | None:
+        """The buffered high threshold, or ``None`` when no high goal is set."""
+        if self.high_minutes is None:
+            return None
+        return _buffered_seconds(self.high_minutes, self.high_buffer_minutes)
+
+
+def _buffered_seconds(minutes: int, buffer_minutes: int) -> int:
+    return max(0, minutes - buffer_minutes) * 60
 
 
 class WakeUpConfig(BaseModel):
