@@ -18,7 +18,7 @@ A minimalist, keyboard-navigable cross-platform Pomodoro tracker for developers.
 - A calendar of your streak: a month at a glance, green on every day you hit your goal.
 - Goal Tracking: low, middle and high goal each with indicators on the calendar
 - Timer Templates: setup several pomodoro templates with different study and break timers
-- Backfilling: backfill sessions if you forgot to track a session or want to migrate.
+- Backfilling: fill in sessions if you forgot to track a session or want to migrate.
 
 ## Requirements
 
@@ -74,16 +74,16 @@ uv run habito --test-mode
 The whole app is reachable without a mouse. Focus starts on the Play button, and every
 control draws a visible focus ring.
 
-| Key | Action |
-|---|---|
-| `Tab` / `Shift+Tab` | Move through duration → up → down → play/pause → stop → menu |
-| `Space` / `Enter` | Press the focused button |
-| `Space` | Start / pause / resume, from anywhere |
-| `↑` / `↓` | Nudge the duration by a minute, while it has focus |
+| Key                 | Action                                                                                |
+|---------------------|---------------------------------------------------------------------------------------|
+| `Tab` / `Shift+Tab` | Move through duration → up → down → play/pause → stop → menu                          |
+| `Space` / `Enter`   | Press the focused button                                                              |
+| `Space`             | Start / pause / resume, from anywhere                                                 |
+| `↑` / `↓`           | Nudge the duration by a minute, while it has focus                                    |
 | `Ctrl+↑` / `Ctrl+↓` | Nudge by a minute from anywhere — the duration when idle, the live round when running |
-| `Ctrl+.` | Stop the session |
-| `Ctrl+,` | Open Settings |
-| `Esc` | Close a dialog |
+| `Ctrl+.`            | Stop the session                                                                      |
+| `Ctrl+,`            | Open Settings                                                                         |
+| `Esc`               | Close a dialog                                                                        |
 
 ## Log
 
@@ -129,6 +129,7 @@ uv run habito --test-mode
 ```
 
 For trying the UI out without polluting your real record. In this mode Habito:
+
 - writes events to a throwaway file in your temp directory
 - leaves `settings.json` unwritten — format changes apply to the run only;
 - paints the entire app red, so it can't be mistaken for a real session.
