@@ -18,7 +18,7 @@ A minimalist, keyboard-navigable cross-platform Pomodoro tracker for developers.
 - A calendar of your streak: a month at a glance, green on every day you hit your goal.
 - Goal Tracking: low, middle and high goal each with indicators on the calendar
 - Timer Templates: setup several pomodoro templates with different study and break timers
-- Backfilling: fill in sessions if you forgot to track a session or want to migrate.
+- Backfilling: fill in sessions that you forgot to track by hand.
 
 ## Requirements
 
