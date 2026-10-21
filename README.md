@@ -53,7 +53,8 @@ Verify everything is wired up — this should report `Evidence: READY`:
 uv run habito doctor
 ```
 
-Settings live in [`config/settings.json`](config/settings.json)
+Shared settings live in [`config/settings.json`](config/settings.json). The app saves your
+own changes to a gitignored `config/settings.local.json`, seeded from the shared file.
 
 ## Usage
 
@@ -102,7 +103,7 @@ control draws a visible focus ring.
 ```
 src/habito/
 ├── domain/        Pydantic event models — the append-only log's entries
-├── config/        settings.json loading + validation
+├── config/        settings loading + validation
 ├── storage/       append-only JSONL event store
 ├── engine/        Pomodoro state machine + injectable Clock
 ├── projections/   fold events → daily summaries, resumability, known tags
@@ -131,7 +132,7 @@ uv run habito --test-mode
 For trying the UI out without polluting your real record. In this mode Habito:
 
 - writes events to a throwaway file in your temp directory
-- leaves `settings.json` unwritten — format changes apply to the run only;
+- leaves your settings unwritten — format changes apply to the run only;
 - paints the entire app red, so it can't be mistaken for a real session.
 
 Run the suite — unit tests, UI tests, and a hermetic end-to-end evidence test:

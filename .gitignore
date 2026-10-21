@@ -27,7 +27,7 @@ logs/
 .idea/
 
 # NOTE: the tamper-evident event log lives in a SEPARATE data repo
-# (see config/settings.toml -> [paths].data_repo), so it is not affected
+# (see config/settings.json -> paths.data_repo), so it is not affected
 # by this file.
 
 # Organization files
@@ -35,5 +35,7 @@ TODO.md
 icon-inspiration
 one-more-minute-notes.md
 
-# Personal --config override for fast --test-mode runs (see habito.app module docstring)
-config/test-settings.json
+# This machine's own settings, which the app saves to (see habito.config.loader), and the
+# personal --config override for fast --test-mode runs (see habito.app module docstring)
+config/settings.local.json
+config/settings.test.json

@@ -1,4 +1,9 @@
-"""Read and write ``config/settings.json``.
+"""Read ``config/settings.json`` and ``config/settings.local.json``, write the local one.
+
+``settings.json`` is committed and holds the shared settings. ``settings.local.json`` is
+gitignored and holds this machine's own copy. The app reads the local file when it exists
+and the shared one otherwise, and every save goes to the local file. So a change made in
+the UI never shows up as an uncommitted edit, and the shared file only changes by hand.
 
 JSON rather than TOML because the file is not meant to be read for explanation — the
 models are. Once comments stop being worth preserving, TOML costs a third-party writer
@@ -14,7 +19,8 @@ from pathlib import Path
 
 from .models import Config
 
-_CONFIG_RELPATH = Path("config") / "settings.json"
+_SHARED_RELPATH = Path("config") / "settings.json"
+LOCAL_RELPATH = Path("config") / "settings.local.json"
 
 # Injected by the loader rather than read from the file, so they must not be written back.
 _INJECTED = {"project_root", "config_path"}
@@ -33,15 +39,22 @@ def load_config(
     project_root: Path | None = None,
     config_path: Path | None = None,
 ) -> Config:
-    """Read the JSON config (missing keys fall back to model defaults)."""
+    """Read the JSON config (missing keys fall back to model defaults).
+
+    An explicit ``config_path`` is both read and written. Without one, the local file is
+    read if it exists, else the shared one, and saves go to the local file.
+    """
     if project_root is None:
         project_root = find_project_root()
     if config_path is None:
-        config_path = project_root / _CONFIG_RELPATH
+        config_path = project_root / LOCAL_RELPATH
+        read_path = config_path if config_path.exists() else project_root / _SHARED_RELPATH
+    else:
+        read_path = config_path
 
     data: dict[str, object] = {}
-    if config_path.exists():
-        data = json.loads(config_path.read_text(encoding="utf-8"))
+    if read_path.exists():
+        data = json.loads(read_path.read_text(encoding="utf-8"))
 
     data["project_root"] = project_root
     data["config_path"] = config_path

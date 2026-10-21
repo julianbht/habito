@@ -1,8 +1,9 @@
-"""Reading and writing ``settings.json``.
+"""Reading and writing the settings files.
 
 A save writes the whole config rather than the touched section, so the thing worth
 asserting is that a round-trip brings back the settings the UI can't reach as well as the
-ones it can.
+ones it can. Without ``--config``, saves go to the gitignored local file and the committed
+shared file is only ever read.
 """
 
 from __future__ import annotations
@@ -84,3 +85,30 @@ def test_saving_preserves_a_hand_set_extras_flag(tmp_path):
     reloaded = load_config(project_root=tmp_path, config_path=cfg_file)
     assert reloaded.extras.enabled is True
     assert reloaded.extras.wakeup.habit == "sleep"
+
+
+def _write(path, data) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def test_without_a_local_file_the_shared_one_is_read_and_left_unwritten(tmp_path):
+    shared = tmp_path / "config" / "settings.json"
+    _write(shared, {"goals": {"low_minutes": 50}})
+
+    config = load_config(project_root=tmp_path)
+    assert config.goals.low_minutes == 50
+
+    config.goals = config.goals.model_copy(update={"low_minutes": 70})
+    save_config(config)
+
+    assert json.loads(shared.read_text(encoding="utf-8")) == {"goals": {"low_minutes": 50}}
+    local = tmp_path / "config" / "settings.local.json"
+    assert json.loads(local.read_text(encoding="utf-8"))["goals"]["low_minutes"] == 70
+
+
+def test_a_local_file_wins_over_the_shared_one(tmp_path):
+    _write(tmp_path / "config" / "settings.json", {"goals": {"low_minutes": 50}})
+    _write(tmp_path / "config" / "settings.local.json", {"goals": {"low_minutes": 70}})
+
+    assert load_config(project_root=tmp_path).goals.low_minutes == 70

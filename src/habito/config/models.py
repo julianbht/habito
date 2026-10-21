@@ -307,11 +307,11 @@ class Config(BaseModel):
     paths: PathsConfig = Field(default_factory=PathsConfig)
 
     project_root: Path
-    config_path: Path | None = None  # the settings.json this config was loaded from
+    config_path: Path | None = None  # the settings file saves go to
 
     def settings_file(self) -> Path:
-        """The settings.json to read/write (the loaded one, or the default location)."""
-        return self.config_path or (self.project_root / "config" / "settings.json")
+        """The settings file to write (the loader's choice, or the local default)."""
+        return self.config_path or (self.project_root / "config" / "settings.local.json")
 
     def data_repo_path(self) -> Path:
         """Absolute path of the separate git repo that stores the evidence log."""

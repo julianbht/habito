@@ -166,7 +166,7 @@ class ConfigEditor:
         return self._save()
 
     def _save(self) -> Applied:
-        """Write the config back, unless this run must not touch ``settings.json``.
+        """Write the config back, unless this run must not touch the settings file.
 
         A failed write doesn't undo the change — it's already in force for this session —
         so this reports success with a warning rather than a rejection.
@@ -176,5 +176,7 @@ class ConfigEditor:
         try:
             save_config(self._config)
         except OSError as exc:
-            return Applied(True, f"Applied, but couldn't write settings.json: {exc}")
+            return Applied(
+                True, f"Applied, but couldn't write {self._config.settings_file().name}: {exc}"
+            )
         return Applied(True)

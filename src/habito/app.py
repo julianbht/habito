@@ -10,9 +10,9 @@ others' construction. Subcommands:
 ``--test-mode`` runs the UI against a throwaway log with no evidence worker, so the real
 data repo is never touched. It paints the whole app red so you can't mistake it for a
 real session, and — unless ``--config`` says otherwise — loads settings from a gitignored
-``config/test-settings.json`` instead of ``config/settings.json``, so poking at the UI
-(e.g. a 1-minute, 1-round Pomodoro) never needs the real settings touched or reverted.
-Pass ``--config config/settings.json`` explicitly to use the real settings while in test
+``config/settings.test.json`` instead of your own settings, so poking at the UI (e.g. a
+1-minute, 1-round Pomodoro) never needs the real settings touched or reverted. Pass
+``--config config/settings.local.json`` explicitly to use your own settings while in test
 mode anyway.
 """
 
@@ -264,8 +264,8 @@ def main(argv: list[str] | None = None) -> int:
         "--config",
         type=Path,
         default=None,
-        help="path to settings.json (default: config/test-settings.json in --test-mode, "
-        "else config/settings.json)",
+        help="settings file to read and write (default: config/settings.test.json in "
+        "--test-mode, else config/settings.local.json, seeded from config/settings.json)",
     )
     parser.add_argument(
         "--test-mode",
@@ -281,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
         # touched or reverted afterwards — pass --config explicitly to use the real one
         # while in test mode anyway. Falls back to defaults like any other config path if
         # it doesn't exist yet (see load_config).
-        config_path = project_root / "config" / "test-settings.json"
+        config_path = project_root / "config" / "settings.test.json"
 
     config = load_config(project_root=project_root, config_path=config_path)
     _configure_logging(config.project_root)

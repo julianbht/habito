@@ -562,6 +562,15 @@ exception, earned by a concrete reason (e.g. `paths.data_repo` and the git remot
 set once per machine, and `extras.enabled` is a which-build-is-this choice — see § Extras).
 When in doubt, wire it up.
 
+**Two files.** `config/settings.json` is committed and holds the shared settings.
+`config/settings.local.json` is gitignored and holds this machine's own. `load_config`
+reads the local file when it exists, else the shared one, and every save goes to the local
+file, so a change in the UI never leaves an uncommitted edit behind. The local file is a
+full copy rather than an overlay: a save writes the whole config (see `config.loader`), and
+an overlay would need a diff against the shared file on every save. The cost is that a later
+change to the shared file does not reach an existing local one. `--config` names one file
+that is both read and written.
+
 Three entry points, one per way a setting changes: `apply_work_minutes` for the timer's
 duration field, `apply_templates` for the templates manager and the timer's template
 switch, and `apply_settings` for the whole dialog. The session format (work, break, rounds)

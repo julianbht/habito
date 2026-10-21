@@ -11,11 +11,11 @@ from unittest.mock import patch
 from habito import app as app_module
 
 
-def test_test_mode_defaults_to_test_settings_json(tmp_path, monkeypatch):
+def test_test_mode_defaults_to_settings_test_json(tmp_path, monkeypatch):
     monkeypatch.setattr(app_module, "find_project_root", lambda: tmp_path)
     config_dir = tmp_path / "config"
     config_dir.mkdir()
-    (config_dir / "test-settings.json").write_text(
+    (config_dir / "settings.test.json").write_text(
         '{"pomodoro": {"templates": [{"rounds": 1}]}}', encoding="utf-8"
     )
 
@@ -24,14 +24,14 @@ def test_test_mode_defaults_to_test_settings_json(tmp_path, monkeypatch):
 
     config = doctor.call_args[0][0]
     assert config.pomodoro.active().rounds == 1
-    assert config.config_path == config_dir / "test-settings.json"
+    assert config.config_path == config_dir / "settings.test.json"
 
 
 def test_without_test_mode_the_real_settings_file_is_used(tmp_path, monkeypatch):
     monkeypatch.setattr(app_module, "find_project_root", lambda: tmp_path)
     config_dir = tmp_path / "config"
     config_dir.mkdir()
-    (config_dir / "test-settings.json").write_text(
+    (config_dir / "settings.test.json").write_text(
         '{"pomodoro": {"templates": [{"rounds": 1}]}}', encoding="utf-8"
     )
 
@@ -39,10 +39,10 @@ def test_without_test_mode_the_real_settings_file_is_used(tmp_path, monkeypatch)
         app_module.main(["doctor"])
 
     config = doctor.call_args[0][0]
-    # config/settings.json doesn't exist, so this is the built-in default — proof
-    # config/test-settings.json was never consulted.
+    # No settings file exists, so this is the built-in default — proof
+    # config/settings.test.json was never consulted.
     assert config.pomodoro.active().rounds == 4
-    assert config.config_path == config_dir / "settings.json"
+    assert config.config_path == config_dir / "settings.local.json"
 
 
 def test_explicit_config_wins_over_the_test_mode_default(tmp_path, monkeypatch):
@@ -51,7 +51,7 @@ def test_explicit_config_wins_over_the_test_mode_default(tmp_path, monkeypatch):
     config_dir.mkdir()
     real = config_dir / "settings.json"
     real.write_text('{"pomodoro": {"templates": [{"rounds": 7}]}}', encoding="utf-8")
-    (config_dir / "test-settings.json").write_text(
+    (config_dir / "settings.test.json").write_text(
         '{"pomodoro": {"templates": [{"rounds": 1}]}}', encoding="utf-8"
     )
 
