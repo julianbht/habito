@@ -1,12 +1,17 @@
 """Thin, path-scoped wrapper over the ``git`` CLI, run inside the data repo.
 
-Deliberately minimal: the evidence flow only needs add / commit / push and a couple of
-status checks. All commands run with ``cwd`` set to the data repo, so this repo (the code
+Deliberately minimal: the evidence flow only needs add / commit / pull / push and a couple
+of status checks. All commands run with ``cwd`` set to the data repo, so this repo (the code
 repo) is never touched.
+
+Git never prompts for credentials here. Habito has no console, so a prompt would wait
+forever where nobody can see it. A command that needs credentials it doesn't have fails
+instead, and the caller treats that like being offline.
 """
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -25,14 +30,21 @@ class GitRepo:
     def __init__(self, cwd: Path) -> None:
         self.cwd = Path(cwd)
 
-    def _run(self, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-        proc = subprocess.run(
-            ["git", *args],
-            cwd=self.cwd,
-            capture_output=True,
-            text=True,
-            creationflags=_NO_WINDOW,
-        )
+    def _run(
+        self, *args: str, check: bool = True, timeout: float | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        try:
+            proc = subprocess.run(
+                ["git", *args],
+                cwd=self.cwd,
+                capture_output=True,
+                text=True,
+                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+                timeout=timeout,
+                creationflags=_NO_WINDOW,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise GitError(list(args), -1, f"timed out after {exc.timeout}s") from exc
         if check and proc.returncode != 0:
             raise GitError(list(args), proc.returncode, proc.stderr)
         return proc
@@ -58,6 +70,12 @@ class GitRepo:
         except ValueError:
             return 0
 
+    def merge_attribute(self, path: str) -> str | None:
+        """The merge driver ``.gitattributes`` sets for ``path``, or None when unset."""
+        proc = self._run("check-attr", "merge", "--", path, check=False)
+        value = proc.stdout.rsplit(":", 1)[-1].strip()
+        return None if proc.returncode != 0 or value in ("", "unspecified") else value
+
     def has_staged_changes(self, path: str) -> bool:
         """True if ``path`` has staged changes to commit (``git diff --cached``)."""
         proc = self._run("diff", "--cached", "--quiet", "--", path, check=False)
@@ -70,8 +88,18 @@ class GitRepo:
     def commit(self, path: str, message: str) -> None:
         self._run("commit", "-m", message, "--", path)
 
-    def pull_rebase(self, remote: str, branch: str) -> None:
-        self._run("pull", "--rebase", remote, branch)
+    def pull_rebase(self, remote: str, branch: str, timeout: float | None = None) -> None:
+        """Rebase local commits onto the remote's, or leave the repo as it was.
 
-    def push(self, remote: str, branch: str) -> None:
-        self._run("push", remote, branch)
+        A failed rebase is aborted, so the repo is never left stopped halfway, which would
+        make every later commit and push fail too. ``--autostash`` lets the pull run while
+        a day file holds a line not yet committed.
+        """
+        try:
+            self._run("pull", "--rebase", "--autostash", remote, branch, timeout=timeout)
+        except GitError:
+            self._run("rebase", "--abort", check=False)
+            raise
+
+    def push(self, remote: str, branch: str, timeout: float | None = None) -> None:
+        self._run("push", remote, branch, timeout=timeout)

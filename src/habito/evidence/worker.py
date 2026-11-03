@@ -4,7 +4,10 @@ A single-consumer queue preserves event order. Network/git latency never blocks 
 On push failure the local commit still stands (the JSONL line is already fsynced) and the
 worker reports an ``unpushed`` status. The backlog is flushed by a later push attempt:
 when the next event fires, on startup (:meth:`flush`), and on graceful shutdown. A
-non-fast-forward rejection triggers one ``pull --rebase`` retry.
+non-fast-forward rejection, which means another machine pushed first, triggers one
+``pull --rebase`` retry. Both machines may have appended to the same day file; the data
+repo's ``*.jsonl merge=union`` attribute (see :func:`habito.app.init_data`) keeps both
+sides' lines, so that rebase does not stop on a conflict.
 """
 
 from __future__ import annotations
@@ -21,6 +24,10 @@ from habito.domain.events import Event
 from habito.evidence.git import GitError, GitRepo
 
 log = logging.getLogger("habito.evidence")
+
+# Long enough for a slow connection, short enough that a hung push doesn't hold up the
+# events queued behind it for good.
+_NETWORK_TIMEOUT_SECONDS = 60
 
 
 class _Signal(enum.Enum):
@@ -140,13 +147,13 @@ class EvidenceWorker:
     def _try_push(self) -> bool:
         cfg = self._config
         try:
-            self._repo.push(cfg.remote, cfg.branch)
+            self._repo.push(cfg.remote, cfg.branch, timeout=_NETWORK_TIMEOUT_SECONDS)
             return True
         except GitError as first:
             # Likely offline, or a non-fast-forward. Try one rebase+push, else defer.
             try:
-                self._repo.pull_rebase(cfg.remote, cfg.branch)
-                self._repo.push(cfg.remote, cfg.branch)
+                self._repo.pull_rebase(cfg.remote, cfg.branch, timeout=_NETWORK_TIMEOUT_SECONDS)
+                self._repo.push(cfg.remote, cfg.branch, timeout=_NETWORK_TIMEOUT_SECONDS)
                 return True
             except GitError as second:
                 log.warning("push deferred (retries on next event/flush): %s / %s", first, second)

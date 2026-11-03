@@ -709,6 +709,17 @@ building the calendar every time Settings is saved.
   directories and a `.gitignore`, so this is what lets one `EvidenceWorker` (one thread, one
   git-command queue) serve every habit's store rather than needing one worker per habit
   (see § Extras).
+- **Several machines, one at a time.** `app._pull_on_startup` runs `pull --rebase` before
+  any store is read, because every view and the resume prompt fold the log from disk. It
+  has a short timeout and an offline start runs on the local copy with a warning status.
+  Git never prompts (`GIT_TERMINAL_PROMPT=0` in `GitRepo`): the app has no console, so a
+  credential prompt would hang it invisibly.
+- **A day file both machines wrote merges by union.** The data repo's `.gitattributes` holds
+  `*.jsonl merge=union`. Each line is a whole event and the log is append-only, so keeping
+  both sides is always right, and the worker's rebase after a rejected push can't stop on a
+  conflict. `init-data` writes it into a new repo and commits it into an older one; doctor
+  warns when it's missing. A rebase that fails anyway is aborted (`GitRepo.pull_rebase`),
+  never left halfway: that would fail every later commit and push.
 - Backfilled events carry `origin = "backfilled"`, and the log view and `DailySummary` keep
   them separate from live evidence. The calendar deliberately does *not* — one cell per day
   has room for one question ("did this day count"), and a second encoding there was noise.

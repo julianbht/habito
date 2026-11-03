@@ -14,8 +14,9 @@ from datetime import UTC, datetime
 import pytest
 
 from conftest import make_config
+from habito import app as app_module
 from habito.actions.wakeup import build_wakeup_event
-from habito.config.models import EvidenceConfig
+from habito.config.models import Config, EvidenceConfig, PathsConfig
 from habito.engine.clock import FakeClock
 from habito.engine.pomodoro import PomodoroEngine
 from habito.evidence.git import GitRepo
@@ -223,3 +224,114 @@ def test_close_flush_pushes_backlog_after_reconnect(repos, tmp_path):
     worker.stop()
 
     assert repo.unpushed_count("origin", "main") == 0
+
+
+def _second_machine(remote, tmp_path):
+    """Another clone of the same remote: the other PC."""
+    other = tmp_path / "other-pc"
+    _git(tmp_path, "clone", "-q", str(remote), str(other))
+    _git(other, "config", "user.email", "test@habito.local")
+    _git(other, "config", "user.name", "Habito Test")
+    return other
+
+
+def _log_one_session(data):
+    store = EventStore(data, "study")
+    engine = PomodoroEngine(
+        make_config(rounds=1), sink=store.append, clock=FakeClock(), habit="study"
+    )
+    engine.start()
+    engine.stop()
+    return store
+
+
+def _commit_and_push(data):
+    _git(data, "add", ".")
+    _git(data, "commit", "-q", "-m", "other pc")
+    _git(data, "push", "-q", "origin", "main")
+
+
+def test_rejected_push_merges_a_day_file_both_machines_wrote(repos, tmp_path):
+    """One machine pushes a day, the other then logs the same day without pulling first.
+    The union merge keeps both sides' lines, so the worker's rebase-and-retry succeeds."""
+    remote, data = repos
+    (data / ".gitattributes").write_text("*.jsonl merge=union\n")
+    _commit_and_push(data)
+    other = _second_machine(remote, tmp_path)
+    _log_one_session(other)
+    _commit_and_push(other)
+
+    store = _log_one_session(data)
+    repo = GitRepo(data)
+    worker = EvidenceWorker(repo, EvidenceConfig(), ".")
+    worker.start()
+    worker.submit(store.read_all()[-1])
+    worker.wait_idle()
+    worker.stop()
+
+    assert repo.unpushed_count("origin", "main") == 0
+    assert len(store.read_all()) == 8
+    assert _git(data, "status", "--porcelain") == ""
+
+
+def test_failed_rebase_is_aborted_and_the_local_commit_kept(repos, tmp_path):
+    """Without the union merge the same case conflicts. The repo must not stay stopped
+    halfway through the rebase, or every later commit and push would fail too."""
+    remote, data = repos
+    other = _second_machine(remote, tmp_path)
+    _log_one_session(other)
+    _commit_and_push(other)
+
+    store = _log_one_session(data)
+    repo = GitRepo(data)
+    worker = EvidenceWorker(repo, EvidenceConfig(), ".")
+    worker.start()
+    worker.submit(store.read_all()[-1])
+    worker.wait_idle()
+    worker.stop()
+
+    assert not (data / ".git" / "rebase-merge").exists()
+    assert repo.unpushed_count("origin", "main") == 1
+    assert len(store.read_all()) == 4
+
+
+def test_startup_pull_brings_in_the_other_machines_events(repos, tmp_path):
+    remote, data = repos
+    other = _second_machine(remote, tmp_path)
+    _log_one_session(other)
+    _commit_and_push(other)
+
+    config = Config(project_root=tmp_path, paths=PathsConfig(data_repo=str(data)))
+    assert app_module._pull_on_startup(config)
+    assert len(EventStore(data, "study").read_all()) == 4
+
+
+def test_startup_pull_reports_an_unreachable_remote(repos, tmp_path):
+    _remote, data = repos
+    _git(data, "remote", "set-url", "origin", str(tmp_path / "offline.git"))
+    config = Config(project_root=tmp_path, paths=PathsConfig(data_repo=str(data)))
+    assert not app_module._pull_on_startup(config)
+
+
+def test_init_data_gives_a_new_repo_the_union_merge(tmp_path, monkeypatch):
+    for var in ("GIT_AUTHOR", "GIT_COMMITTER"):
+        monkeypatch.setenv(f"{var}_NAME", "Habito Test")
+        monkeypatch.setenv(f"{var}_EMAIL", "test@habito.local")
+    data = tmp_path / "habito-data"
+    config = Config(project_root=tmp_path, paths=PathsConfig(data_repo=str(data)))
+
+    app_module.init_data(config)
+
+    assert GitRepo(data).merge_attribute("x.jsonl") == "union"
+
+
+def test_init_data_adds_the_union_merge_to_an_existing_repo(repos, tmp_path):
+    _remote, data = repos
+    config = Config(project_root=tmp_path, paths=PathsConfig(data_repo=str(data)))
+
+    app_module.init_data(config)
+    app_module.init_data(config)  # a second run changes nothing
+
+    assert GitRepo(data).merge_attribute("x.jsonl") == "union"
+    assert _git(data, "status", "--porcelain") == ""
+    assert _git(data, "log", "--oneline").count("merge day files by union") == 1

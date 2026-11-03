@@ -5,7 +5,8 @@ others' construction. Subcommands:
 
     habito              launch the timer UI
     habito doctor       check config and the data repo's evidence readiness
-    habito init-data    create + ``git init`` the data repo (you still add the remote)
+    habito init-data    create + ``git init`` the data repo (you still add the remote), or
+                        add the union merge to one made before it existed
 
 ``--test-mode`` runs the UI against a throwaway log with no evidence worker, so the real
 data repo is never touched. It paints the whole app red so you can't mistake it for a
@@ -36,7 +37,7 @@ from habito.config.loader import find_project_root, load_config
 from habito.config.models import Config
 from habito.engine.clock import SystemClock
 from habito.engine.pomodoro import PomodoroEngine
-from habito.evidence.git import GitRepo
+from habito.evidence.git import GitError, GitRepo
 from habito.evidence.recorder import EvidenceRecorder
 from habito.evidence.worker import EvidenceWorker
 from habito.storage.event_store import EventStore
@@ -44,6 +45,16 @@ from habito.storage.event_store import EventStore
 # habito is a gui-script (no attached console), so a console child like git.exe would
 # otherwise flash its own new console window on every invocation.
 _NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
+# The window waits for the startup pull, so this is how long an unreachable remote can
+# hold it up.
+_STARTUP_PULL_TIMEOUT_SECONDS = 15
+
+# Every log line is a whole event and the log is append-only, so when two machines appended
+# to the same day file, keeping both sides' lines is always the right merge. Git's built-in
+# union driver does exactly that, which keeps a rebase after a rejected push from stopping
+# on a conflict.
+_GITATTRIBUTES = "*.jsonl merge=union\n"
 
 
 def _configure_logging(project_root: Path) -> None:
@@ -108,6 +119,25 @@ def _build_workout_store(config: Config, test_mode: bool = False) -> EventStore 
     return EventStore(root, config.extras.workout.habit, config.time.rollover_hour)
 
 
+def _pull_on_startup(config: Config) -> bool:
+    """Bring in what another machine pushed, before anything reads the log.
+
+    Every view and the resume prompt fold the log from disk, so this has to happen before
+    the stores are read. Returns False when the pull failed (offline, say); the app then
+    runs on the local copy, and the worker's rebase-and-retry handles the first push.
+    """
+    repo = GitRepo(config.data_repo_path())
+    cfg = config.evidence
+    if not repo.is_repo() or not repo.has_remote(cfg.remote):
+        return True  # nothing to pull from; _attach_evidence reports why
+    try:
+        repo.pull_rebase(cfg.remote, cfg.branch, timeout=_STARTUP_PULL_TIMEOUT_SECONDS)
+    except GitError as exc:
+        logging.getLogger("habito.evidence").warning("startup pull failed: %s", exc)
+        return False
+    return True
+
+
 def run_gui(config: Config, test_mode: bool = False) -> int:
     from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import QApplication
@@ -125,6 +155,7 @@ def run_gui(config: Config, test_mode: bool = False) -> int:
         # last week's fiddling — the app opens on a genuinely empty log. Only ever the
         # scratch dir: test_mode=True is passed literally.
         shutil.rmtree(_log_root(config, test_mode=True), ignore_errors=True)
+    pulled = test_mode or _pull_on_startup(config)
 
     engine, store = _build_engine_and_store(config, test_mode)
     wakeup_store = _build_wakeup_store(config, test_mode)
@@ -137,7 +168,7 @@ def run_gui(config: Config, test_mode: bool = False) -> int:
         print("            the data repo is not touched and settings.json is not written")
         app.set_status_mode("status: TEST MODE · not recorded", theme.ACCENT_TEST)
     else:
-        _attach_evidence(app, config, store, wakeup_store, workout_store)
+        _attach_evidence(app, config, store, wakeup_store, workout_store, pulled=pulled)
 
     app.show()
     app.offer_resume()
@@ -150,6 +181,7 @@ def _attach_evidence(
     store: EventStore,
     wakeup_store: EventStore | None = None,
     workout_store: EventStore | None = None,
+    pulled: bool = True,
 ) -> None:
     from habito.ui import theme
 
@@ -171,11 +203,14 @@ def _attach_evidence(
     if workout_store is not None:
         workout_store.subscribe(recorder)
     app.attach_worker(worker)
-    if repo.has_remote(config.evidence.remote):
-        app.set_status_mode("status: ready", theme.MUTED)
-        worker.flush()  # push any backlog left unpushed from a prior offline run
-    else:
+    if not repo.has_remote(config.evidence.remote):
         app.set_status_mode("status: local only (no remote)", theme.WARN)
+        return
+    if pulled:
+        app.set_status_mode("status: ready", theme.MUTED)
+    else:
+        app.set_status_mode("status: not pulled · log may be behind", theme.WARN)
+    worker.flush()  # push any backlog left unpushed from a prior offline run
 
 
 def doctor(config: Config) -> int:
@@ -207,6 +242,14 @@ def doctor(config: Config) -> int:
                 f"git remote add {config.evidence.remote} <github-url> && "
                 f"git push -u {config.evidence.remote} {config.evidence.branch}"
             )
+        if repo.merge_attribute("x.jsonl") == "union":
+            print("  [ok] day files merge with the union driver")
+        else:
+            # Not a readiness failure: every event is still committed and pushed. It only
+            # matters once a second machine writes to the same day file.
+            print("  [!] day files have no union merge (.gitattributes)")
+            print("      a push after using another machine can then stop on a conflict")
+            print("      fix: habito init-data")
     print("\nEvidence:", "READY" if ok else "NOT READY (events log locally until fixed)")
     return 0 if ok else 1
 
@@ -217,7 +260,7 @@ def init_data(config: Config) -> int:
     repo = GitRepo(path)
     if repo.is_repo():
         print(f"Already a git repo: {path}")
-        return 0
+        return _add_union_merge(repo, path)
 
     subprocess.run(
         ["git", "init", "-b", config.evidence.branch],
@@ -228,6 +271,7 @@ def init_data(config: Config) -> int:
     gitignore = path / ".gitignore"
     if not gitignore.exists():
         gitignore.write_text("# habito evidence repo — the events log IS tracked.\n")
+    (path / ".gitattributes").write_text(_GITATTRIBUTES)
     habit_dir = config.habit_dir_path()
     habit_dir.mkdir(parents=True, exist_ok=True)
     # Git tracks files, not directories, so the log dir needs a placeholder to survive
@@ -248,6 +292,25 @@ def init_data(config: Config) -> int:
         f"  cd {path} && git remote add {config.evidence.remote} <github-url> "
         f"&& git push -u {config.evidence.remote} {config.evidence.branch}"
     )
+    return 0
+
+
+def _add_union_merge(repo: GitRepo, path: Path) -> int:
+    """Give a data repo made before ``.gitattributes`` existed the union merge.
+
+    Committed rather than left for the worker's next event commit, so the change has a
+    commit of its own. The app's startup flush pushes it.
+    """
+    if repo.merge_attribute("x.jsonl") == "union":
+        return 0
+    gitattributes = path / ".gitattributes"
+    existing = gitattributes.read_text(encoding="utf-8") if gitattributes.exists() else ""
+    if existing and not existing.endswith("\n"):
+        existing += "\n"
+    gitattributes.write_text(existing + _GITATTRIBUTES, encoding="utf-8")
+    repo.add(".gitattributes")
+    repo.commit(".gitattributes", "merge day files by union")
+    print("Added the union merge for day files (.gitattributes)")
     return 0
 
 
