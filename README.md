@@ -24,6 +24,9 @@ A minimalist, keyboard-navigable cross-platform Pomodoro tracker for developers.
 
 Python 3.11+ • [uv](https://docs.astral.sh/uv/) • git
 
+On Linux, Qt also needs libxcb-cursor0 to open a window (`sudo apt install libxcb-cursor0`
+on Debian, Ubuntu and Mint).
+
 ## Setup
 
 Install dependencies:
